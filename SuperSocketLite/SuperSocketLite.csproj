@@ -1,16 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <PackageVersion>0.20.1</PackageVersion>
-    <Version>0.20.1</Version>	
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageVersion>0.90.0</PackageVersion>
+    <Version>0.90.0</Version>	
 	<PackageId>SuperSocketLite</PackageId>
 	<Authors>jacking75</Authors>
 	<Company>Com2us</Company>	
-    <Description>SuperSocket 1.16버전을 토대로 .NET Core로 포팅한 것. 불 필요한 기능은 제거</Description>
+    <Description>SuperSocketLite의 차기 버전</Description>
 	<PackageLicenseExpression>MIT</PackageLicenseExpression>
-	<PackageProjectUrl>https://github.com/jacking75/SuperSocketLite</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/jacking75/SuperSocketLite</RepositoryUrl>
+	<PackageProjectUrl>https://github.com/jacking75/SuperSocketLite2</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jacking75/SuperSocketLite2</RepositoryUrl>
     <PackageTags>SuperSocket;socket;GameServer</PackageTags>
 	
 	<PublishRepositoryUrl>true</PublishRepositoryUrl>

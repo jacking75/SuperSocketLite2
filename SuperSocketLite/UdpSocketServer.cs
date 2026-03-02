@@ -22,7 +22,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
     private int m_ConnectionCount = 0;
 
-    private IRequestHandler<TRequestInfo> m_RequestHandler;
+    private IRequestHandler<TRequestInfo>? m_RequestHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UdpSocketServer&lt;TRequestInfo&gt;"/> class.
@@ -39,7 +39,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
         m_IsUdpRequestInfo = typeof(TRequestInfo).IsSubclassOf(typeof(UdpRequestInfo));
 
-        m_UdpRequestFilter = ((IReceiveFilterFactory<TRequestInfo>)appServer.ReceiveFilterFactory).CreateFilter(appServer, null, null);
+        m_UdpRequestFilter = ((IReceiveFilterFactory<TRequestInfo>)appServer.ReceiveFilterFactory).CreateFilter(appServer, null!, null!);
     }
 
     /// <summary>
@@ -48,13 +48,23 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     /// <param name="listener">The listener.</param>
     /// <param name="client">The client.</param>
     /// <param name="state">The state.</param>
-    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object state)
+    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object? state)
     {
         var paramArray = state as object[];
 
+        if (paramArray == null)
+            return;
+
         var receivedData = paramArray[0] as byte[];
         var socketAddress = paramArray[1] as SocketAddress;
+
+        if (receivedData == null || socketAddress == null)
+            return;
+
         var remoteEndPoint = (socketAddress.Family == AddressFamily.InterNetworkV6 ? m_EndPointIPv6.Create(socketAddress) : m_EndPointIPv4.Create(socketAddress)) as IPEndPoint;
+
+        if (remoteEndPoint == null)
+            return;
 
         try
         {
@@ -74,7 +84,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         }
     }
 
-    IAppSession CreateNewSession(Socket listenSocket, IPEndPoint remoteEndPoint, string sessionID)
+    IAppSession? CreateNewSession(Socket listenSocket, IPEndPoint remoteEndPoint, string sessionID)
     {
         if (!DetectConnectionNumber(remoteEndPoint))
             return null;
@@ -102,8 +112,8 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
     void ProcessPackageWithSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData)
     {
-        TRequestInfo requestInfo;
-        
+        TRequestInfo? requestInfo = default;
+
         string sessionID;
 
         int rest;
@@ -158,10 +168,10 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         {
             var socketSession = appSession.SocketSession as UdpSocketSession;
             //Client remote endpoint may change, so update session to ensure the server can find client correctly
-            socketSession.UpdateRemoteEndPoint(remoteEndPoint);
+            socketSession?.UpdateRemoteEndPoint(remoteEndPoint);
         }
 
-        m_RequestHandler.ExecuteCommand(appSession, requestInfo);
+        m_RequestHandler?.ExecuteCommand(appSession, requestInfo!);
     }
 
     void ProcessPackageWithoutSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData)
@@ -218,7 +228,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
     }
 
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint localEndPoint)
+    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
         var taskSource = new TaskCompletionSource<ActiveConnectResult>();
         var socket = new Socket(targetEndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
@@ -230,7 +240,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
             socket.Bind(localEndPoint);
         }
 
-        var session = CreateNewSession(socket, (IPEndPoint)targetEndPoint, targetEndPoint.ToString());
+        var session = CreateNewSession(socket, (IPEndPoint)targetEndPoint, targetEndPoint.ToString()!);
 
         if (session == null)
             taskSource.SetException(new Exception("Failed to create session for this socket."));

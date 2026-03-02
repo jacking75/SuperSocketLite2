@@ -25,7 +25,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the app server instance assosiated with the session.
     /// </summary>
-    public virtual AppServerBase<TAppSession, TRequestInfo> AppServer { get; private set; }
+    public virtual AppServerBase<TAppSession, TRequestInfo> AppServer { get; private set; } = null!;
 
     /// <summary>
     /// Gets the app server instance assosiated with the session.
@@ -41,9 +41,9 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The charset.
     /// </value>
-    public Encoding Charset { get; set; }
+    public Encoding Charset { get; set; } = null!;
 
-    private IDictionary<object, object> m_Items;
+    private IDictionary<object, object>? m_Items;
 
     /// <summary>
     /// Gets the items dictionary, only support 10 items maximum
@@ -80,7 +80,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The prev command.
     /// </value>
-    public string PrevCommand { get; set; }
+    public string? PrevCommand { get; set; }
 
     /// <summary>
     /// Gets or sets the current executing command.
@@ -88,7 +88,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The current command.
     /// </value>
-    public string CurrentCommand { get; set; }
+    public string? CurrentCommand { get; set; }
 
 
     /// <summary>
@@ -106,7 +106,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    public IPEndPoint LocalEndPoint
+    public IPEndPoint? LocalEndPoint
     {
         get { return SocketSession.LocalEndPoint; }
     }
@@ -114,7 +114,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the remote endpoint of client.
     /// </summary>
-    public IPEndPoint RemoteEndPoint
+    public IPEndPoint? RemoteEndPoint
     {
         get { return SocketSession.RemoteEndPoint; }
     }
@@ -143,12 +143,12 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the session ID.
     /// </summary>
-    public string SessionID { get; private set; }
+    public string SessionID { get; private set; } = null!;
 
     /// <summary>
     /// Gets the socket session of the AppSession.
     /// </summary>
-    public ISocketSession SocketSession { get; private set; }
+    public ISocketSession SocketSession { get; private set; } = null!;
 
     /// <summary>
     /// Gets the config of the server.
@@ -158,7 +158,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
         get { return AppServer.Config; }
     }
 
-    IReceiveFilter<TRequestInfo> m_ReceiveFilter;
+    IReceiveFilter<TRequestInfo> m_ReceiveFilter = null!;
 
     
     
@@ -236,7 +236,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <param name="e">The exception.</param>
     protected virtual void HandleException(Exception e)
     {
-        Logger.Error(this.ToString(), e);
+        Logger.Error(this.ToString()!, e);
         this.Close(CloseReason.ApplicationError);
     }
 
@@ -515,7 +515,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <param name="rest">The rest, the size of the data which has not been processed</param>
     /// <param name="offsetDelta">return offset delta of next receiving buffer.</param>
     /// <returns></returns>
-    TRequestInfo FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
+    TRequestInfo? FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
     {
         if (!AppServer.OnRawDataReceived(this, readBuffer, offset, length))
         {

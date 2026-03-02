@@ -15,5 +15,5 @@ public interface ISessionBase
     /// <summary>
     /// Gets the remote endpoint.
     /// </summary>
-    IPEndPoint RemoteEndPoint { get; }
+    IPEndPoint? RemoteEndPoint { get; }
 }

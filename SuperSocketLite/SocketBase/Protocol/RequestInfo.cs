@@ -39,12 +39,12 @@ public class RequestInfo<TRequestBody> : IRequestInfo<TRequestBody>
     /// <summary>
     /// Gets the key of this request.
     /// </summary>
-    public string Key { get; private set; }
+    public string Key { get; private set; } = null!;
 
     /// <summary>
     /// Gets the body.
     /// </summary>
-    public TRequestBody Body { get; private set; }
+    public TRequestBody Body { get; private set; } = default!;
 }
 
 /// <summary>
@@ -87,5 +87,5 @@ public class RequestInfo<TRequestHeader, TRequestBody> : RequestInfo<TRequestBod
     /// <summary>
     /// Gets the header.
     /// </summary>
-    public TRequestHeader Header { get; private set; }
+    public TRequestHeader Header { get; private set; } = default!;
 }

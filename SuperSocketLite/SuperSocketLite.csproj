@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
     <PackageVersion>0.90.0</PackageVersion>
     <Version>0.90.0</Version>	
 	<PackageId>SuperSocketLite</PackageId>

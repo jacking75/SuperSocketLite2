@@ -12,7 +12,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 {
     private bool m_IsReset;
 
-    private SocketAsyncEventArgs m_SocketEventArgSend;
+    private SocketAsyncEventArgs? m_SocketEventArgSend;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy)
         : this(client, socketAsyncProxy, false)
@@ -72,22 +72,22 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         return false;
     }
 
-    void OnSendingCompleted(object sender, SocketAsyncEventArgs e)
+    void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
     {
         var queue = e.UserToken as SendingQueue;
 
         if (!ProcessCompleted(e))
         {
             ClearPrevSendState(e);
-            OnSendError(queue, CloseReason.SocketError);
+            OnSendError(queue!, CloseReason.SocketError);
             return;
         }
 
-        var count = queue.Sum(q => q.Count);
+        var count = queue!.Sum(q => q.Count);
 
         if (count != e.BytesTransferred)
         {
-            queue.InternalTrim(e.BytesTransferred);
+            queue!.InternalTrim(e.BytesTransferred);
             AppSession.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {queue.Sum(q => q.Count)} bytes right now.");
             ClearPrevSendState(e);
             SendAsync(queue);
@@ -95,7 +95,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
 
         ClearPrevSendState(e);
-        base.OnSendingCompleted(queue);
+        base.OnSendingCompleted(queue!);
     }
 
     private void ClearPrevSendState(SocketAsyncEventArgs e)
@@ -138,7 +138,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             if (!OnReceiveStarted())
                 return;
 
-            willRaiseEvent = Client.ReceiveAsync(e);
+            willRaiseEvent = Client!.ReceiveAsync(e);
         }
         catch (Exception exc)
         {
@@ -166,7 +166,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 if (client == null)
                     return;
 
-                client.Send(item.Array, item.Offset, item.Count, SocketFlags.None);
+                client.Send(item.Array!, item.Offset, item.Count, SocketFlags.None);
             }
 
             OnSendingCompleted(queue);
@@ -184,14 +184,15 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         try
         {
-            m_SocketEventArgSend.UserToken = queue;
+            var sae = m_SocketEventArgSend!;
+            sae.UserToken = queue;
 
             if (queue.Count > 1)
-                m_SocketEventArgSend.BufferList = queue;
+                sae.BufferList = queue;
             else
             {
                 var item = queue[0];
-                m_SocketEventArgSend.SetBuffer(item.Array, item.Offset, item.Count);
+                sae.SetBuffer(item.Array, item.Offset, item.Count);
             }
 
             var client = Client;
@@ -202,14 +203,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 return;
             }
 
-            if (!client.SendAsync(m_SocketEventArgSend))
-                OnSendingCompleted(client, m_SocketEventArgSend);
+            if (!client.SendAsync(sae))
+                OnSendingCompleted(client, sae);
         }
         catch (Exception e)
         {
             LogError(e);
 
-            ClearPrevSendState(m_SocketEventArgSend);
+            ClearPrevSendState(m_SocketEventArgSend!);
             OnSendError(queue, CloseReason.SocketError);
         }
     }
@@ -230,7 +231,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         try
         {
-            offsetDelta = this.AppSession.ProcessRequest(e.Buffer, e.Offset, e.BytesTransferred, true);
+            offsetDelta = this.AppSession.ProcessRequest(e.Buffer!, e.Offset, e.BytesTransferred, true);
         }
         catch (Exception exc)
         {

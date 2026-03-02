@@ -12,8 +12,8 @@ namespace SuperSocketLite.Common;
 public class BufferManager
 {
     int m_numBytes;                 // the total number of bytes controlled by the buffer pool
-    byte[] m_buffer;                // the underlying byte array maintained by the Buffer Manager
-    Stack<int> m_freeIndexPool;     // 
+    byte[] m_buffer = null!;        // the underlying byte array maintained by the Buffer Manager
+    Stack<int> m_freeIndexPool;     //
     int m_currentIndex;
     int m_bufferSize;
 

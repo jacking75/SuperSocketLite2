@@ -9,7 +9,7 @@ public class ReuseLockBaseBuffer
     Int32 ReadPos = 0;
     Int32 WritePos = 0;
     Int32 BufferSize = 0;
-    byte[] mBuffer = null;
+    byte[] mBuffer = null!;
 
     Int32 MinumBufferSize = 0;
 

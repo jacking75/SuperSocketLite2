@@ -13,9 +13,9 @@ class TcpAsyncSocketListener : SocketListenerBase
 {
     private int m_ListenBackLog;
 
-    private Socket m_ListenSocket;
+    private Socket? m_ListenSocket;
 
-    private SocketAsyncEventArgs m_AcceptSAE;
+    private SocketAsyncEventArgs? m_AcceptSAE;
 
     public TcpAsyncSocketListener(ListenerInfo info)
         : base(info)
@@ -59,14 +59,14 @@ class TcpAsyncSocketListener : SocketListenerBase
     }
 
 
-    void acceptEventArg_Completed(object sender, SocketAsyncEventArgs e)
+    void acceptEventArg_Completed(object? sender, SocketAsyncEventArgs e)
     {
         ProcessAccept(e);
     }
 
     void ProcessAccept(SocketAsyncEventArgs e)
     {
-        Socket socket = null;
+        Socket? socket = null;
 
         if (e.SocketError != SocketError.Success)
         {
@@ -89,7 +89,7 @@ class TcpAsyncSocketListener : SocketListenerBase
 
         try
         {
-            willRaiseEvent = m_ListenSocket.AcceptAsync(e);
+            willRaiseEvent = m_ListenSocket!.AcceptAsync(e);
         }
         catch (ObjectDisposedException)
         {
@@ -129,7 +129,7 @@ class TcpAsyncSocketListener : SocketListenerBase
             if (m_ListenSocket == null)
                 return;
 
-            m_AcceptSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(acceptEventArg_Completed);
+            m_AcceptSAE!.Completed -= new EventHandler<SocketAsyncEventArgs>(acceptEventArg_Completed);
             m_AcceptSAE.Dispose();
             m_AcceptSAE = null;
 

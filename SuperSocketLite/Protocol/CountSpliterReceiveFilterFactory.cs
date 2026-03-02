@@ -21,7 +21,7 @@ public class CountSpliterReceiveFilterFactory<TRequestFilter, TRequestInfo> : IR
     /// <param name="appSession">The app session.</param>
     /// <param name="remoteEndPoint">The remote end point.</param>
     /// <returns></returns>
-    public IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint remoteEndPoint)
+    public IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         var config = appServer.Config;
 
@@ -69,7 +69,7 @@ public class  CountSpliterReceiveFilterFactory : IReceiveFilterFactory<StringReq
     /// <param name="appSession">The app session.</param>
     /// <param name="remoteEndPoint">The remote end point.</param>
     /// <returns></returns>
-    public IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint remoteEndPoint)
+    public IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         return new CountSpliterReceiveFilter(m_Spliter, m_SpliterCount);
     }

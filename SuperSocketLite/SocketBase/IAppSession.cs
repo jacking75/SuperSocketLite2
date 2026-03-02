@@ -36,7 +36,7 @@ public interface IAppSession : ISessionBase
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    IPEndPoint LocalEndPoint { get; }
+    IPEndPoint? LocalEndPoint { get; }
 
     /// <summary>
     /// Gets or sets the last active time of the session.
@@ -82,7 +82,7 @@ public interface IAppSession : ISessionBase
     /// <value>
     /// The prev command.
     /// </value>
-    string PrevCommand { get; set; }
+    string? PrevCommand { get; set; }
 
     /// <summary>
     /// Gets or sets the current executing command.
@@ -90,7 +90,7 @@ public interface IAppSession : ISessionBase
     /// <value>
     /// The current command.
     /// </value>
-    string CurrentCommand { get; set; }
+    string? CurrentCommand { get; set; }
 
     /// <summary>
     /// Gets the logger assosiated with this session.

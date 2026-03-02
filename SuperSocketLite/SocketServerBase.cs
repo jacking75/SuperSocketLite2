@@ -29,9 +29,9 @@ abstract class SocketServerBase : ISocketServer, IDisposable
     /// <value>
     /// The sending queue manager.
     /// </value>
-    internal ISmartPool<SendingQueue> SendingQueuePool { get; private set; }
+    internal ISmartPool<SendingQueue>? SendingQueuePool { get; private set; }
 
-    IPoolInfo ISocketServer.SendingQueuePool
+    IPoolInfo? ISocketServer.SendingQueuePool
     {
         get { return this.SendingQueuePool; }
     }
@@ -98,7 +98,7 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         return true;
     }
 
-    protected abstract void OnNewClientAccepted(ISocketListener listener, Socket client, object state);
+    protected abstract void OnNewClientAccepted(ISocketListener listener, Socket client, object? state);
 
     void OnListenerError(ISocketListener listener, Exception e)
     {
@@ -110,14 +110,14 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         logger.Error(string.Format("Listener ({0}) error: {1}", listener.EndPoint, e.Message), e);
     }
 
-    void OnListenerStopped(object sender, EventArgs e)
+    void OnListenerStopped(object? sender, EventArgs e)
     {
         var listener = sender as ISocketListener;
 
         ILog log = AppServer.Logger;
 
         if (log.IsDebugEnabled)
-            log.Debug($"Listener ({listener.EndPoint}) was stoppped");
+            log.Debug($"Listener ({listener?.EndPoint}) was stoppped");
     }
 
     protected abstract ISocketListener CreateListener(ListenerInfo listenerInfo);

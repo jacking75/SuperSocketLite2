@@ -19,7 +19,7 @@ public class ListenerConfig : IListenerConfig
     /// <summary>
     /// Gets the ip of listener
     /// </summary>
-    public string Ip { get; set; }
+    public string? Ip { get; set; }
 
     /// <summary>
     /// Gets the port of listener
@@ -35,5 +35,5 @@ public class ListenerConfig : IListenerConfig
     /// <summary>
     /// Gets/sets the security option, None/Default/Tls/Ssl/...
     /// </summary>
-    public string Security { get; set; }
+    public string? Security { get; set; }
 }

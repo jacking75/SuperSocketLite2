@@ -115,12 +115,12 @@ public interface ISocketSession : ISessionBase
     /// <summary>
     /// Gets the client socket.
     /// </summary>
-    Socket Client { get; }
+    Socket? Client { get; }
 
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    IPEndPoint LocalEndPoint { get; }
+    IPEndPoint? LocalEndPoint { get; }
 
     /// <summary>
     /// Gets or sets the secure protocol.
@@ -133,7 +133,7 @@ public interface ISocketSession : ISessionBase
     /// <summary>
     /// Occurs when [closed].
     /// </summary>
-    Action<ISocketSession, CloseReason> Closed { get; set; }
+    Action<ISocketSession, CloseReason>? Closed { get; set; }
 
     /// <summary>
     /// Gets the app session assosiated with this socket session.

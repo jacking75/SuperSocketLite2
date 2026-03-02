@@ -23,7 +23,7 @@ public class ActiveConnectResult
     /// <value>
     /// The connected session.
     /// </value>
-    public IAppSession Session { get; set; }
+    public IAppSession? Session { get; set; }
 }
 
 /// <summary>
@@ -44,5 +44,5 @@ public interface IActiveConnector
     /// <param name="targetEndPoint">The target end point.</param>
     /// <param name="localEndPoint">The local end point.</param>
     /// <returns></returns>
-    Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint, EndPoint localEndPoint);
+    Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint);
 }

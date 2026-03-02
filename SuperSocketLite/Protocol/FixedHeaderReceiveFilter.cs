@@ -20,7 +20,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
 
     private int m_BodyLength;
 
-    private ArraySegmentList m_BodyBuffer;
+    private ArraySegmentList m_BodyBuffer = null!;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FixedHeaderReceiveFilter&lt;TRequestInfo&gt;"/> class.
@@ -41,7 +41,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest.</param>
     /// <returns></returns>
-    public override TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         if (!m_FoundHeader)
             return base.Filter(readBuffer, offset, length, toBeCopied, out rest);
@@ -109,7 +109,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     /// <param name="length">The length.</param>
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <returns></returns>
-    protected override TRequestInfo ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
+    protected override TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
     {
         m_FoundHeader = true;
 
@@ -127,7 +127,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return ResolveRequestInfo(m_Header, null, 0, 0);//Empty body
     }
 
-    private TRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer)
+    private TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer)
     {
         return ResolveRequestInfo(header, bodyBuffer, 0, bodyBuffer.Length);
     }
@@ -149,7 +149,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected abstract TRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer, int offset, int length);
+    protected abstract TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[]? bodyBuffer, int offset, int length);
 
     /// <summary>
     /// Resets this instance.

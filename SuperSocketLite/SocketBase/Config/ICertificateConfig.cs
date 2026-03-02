@@ -10,12 +10,12 @@ public interface ICertificateConfig
     /// <summary>
     /// Gets the file path.
     /// </summary>
-    string FilePath { get; }
+    string? FilePath { get; }
 
     /// <summary>
     /// Gets the password.
     /// </summary>
-    string Password { get; }
+    string? Password { get; }
 
     /// <summary>
     /// Gets the the store where certificate locates.
@@ -23,12 +23,12 @@ public interface ICertificateConfig
     /// <value>
     /// The name of the store.
     /// </value>
-    string StoreName { get; }
+    string? StoreName { get; }
 
     /// <summary>
     /// Gets the thumbprint.
     /// </summary>
-    string Thumbprint { get; }
+    string? Thumbprint { get; }
 
 
     /// <summary>

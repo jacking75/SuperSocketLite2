@@ -14,7 +14,7 @@ public partial interface IServerConfig
     /// <value>
     /// The name of the server type.
     /// </value>
-    string ServerTypeName { get; }
+    string? ServerTypeName { get; }
 
     /// <summary>
     /// Gets the type definition of the appserver.
@@ -22,17 +22,17 @@ public partial interface IServerConfig
     /// <value>
     /// The type of the server.
     /// </value>
-    string ServerType { get; }
+    string? ServerType { get; }
 
     /// <summary>
     /// Gets the Receive filter factory.
     /// </summary>
-    string ReceiveFilterFactory { get; }
+    string? ReceiveFilterFactory { get; }
 
     /// <summary>
     /// Gets the ip.
     /// </summary>
-    string Ip { get; }
+    string? Ip { get; }
 
     /// <summary>
     /// Gets the port.
@@ -42,13 +42,13 @@ public partial interface IServerConfig
     /// <summary>
     /// Gets the options.
     /// </summary>
-    NameValueCollection Options { get; }
+    NameValueCollection? Options { get; }
 
 
     /// <summary>
     /// Gets the option elements.
     /// </summary>
-    NameValueCollection OptionElements { get; }
+    NameValueCollection? OptionElements { get; }
 
     /// <summary>
     /// Gets a value indicating whether this <see cref="IServerConfig"/> is disabled.
@@ -61,7 +61,7 @@ public partial interface IServerConfig
     /// <summary>
     /// Gets the name.
     /// </summary>
-    string Name { get; }
+    string? Name { get; }
 
     /// <summary>
     /// Gets the mode.
@@ -132,13 +132,13 @@ public partial interface IServerConfig
     /// Gets X509Certificate configuration.
     /// </summary>
     /// <value>X509Certificate configuration.</value>
-    ICertificateConfig Certificate { get; }
+    ICertificateConfig? Certificate { get; }
 
 
     /// <summary>
     /// Gets the security protocol, X509 certificate.
     /// </summary>
-    string Security { get; }
+    string? Security { get; }
 
 
     /// <summary>
@@ -168,12 +168,12 @@ public partial interface IServerConfig
     /// <value>
     /// The connection filter's name list, seperated by comma
     /// </value>
-    string ConnectionFilter { get; }
+    string? ConnectionFilter { get; }
 
     /// <summary>
     /// Gets the command loader, multiple values should be separated by comma.
     /// </summary>
-    string CommandLoader { get; }
+    string? CommandLoader { get; }
 
     /// <summary>
     /// Gets the start keep alive time, in seconds
@@ -202,12 +202,12 @@ public partial interface IServerConfig
     /// <summary>
     /// Gets the listeners' configuration.
     /// </summary>
-    IEnumerable<IListenerConfig> Listeners { get; }
+    IEnumerable<IListenerConfig>? Listeners { get; }
 
     /// <summary>
     /// Gets the log factory name.
     /// </summary>
-    string LogFactory { get; }
+    string? LogFactory { get; }
 
 
     /// <summary>
@@ -244,7 +244,7 @@ public partial interface IServerConfig
     /// <value>
     /// The text encoding.
     /// </value>
-    string TextEncoding { get; }
+    string? TextEncoding { get; }
 
 
     /// <summary>
@@ -253,16 +253,16 @@ public partial interface IServerConfig
     /// <value>
     /// The command assemblies.
     /// </value>
-    IEnumerable<ICommandAssemblyConfig> CommandAssemblies { get; }
+    IEnumerable<ICommandAssemblyConfig>? CommandAssemblies { get; }
 
-    
+
     /// <summary>
     /// Gets the default culture for this server.
     /// </summary>
     /// <value>
     /// The default culture.
     /// </value>
-    string DefaultCulture { get; }
+    string? DefaultCulture { get; }
 
 
     /// <summary>
@@ -275,11 +275,11 @@ public partial interface IServerConfig
 
 
     /// <summary>
-    /// µ¥ÀÌÅÍ¸¦ ¸ðÀº ÈÄ send ½º·¹µå¿¡¼­ ÀÏ°ýÀûÀ¸·Î º¸³»±â »ç¿ë ½ÃÀÇ send °£°Ý. ½Ã°£Àº ¹Ð¸®¼¼ÄÁµåÀÌ¸é 0 º¸´Ù Å©¸é »ç¿ë.
-    /// Å¬¶óÀÌ¾ðÆ®¿¡ µ¥ÀÌÅÍ¸¦ ÀÚÁÖ º¸³»´Â °æ¿ì¿¡¸¸ »ç¿ëÇÏ´Â °ÍÀÌ ÁÁ´Ù.
+    /// ï¿½ï¿½ï¿½ï¿½ï¿½Í¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ send ï¿½ï¿½ï¿½ï¿½ï¿½å¿¡ï¿½ï¿½ ï¿½Ï°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ send ï¿½ï¿½ï¿½ï¿½. ï¿½Ã°ï¿½ï¿½ï¿½ ï¿½Ð¸ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¸ï¿½ 0 ï¿½ï¿½ï¿½ï¿½ Å©ï¿½ï¿½ ï¿½ï¿½ï¿½.
+    /// Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Í¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ì¿¡ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ï´ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½.
     /// </summary>
     /// <value>
-    /// default´Â 0
+    /// defaultï¿½ï¿½ 0
     /// </value>
     int CollectSendIntervalMillSec { get; }
 }

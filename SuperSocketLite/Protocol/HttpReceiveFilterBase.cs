@@ -25,7 +25,7 @@ public abstract class HttpReceiveFilterBase<TRequestInfo> : TerminatorReceiveFil
     /// <summary>
     /// Gets the header items.
     /// </summary>
-    protected NameValueCollection HeaderItems { get; private set; }
+    protected NameValueCollection? HeaderItems { get; private set; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HttpReceiveFilterBase&lt;TRequestInfo&gt;"/> class.
@@ -45,7 +45,7 @@ public abstract class HttpReceiveFilterBase<TRequestInfo> : TerminatorReceiveFil
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest.</param>
     /// <returns></returns>
-    public override TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         if (!m_HeaderParsed)
         {
@@ -74,7 +74,7 @@ public abstract class HttpReceiveFilterBase<TRequestInfo> : TerminatorReceiveFil
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest data size.</param>
     /// <returns></returns>
-    protected abstract TRequestInfo FilterRequestBody(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
+    protected abstract TRequestInfo? FilterRequestBody(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
 
     /// <summary>
     /// Resolves the specified data.
@@ -83,7 +83,7 @@ public abstract class HttpReceiveFilterBase<TRequestInfo> : TerminatorReceiveFil
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected override TRequestInfo ProcessMatchedRequest(byte[] data, int offset, int length)
+    protected override TRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length)
     {
         string header = Encoding.UTF8.GetString(data, offset, length);
 
@@ -112,7 +112,7 @@ public abstract class HttpReceiveFilterBase<TRequestInfo> : TerminatorReceiveFil
     /// <returns>
     /// return the parsed request info from header; if the request has body, this method should return null
     /// </returns>
-    protected virtual TRequestInfo FilterRequestHeader(NameValueCollection header)
+    protected virtual TRequestInfo? FilterRequestHeader(NameValueCollection header)
     {
         return NullRequestInfo;
     }

@@ -25,7 +25,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <summary>
     /// Null request info instance
     /// </summary>
-    protected static readonly TRequestInfo NullRequestInfo = default(TRequestInfo);
+    protected static readonly TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter&lt;TRequestInfo&gt;"/> class.
@@ -47,7 +47,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest.</param>
     /// <returns></returns>
-    public TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         int parsedLen = 0;
 
@@ -112,7 +112,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected abstract TRequestInfo ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
+    protected abstract TRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
 
     /// <summary>
     /// Gets the size of the rest buffer.
@@ -128,7 +128,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <summary>
     /// Gets the next Receive filter.
     /// </summary>
-    public IReceiveFilter<TRequestInfo> NextReceiveFilter
+    public IReceiveFilter<TRequestInfo>? NextReceiveFilter
     {
         get { return null; }
     }
@@ -221,7 +221,7 @@ public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequest
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected override StringRequestInfo ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
+    protected override StringRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
     {
         //ignore the first and the last spliter
         var body = m_Encoding.GetString(readBuffer, offset + 1, length - 2);

@@ -34,14 +34,14 @@ public partial interface IRootConfig
     /// <value>
     /// The log factory.
     /// </value>
-    string LogFactory { get; }
+    string? LogFactory { get; }
 
 
-    
+
     /// <summary>
     /// Gets the option elements.
     /// </summary>
-    NameValueCollection OptionElements { get; }
+    NameValueCollection? OptionElements { get; }
 
 
     /// <summary>
@@ -50,5 +50,5 @@ public partial interface IRootConfig
     /// <value>
     /// The default culture.
     /// </value>
-    string DefaultCulture { get; }
+    string? DefaultCulture { get; }
 }

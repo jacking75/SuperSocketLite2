@@ -7,7 +7,7 @@ namespace SuperSocketLite.SocketEngine;
 
 class SocketAsyncEventArgsProxy
 {
-    public SocketAsyncEventArgs SocketEventArgs { get; private set; }
+    public SocketAsyncEventArgs SocketEventArgs { get; private set; } = null!;
 
     public int OrigOffset { get; private set; }
 
@@ -32,7 +32,7 @@ class SocketAsyncEventArgsProxy
         IsRecyclable = isRecyclable;
     }
 
-    static void SocketEventArgs_Completed(object sender, SocketAsyncEventArgs e)
+    static void SocketEventArgs_Completed(object? sender, SocketAsyncEventArgs e)
     {
         var socketSession = e.UserToken as IAsyncSocketSession;
 

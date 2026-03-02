@@ -136,7 +136,7 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The name of the server type.
     /// </value>
-    public string ServerTypeName { get; set; }
+    public string? ServerTypeName { get; set; }
 
 
     /// <summary>
@@ -145,17 +145,17 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The type of the server.
     /// </value>
-    public string ServerType { get; set; }
+    public string? ServerType { get; set; }
 
     /// <summary>
     /// Gets/sets the Receive filter factory.
     /// </summary>
-    public string ReceiveFilterFactory { get; set; }
+    public string? ReceiveFilterFactory { get; set; }
 
     /// <summary>
     /// Gets/sets the ip.
     /// </summary>
-    public string Ip { get; set; }
+    public string? Ip { get; set; }
 
     /// <summary>
     /// Gets/sets the port.
@@ -166,13 +166,13 @@ public partial class ServerConfig : IServerConfig
     /// Gets/sets the options.
     /// </summary>
     [HotUpdate]
-    public NameValueCollection Options { get; set; }
+    public NameValueCollection? Options { get; set; }
 
     /// <summary>
     /// Gets the option elements.
     /// </summary>
     [HotUpdate]
-    public NameValueCollection OptionElements { get; set; }
+    public NameValueCollection? OptionElements { get; set; }
 
     /// <summary>
     /// Gets/sets a value indicating whether this <see cref="IServerConfig"/> is disabled.
@@ -185,7 +185,7 @@ public partial class ServerConfig : IServerConfig
     /// <summary>
     /// Gets the name.
     /// </summary>
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>
     /// Gets/sets the mode.
@@ -267,12 +267,12 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// X509Certificate configuration.
     /// </value>
-    public ICertificateConfig Certificate { get; set; }
+    public ICertificateConfig? Certificate { get; set; }
 
     /// <summary>
     /// Gets/sets the security protocol, X509 certificate.
     /// </summary>
-    public string Security { get; set; }
+    public string? Security { get; set; }
 
     /// <summary>
     /// Gets/sets the length of the max request.
@@ -302,12 +302,12 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The connection filter's name list, seperated by comma
     /// </value>
-    public string ConnectionFilter { get; set; }
+    public string? ConnectionFilter { get; set; }
 
     /// <summary>
     /// Gets the command loader, multiple values should be separated by comma.
     /// </summary>
-    public string CommandLoader { get; set; }
+    public string? CommandLoader { get; set; }
 
     /// <summary>
     /// Gets/sets the start keep alive time, in seconds
@@ -333,12 +333,12 @@ public partial class ServerConfig : IServerConfig
     /// <summary>
     /// Gets and sets the listeners' configuration.
     /// </summary>
-    public IEnumerable<IListenerConfig> Listeners { get; set; }
+    public IEnumerable<IListenerConfig>? Listeners { get; set; }
 
     /// <summary>
     /// Gets/sets the log factory name.
     /// </summary>
-    public string LogFactory { get; set; }
+    public string? LogFactory { get; set; }
 
     /// <summary>
     /// Gets/sets the size of the sending queue.
@@ -372,7 +372,7 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The text encoding.
     /// </value>
-    public string TextEncoding { get; set; }
+    public string? TextEncoding { get; set; }
 
     /// <summary>
     /// Gets the command assemblies configuration.
@@ -380,7 +380,7 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The command assemblies.
     /// </value>
-    public IEnumerable<ICommandAssemblyConfig> CommandAssemblies { get; set; }
+    public IEnumerable<ICommandAssemblyConfig>? CommandAssemblies { get; set; }
 
 
 
@@ -390,7 +390,7 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The default culture.
     /// </value>
-    public string DefaultCulture { get; set; }
+    public string? DefaultCulture { get; set; }
 
 
 

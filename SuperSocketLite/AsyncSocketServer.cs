@@ -18,9 +18,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     }
 
-    private BufferManager m_BufferManager;
+    private BufferManager? m_BufferManager;
 
-    private ConcurrentStack<SocketAsyncEventArgsProxy> m_ReadWritePool;
+    private ConcurrentStack<SocketAsyncEventArgsProxy>? m_ReadWritePool;
 
     public override bool Start()
     {
@@ -72,7 +72,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         }
     }
 
-    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object state)
+    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object? state)
     {
         if (IsStopped)
             return;
@@ -80,12 +80,12 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         ProcessNewClient(client, listener.Info.Security);
     }
 
-    private IAppSession ProcessNewClient(Socket client, SslProtocols security)
+    private IAppSession? ProcessNewClient(Socket client, SslProtocols security)
     {
-        //Get the socket for the accepted client connection and put it into the 
+        //Get the socket for the accepted client connection and put it into the
         //ReadEventArg object user token
-        SocketAsyncEventArgsProxy socketEventArgsProxy;
-        if (!m_ReadWritePool.TryPop(out socketEventArgsProxy))
+        SocketAsyncEventArgsProxy? socketEventArgsProxy;
+        if (!m_ReadWritePool!.TryPop(out socketEventArgsProxy))
         {
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
@@ -131,10 +131,13 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         return null;
     }
 
-    private void OnSocketSessionNegotiateCompleted(object sender, EventArgs e)
+    private void OnSocketSessionNegotiateCompleted(object? sender, EventArgs e)
     {
         var socketSession = sender as ISocketSession;
         var negotiateSession = socketSession as INegotiateSocketSession;
+
+        if (negotiateSession == null || socketSession == null)
+            return;
 
         if (!negotiateSession.Result)
         {
@@ -164,9 +167,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         var socketAsyncProxy = ((IAsyncSocketSessionBase)session.SocketSession).SocketAsyncProxy;
 
         if (security == SslProtocols.None)
-            socketSession = new AsyncSocketSession(session.SocketSession.Client, socketAsyncProxy, true);
+            socketSession = new AsyncSocketSession(session.SocketSession.Client!, socketAsyncProxy, true);
         else
-            socketSession = new AsyncStreamSocketSession(session.SocketSession.Client, security, socketAsyncProxy, true);
+            socketSession = new AsyncStreamSocketSession(session.SocketSession.Client!, security, socketAsyncProxy, true);
 
         socketSession.Initialize(session);
         socketSession.Start();
@@ -219,7 +222,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
             base.Stop();
 
-            foreach (var item in m_ReadWritePool)
+            foreach (var item in m_ReadWritePool!)
                 item.SocketEventArgs.Dispose();
 
             m_ReadWritePool = null;
@@ -246,7 +249,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
     }
 
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint localEndPoint)
+    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
         var taskSource = new TaskCompletionSource<ActiveConnectResult>();
         var socket = new Socket(targetEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -265,6 +268,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
     private void OnActiveConnectCallback(IAsyncResult result)
     {
         var connectState = result.AsyncState as ActiveConnectState;
+
+        if (connectState == null)
+            return;
 
         try
         {

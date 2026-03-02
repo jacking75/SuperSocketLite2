@@ -27,7 +27,7 @@ class UdpSocketSession : SocketSession
 
     public override IPEndPoint LocalEndPoint
     {
-        get { return (IPEndPoint)m_ServerSocket.LocalEndPoint; }
+        get { return (IPEndPoint)m_ServerSocket.LocalEndPoint!; }
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ class UdpSocketSession : SocketSession
         e.Dispose();
     }
 
-    void OnSendingCompleted(object sender, SocketAsyncEventArgs e)
+    void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
     {
         var queue = e.UserToken as SendingQueue;
 
@@ -78,13 +78,13 @@ class UdpSocketSession : SocketSession
                 log.Error(new SocketException((int)e.SocketError).ToString());
 
             CleanSocketAsyncEventArgs(e);
-            OnSendError(queue, CloseReason.SocketError);
+            OnSendError(queue!, CloseReason.SocketError);
             return;
         }
 
         CleanSocketAsyncEventArgs(e);
 
-        var newPos = queue.Position + 1;
+        var newPos = queue!.Position + 1;
 
         if (newPos >= queue.Count)
         {
@@ -101,7 +101,7 @@ class UdpSocketSession : SocketSession
         for (var i = 0; i < queue.Count; i++)
         {
             var item = queue[i];
-            m_ServerSocket.SendTo(item.Array, item.Offset, item.Count, SocketFlags.None, RemoteEndPoint);
+            m_ServerSocket.SendTo(item.Array!, item.Offset, item.Count, SocketFlags.None, RemoteEndPoint!);
         }
 
         OnSendingCompleted(queue);
@@ -114,7 +114,7 @@ class UdpSocketSession : SocketSession
 
     protected override bool TryValidateClosedBySocket(out Socket socket)
     {
-        socket = null;
+        socket = null!;
         return false;
     }
 

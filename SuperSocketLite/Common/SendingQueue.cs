@@ -454,7 +454,7 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
             m_InnerOffset = i;
 
             var rest = subTotal - offset;
-            m_GlobalQueue[m_Offset + i] = new ArraySegment<byte>(segment.Array, segment.Offset + segment.Count - rest, rest);
+            m_GlobalQueue[m_Offset + i] = new ArraySegment<byte>(segment.Array!, segment.Offset + segment.Count - rest, rest);
 
             break;
         }

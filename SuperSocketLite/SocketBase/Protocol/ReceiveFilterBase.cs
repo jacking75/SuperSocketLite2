@@ -9,7 +9,7 @@ namespace SuperSocketLite.SocketBase.Protocol;
 public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    private ArraySegmentList m_BufferSegments;
+    private ArraySegmentList m_BufferSegments = null!;
 
     /// <summary>
     /// Gets the buffer segments which can help you parse your request info conviniently.
@@ -57,7 +57,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
     /// <returns></returns>
-    public abstract TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
+    public abstract TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
 
 
     /// <summary>
@@ -77,7 +77,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <value>
     /// The next Receive filter.
     /// </value>
-    public IReceiveFilter<TRequestInfo> NextReceiveFilter { get; protected set; }
+    public IReceiveFilter<TRequestInfo>? NextReceiveFilter { get; protected set; }
 
     
 

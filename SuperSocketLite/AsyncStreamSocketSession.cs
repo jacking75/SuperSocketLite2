@@ -68,7 +68,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         SecureProtocol = security;
         SocketAsyncProxy = socketAsyncProxy;
         var e = socketAsyncProxy.SocketEventArgs;
-        m_ReadBuffer = e.Buffer;
+        m_ReadBuffer = e.Buffer!;
         m_Offset = e.Offset;
         m_Length = e.Count;
 
@@ -108,6 +108,12 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
     private void OnStreamEndRead(IAsyncResult result)
     {
         var stream = result.AsyncState as Stream;
+
+        if (stream == null)
+        {
+            OnReceiveTerminated(CloseReason.SocketError);
+            return;
+        }
 
         int thisRead = 0;
 
@@ -162,19 +168,19 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         }
     }
 
-    private Stream m_Stream;
+    private Stream m_Stream = null!;
 
     private SslStream CreateSslStream(ICertificateConfig certConfig)
     {
         //Enable client certificate function only if ClientCertificateRequired is true in the configuration
         if(!certConfig.ClientCertificateRequired)
-            return new SslStream(new NetworkStream(Client), false);
+            return new SslStream(new NetworkStream(Client!), false);
 
         //Subscribe the client validation callback
-        return new SslStream(new NetworkStream(Client), false, ValidateClientCertificate);
+        return new SslStream(new NetworkStream(Client!), false, ValidateClientCertificate);
     }
 
-    private bool ValidateClientCertificate(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+    private bool ValidateClientCertificate(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
     {
         var session = AppSession;
 
@@ -188,25 +194,25 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         return sslPolicyErrors == SslPolicyErrors.None;
     }
 
-    private IAsyncResult BeginInitStream(AsyncCallback asyncCallback)
+    private IAsyncResult? BeginInitStream(AsyncCallback asyncCallback)
     {
-        IAsyncResult result = null;
+        IAsyncResult? result = null;
 
-        var certConfig = AppSession.Config.Certificate;
+        var certConfig = AppSession.Config.Certificate!;
         var secureProtocol = SecureProtocol;
 
         switch (secureProtocol)
         {
             case (SslProtocols.None):
-                m_Stream = new NetworkStream(Client);
+                m_Stream = new NetworkStream(Client!);
                 break;
             case (SslProtocols.Tls):
                 SslStream sslStream = CreateSslStream(certConfig);
-                result = sslStream.BeginAuthenticateAsServer(AppSession.AppServer.Certificate, certConfig.ClientCertificateRequired, SslProtocols.Tls, false, asyncCallback, sslStream);
+                result = sslStream.BeginAuthenticateAsServer(AppSession.AppServer.Certificate!, certConfig.ClientCertificateRequired, SslProtocols.Tls, false, asyncCallback, sslStream);
                 break;
             default:
                 var unknownSslStream = CreateSslStream(certConfig);
-                result = unknownSslStream.BeginAuthenticateAsServer(AppSession.AppServer.Certificate, certConfig.ClientCertificateRequired, secureProtocol, false, asyncCallback, unknownSslStream);
+                result = unknownSslStream.BeginAuthenticateAsServer(AppSession.AppServer.Certificate!, certConfig.ClientCertificateRequired, secureProtocol, false, asyncCallback, unknownSslStream);
                 break;
         }
 
@@ -226,6 +232,12 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
     private void OnBeginInitStream(IAsyncResult result, bool connect)
     {
         var sslStream = result.AsyncState as SslStream;
+
+        if (sslStream == null)
+        {
+            OnNegotiateCompleted(false);
+            return;
+        }
 
         try
         {
@@ -263,7 +275,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
             for (var i = 0; i < queue.Count; i++)
             {
                 var item = queue[i];
-                m_Stream.Write(item.Array, item.Offset, item.Count);
+                m_Stream.Write(item.Array!, item.Offset, item.Count);
             }
 
             OnSendingCompleted(queue);
@@ -297,7 +309,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         try
         {
             var item = queue[queue.Position];
-            m_Stream.BeginWrite(item.Array, item.Offset, item.Count, OnEndWrite, queue);
+            m_Stream.BeginWrite(item.Array!, item.Offset, item.Count, OnEndWrite, queue);
         }
         catch (Exception e)
         {
@@ -309,6 +321,9 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
     private void OnEndWrite(IAsyncResult result)
     {
         var queue = result.AsyncState as SendingQueue;
+
+        if (queue == null)
+            return;
 
         try
         {
@@ -336,7 +351,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
 
     public override void ApplySecureProtocol()
     {
-        var asyncResult = BeginInitStream(OnBeginInitStream);
+        IAsyncResult? asyncResult = BeginInitStream(OnBeginInitStream);
 
         if (asyncResult != null)
             asyncResult.AsyncWaitHandle.WaitOne();
@@ -358,7 +373,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
 
     void INegotiateSocketSession.Negotiate()
     {
-        IAsyncResult asyncResult;
+        IAsyncResult? asyncResult;
 
         try
         {
@@ -383,7 +398,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         get { return m_NegotiateResult; }
     }
 
-    private EventHandler m_NegotiateCompleted;
+    private EventHandler? m_NegotiateCompleted;
 
     event EventHandler INegotiateSocketSession.NegotiateCompleted
     {
@@ -396,7 +411,7 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
         m_NegotiateResult = negotiateResult;
 
         //One time event handler
-        var handler = Interlocked.Exchange<EventHandler>(ref m_NegotiateCompleted, null);
+        var handler = Interlocked.Exchange<EventHandler?>(ref m_NegotiateCompleted, null);
 
         if (handler == null)
             return;

@@ -25,6 +25,6 @@ public interface IConnectionFilter
     /// </summary>
     /// <param name="remoteAddress">The remote address.</param>
     /// <returns></returns>
-    bool AllowConnect(IPEndPoint remoteAddress);
+    bool AllowConnect(IPEndPoint? remoteAddress);
 }
 

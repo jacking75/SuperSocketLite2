@@ -285,6 +285,29 @@ abstract partial class SocketSession : ISocketSession
     }
 
     /// <summary>
+    /// Tries to send memory.
+    /// </summary>
+    /// <param name="memory">The memory.</param>
+    public bool TrySend(ReadOnlyMemory<byte> memory)
+    {
+        if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(memory, out ArraySegment<byte> segment))
+        {
+            return TrySend(segment);
+        }
+
+        return TrySend(new ArraySegment<byte>(memory.ToArray()));
+    }
+
+    /// <summary>
+    /// Tries to send span.
+    /// </summary>
+    /// <param name="span">The span.</param>
+    public bool TrySend(ReadOnlySpan<byte> span)
+    {
+        return TrySend(new ArraySegment<byte>(span.ToArray()));
+    }
+
+    /// <summary>
     /// Sends in async mode.
     /// </summary>
     /// <param name="queue">The queue.</param>

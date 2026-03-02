@@ -102,6 +102,12 @@ public interface ISocketSession : ISessionBase
     bool TrySend(ArraySegment<byte> segment);
 
     /// <summary>
+    /// Tries to send memory.
+    /// </summary>
+    /// <param name="memory">The memory.</param>
+    bool TrySend(ReadOnlyMemory<byte> memory);
+
+    /// <summary>
     /// Applies the secure protocol.
     /// </summary>
     void ApplySecureProtocol();

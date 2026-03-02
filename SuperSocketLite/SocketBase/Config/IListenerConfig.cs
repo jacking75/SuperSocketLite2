@@ -9,7 +9,7 @@ public interface IListenerConfig
     /// <summary>
     /// Gets the ip of listener
     /// </summary>
-    string Ip { get; }
+    string? Ip { get; }
 
     /// <summary>
     /// Gets the port of listener
@@ -24,5 +24,5 @@ public interface IListenerConfig
     /// <summary>
     /// Gets the security option, None/Default/Tls/Ssl/...
     /// </summary>
-    string Security { get; }
+    string? Security { get; }
 }

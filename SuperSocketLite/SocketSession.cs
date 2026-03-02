@@ -1,10 +1,13 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Threading;
+using System.Threading.Tasks;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
@@ -27,7 +30,7 @@ static class SocketState
 /// </summary>
 abstract partial class SocketSession : ISocketSession
 {
-    public IAppSession AppSession { get; private set; }
+    public IAppSession AppSession { get; private set; } = null!;
 
     protected readonly object SyncRoot = new object();
 
@@ -41,7 +44,11 @@ abstract partial class SocketSession : ISocketSession
     //0001 0000: in closing
     private int m_State = 0;
 
-    private ReuseLockBaseBuffer CollectSendBuffer = null;
+    private ReuseLockBaseBuffer? CollectSendBuffer = null;
+
+    protected Pipe? _receivePipe;
+    protected PipeWriter? _pipeWriter;
+    protected PipeReader? _pipeReader;
 
     private void AddStateFlag(int stateValue)
     {
@@ -109,7 +116,7 @@ abstract partial class SocketSession : ISocketSession
 
     protected bool SyncSend { get; private set; }
 
-    private ISmartPool<SendingQueue> m_SendingQueuePool;
+    private ISmartPool<SendingQueue> m_SendingQueuePool = null!;
 
     
     public SocketSession(Socket client)
@@ -119,8 +126,8 @@ abstract partial class SocketSession : ISocketSession
             throw new ArgumentNullException("client");
 
         m_Client = client;
-        LocalEndPoint = (IPEndPoint)client.LocalEndPoint;
-        RemoteEndPoint = (IPEndPoint)client.RemoteEndPoint;
+        LocalEndPoint = (IPEndPoint?)client.LocalEndPoint;
+        RemoteEndPoint = (IPEndPoint?)client.RemoteEndPoint;
     }
 
     public SocketSession(string sessionID)
@@ -135,10 +142,10 @@ abstract partial class SocketSession : ISocketSession
         SyncSend = Config.SyncSend;
 
         if (m_SendingQueuePool == null)
-            m_SendingQueuePool = ((SocketServerBase)((ISocketServerAccessor)appSession.AppServer).SocketServer).SendingQueuePool;
+            m_SendingQueuePool = ((SocketServerBase)((ISocketServerAccessor)appSession.AppServer).SocketServer!).SendingQueuePool!;
 
-        SendingQueue queue;
-        if (m_SendingQueuePool.TryGet(out queue))
+        SendingQueue? queue;
+        if (m_SendingQueuePool!.TryGet(out queue))
         {
             m_SendingQueue = queue;
             queue.StartEnqueue();
@@ -149,6 +156,15 @@ abstract partial class SocketSession : ISocketSession
             CollectSendBuffer = new ReuseLockBaseBuffer(Config.ReceiveBufferSize);
             SyncSend = true;
         }
+
+        // Initialize the receive pipeline. PipeOptions.useSynchronizationContext=false keeps
+        // ProcessPipeAsync off the captured SynchronizationContext.
+        var pipeOptions = new PipeOptions(
+            minimumSegmentSize: Config.ReceiveBufferSize,
+            useSynchronizationContext: false);
+        _receivePipe = new Pipe(pipeOptions);
+        _pipeWriter  = _receivePipe.Writer;
+        _pipeReader  = _receivePipe.Reader;
     }
 
     /// <summary>
@@ -164,7 +180,7 @@ abstract partial class SocketSession : ISocketSession
     /// <value>
     /// The config.
     /// </value>
-    public IServerConfig Config { get; set; }
+    public IServerConfig Config { get; set; } = null!;
 
     /// <summary>
     /// Starts this session.
@@ -215,24 +231,24 @@ abstract partial class SocketSession : ISocketSession
     /// <summary>
     /// Occurs when [closed].
     /// </summary>
-    public Action<ISocketSession, CloseReason> Closed { get; set; }
+    public Action<ISocketSession, CloseReason>? Closed { get; set; }
 
-    private SendingQueue m_SendingQueue;
+    private SendingQueue? m_SendingQueue;
 
 
     public bool CollectSend(byte[] source, int pos, int count)
     {
-        return CollectSendBuffer.Copy(source, pos, count);
+        return CollectSendBuffer!.Copy(source, pos, count);
     }
 
     public ArraySegment<byte> GetCollectSendData()
     {
-        return CollectSendBuffer.GetData();
+        return CollectSendBuffer!.GetData();
     }
 
     public void CommitCollectSend(int size)
     {
-        CollectSendBuffer.Commit(size);
+        CollectSendBuffer!.Commit(size);
     }
 
 
@@ -350,7 +366,7 @@ abstract partial class SocketSession : ISocketSession
             }
         }
 
-        Socket client;
+        Socket? client;
 
         if (IsInClosingOrClosed && TryValidateClosedBySocket(out client))
         {
@@ -358,7 +374,7 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        SendingQueue newQueue;
+        SendingQueue? newQueue;
 
         if (!m_SendingQueuePool.TryGet(out newQueue))
         {
@@ -388,7 +404,7 @@ abstract partial class SocketSession : ISocketSession
         }
 
         //Start to allow enqueue
-        newQueue.StartEnqueue();
+        newQueue!.StartEnqueue();
         queue.StopEnqueue();
 
         if (queue.Count == 0)
@@ -418,11 +434,11 @@ abstract partial class SocketSession : ISocketSession
         queue.Clear();
         m_SendingQueuePool.Push(queue);
 
-        var newQueue = m_SendingQueue;
+        var newQueue = m_SendingQueue!;
 
         if (IsInClosingOrClosed)
         {
-            Socket client;
+            Socket? client;
 
             //has data is being sent and the socket isn't closed
             if (newQueue.Count > 0 && !TryValidateClosedBySocket(out client))
@@ -434,7 +450,7 @@ abstract partial class SocketSession : ISocketSession
             OnSendEnd();
             return;
         }
-        
+
         if (newQueue.Count == 0)
         {
             OnSendEnd();
@@ -454,15 +470,15 @@ abstract partial class SocketSession : ISocketSession
 
     public Stream GetUnderlyStream()
     {
-        return new NetworkStream(Client);
+        return new NetworkStream(Client!);
     }
 
-    private Socket m_Client;
+    private Socket? m_Client;
     /// <summary>
     /// Gets or sets the client.
     /// </summary>
     /// <value>The client.</value>
-    public Socket Client
+    public Socket? Client
     {
         get { return m_Client; }
     }
@@ -481,13 +497,13 @@ abstract partial class SocketSession : ISocketSession
     /// Gets the local end point.
     /// </summary>
     /// <value>The local end point.</value>
-    public virtual IPEndPoint LocalEndPoint { get; protected set; }
+    public virtual IPEndPoint? LocalEndPoint { get; protected set; }
 
     /// <summary>
     /// Gets the remote end point.
     /// </summary>
     /// <value>The remote end point.</value>
-    public virtual IPEndPoint RemoteEndPoint { get; protected set; }
+    public virtual IPEndPoint? RemoteEndPoint { get; protected set; }
 
     /// <summary>
     /// Gets or sets the secure protocol.
@@ -495,7 +511,7 @@ abstract partial class SocketSession : ISocketSession
     /// <value>The secure protocol.</value>
     public SslProtocols SecureProtocol { get; set; }
 
-    protected virtual bool TryValidateClosedBySocket(out Socket socket)
+    protected virtual bool TryValidateClosedBySocket(out Socket? socket)
     {
         socket = m_Client;
         //Already closed/closing
@@ -508,7 +524,7 @@ abstract partial class SocketSession : ISocketSession
         if (!TryAddStateFlag(SocketState.InClosing))
             return;
 
-        Socket client;
+        Socket? client;
 
         //No need to clean the socket instance
         if (TryValidateClosedBySocket(out client))
@@ -633,7 +649,7 @@ abstract partial class SocketSession : ISocketSession
                 // so we check if the socket instance is alive now
                 if (forSend)
                 {
-                    Socket client;
+                    Socket? client;
 
                     if (!TryValidateClosedBySocket(out client))
                     {
@@ -665,7 +681,63 @@ abstract partial class SocketSession : ISocketSession
         }
     }
 
-    public abstract int OrigReceiveOffset { get; }
+    [Obsolete("OrigReceiveOffset is not used in the Pipelines receive path and always returns 0.")]
+    public virtual int OrigReceiveOffset => 0;
+
+    /// <summary>
+    /// Continuously reads from the PipeReader and dispatches complete requests to the AppSession.
+    /// Runs as an independent Task, decoupled from the IOCP completion thread.
+    /// </summary>
+    protected async Task ProcessPipeAsync()
+    {
+        while (true)
+        {
+            ReadResult result;
+
+            try
+            {
+                result = await _pipeReader!.ReadAsync();
+            }
+            catch
+            {
+                break;
+            }
+
+            var buffer = result.Buffer;
+
+            if (buffer.IsEmpty && (result.IsCompleted || result.IsCanceled))
+                break;
+
+            SequencePosition consumed = buffer.Start;
+
+            try
+            {
+                consumed = AppSession.ProcessRequest(buffer);
+            }
+            catch (Exception exc)
+            {
+                LogError("Protocol error", exc);
+                Close(CloseReason.ProtocolError);
+                break;
+            }
+            finally
+            {
+                // consumed is always buffer.End; examined = buffer.End signals PipeReader it can reclaim memory.
+                _pipeReader.AdvanceTo(consumed, buffer.End);
+            }
+
+            if (result.IsCompleted || result.IsCanceled)
+                break;
+        }
+
+        _pipeReader!.Complete();
+
+        // Return the per-session filter carry buffer AFTER the pipe loop has fully exited,
+        // so no code can access it after ArrayPool.Return() is called.
+        // This is the only place where the buffer is returned to the pool; OnSessionClosed()
+        // only nulls the reference as a safety fallback.
+        AppSession?.CompleteReceivePipe();
+    }
 
     protected virtual bool IsIgnorableSocketError(int socketErrorCode)
     {
@@ -690,7 +762,7 @@ abstract partial class SocketSession : ISocketSession
         if (e is ObjectDisposedException || e is NullReferenceException)
             return true;
 
-        SocketException socketException = null;
+        SocketException? socketException = null;
 
         if (e is IOException)
         {

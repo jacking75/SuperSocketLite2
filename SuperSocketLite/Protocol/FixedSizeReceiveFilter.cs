@@ -26,7 +26,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <summary>
     /// Null RequestInfo
     /// </summary>
-    protected readonly static TRequestInfo NullRequestInfo = default(TRequestInfo);
+    protected readonly static TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FixedSizeReceiveFilter&lt;TRequestInfo&gt;"/> class.
@@ -53,7 +53,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest.</param>
     /// <returns></returns>
-    public virtual TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public virtual TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         rest = m_ParsedLength + length - m_Size;
 
@@ -89,7 +89,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <param name="length">The length.</param>
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <returns></returns>
-    protected abstract TRequestInfo ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied);
+    protected abstract TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied);
 
     /// <summary>
     /// Gets the size of the rest buffer.
@@ -105,7 +105,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <summary>
     /// Gets the next Receive filter.
     /// </summary>
-    public virtual IReceiveFilter<TRequestInfo> NextReceiveFilter
+    public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter
     {
         get { return null; }
     }

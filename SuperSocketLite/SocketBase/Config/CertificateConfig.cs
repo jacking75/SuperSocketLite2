@@ -12,12 +12,12 @@ public class CertificateConfig : ICertificateConfig
     /// <summary>
     /// Gets/sets the file path.
     /// </summary>
-    public string FilePath { get; set; }
+    public string? FilePath { get; set; }
 
     /// <summary>
     /// Gets/sets the password.
     /// </summary>
-    public string Password { get; set; }
+    public string? Password { get; set; }
 
     /// <summary>
     /// Gets/sets the the store where certificate locates.
@@ -25,7 +25,7 @@ public class CertificateConfig : ICertificateConfig
     /// <value>
     /// The name of the store.
     /// </value>
-    public string StoreName { get; set; }
+    public string? StoreName { get; set; }
 
     /// <summary>
     /// Gets/sets the store location of the certificate.
@@ -38,7 +38,7 @@ public class CertificateConfig : ICertificateConfig
     /// <summary>
     /// Gets/sets the thumbprint.
     /// </summary>
-    public string Thumbprint { get; set; }
+    public string? Thumbprint { get; set; }
 
     /// <summary>
     /// Gets/sets a value indicating whether [client certificate required].

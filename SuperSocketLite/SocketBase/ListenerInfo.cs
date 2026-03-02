@@ -17,7 +17,7 @@ public class ListenerInfo
     /// <value>
     /// The end point.
     /// </value>
-    public IPEndPoint EndPoint { get; set; }
+    public IPEndPoint EndPoint { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the listen backlog.

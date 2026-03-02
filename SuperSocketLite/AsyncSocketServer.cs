@@ -18,43 +18,19 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     }
 
-    private BufferManager m_BufferManager;
-
-    private ConcurrentStack<SocketAsyncEventArgsProxy> m_ReadWritePool;
+    private ConcurrentStack<SocketAsyncEventArgsProxy>? m_ReadWritePool;
 
     public override bool Start()
     {
         try
         {
-            int bufferSize = AppServer.Config.ReceiveBufferSize;
-
-            if (bufferSize <= 0)
-                bufferSize = 1024 * 4;
-
-            m_BufferManager = new BufferManager(bufferSize * AppServer.Config.MaxConnectionNumber, bufferSize);
-
-            try
-            {
-                m_BufferManager.InitBuffer();
-            }
-            catch (Exception e)
-            {
-                AppServer.Logger.Error("Failed to allocate buffer for async socket communication, may because there is no enough memory, please decrease maxConnectionNumber in configuration!", e);
-                return false;
-            }
-
-            // preallocate pool of SocketAsyncEventArgs objects
-            SocketAsyncEventArgs socketEventArg;
-
+            // Pre-allocate SocketAsyncEventArgs objects without pre-pinning receive buffers.
+            // With System.IO.Pipelines, each session obtains memory from its PipeWriter on demand.
             var socketArgsProxyList = new List<SocketAsyncEventArgsProxy>(AppServer.Config.MaxConnectionNumber);
 
             for (int i = 0; i < AppServer.Config.MaxConnectionNumber; i++)
             {
-                //Pre-allocate a set of reusable SocketAsyncEventArgs
-                socketEventArg = new SocketAsyncEventArgs();
-                m_BufferManager.SetBuffer(socketEventArg);
-
-                socketArgsProxyList.Add(new SocketAsyncEventArgsProxy(socketEventArg));
+                socketArgsProxyList.Add(new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs()));
             }
 
             m_ReadWritePool = new ConcurrentStack<SocketAsyncEventArgsProxy>(socketArgsProxyList);
@@ -72,7 +48,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         }
     }
 
-    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object state)
+    protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object? state)
     {
         if (IsStopped)
             return;
@@ -80,12 +56,12 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         ProcessNewClient(client, listener.Info.Security);
     }
 
-    private IAppSession ProcessNewClient(Socket client, SslProtocols security)
+    private IAppSession? ProcessNewClient(Socket client, SslProtocols security)
     {
-        //Get the socket for the accepted client connection and put it into the 
+        //Get the socket for the accepted client connection and put it into the
         //ReadEventArg object user token
-        SocketAsyncEventArgsProxy socketEventArgsProxy;
-        if (!m_ReadWritePool.TryPop(out socketEventArgsProxy))
+        SocketAsyncEventArgsProxy? socketEventArgsProxy;
+        if (!m_ReadWritePool!.TryPop(out socketEventArgsProxy))
         {
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
@@ -131,10 +107,13 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         return null;
     }
 
-    private void OnSocketSessionNegotiateCompleted(object sender, EventArgs e)
+    private void OnSocketSessionNegotiateCompleted(object? sender, EventArgs e)
     {
         var socketSession = sender as ISocketSession;
         var negotiateSession = socketSession as INegotiateSocketSession;
+
+        if (negotiateSession == null || socketSession == null)
+            return;
 
         if (!negotiateSession.Result)
         {
@@ -164,9 +143,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         var socketAsyncProxy = ((IAsyncSocketSessionBase)session.SocketSession).SocketAsyncProxy;
 
         if (security == SslProtocols.None)
-            socketSession = new AsyncSocketSession(session.SocketSession.Client, socketAsyncProxy, true);
+            socketSession = new AsyncSocketSession(session.SocketSession.Client!, socketAsyncProxy, true);
         else
-            socketSession = new AsyncStreamSocketSession(session.SocketSession.Client, security, socketAsyncProxy, true);
+            socketSession = new AsyncStreamSocketSession(session.SocketSession.Client!, security, socketAsyncProxy, true);
 
         socketSession.Initialize(session);
         socketSession.Start();
@@ -187,14 +166,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
         if (pool == null || serverState == ServerState.Stopping || serverState == ServerState.NotStarted)
         {
-            if(!Environment.HasShutdownStarted && !AppDomain.CurrentDomain.IsFinalizingForUnload())
+            if (!Environment.HasShutdownStarted && !AppDomain.CurrentDomain.IsFinalizingForUnload())
                 args.Dispose();
             return;
-        }
-
-        if (proxy.OrigOffset != args.Offset)
-        {
-            args.SetBuffer(proxy.OrigOffset, AppServer.Config.ReceiveBufferSize);
         }
 
         if (!proxy.IsRecyclable)
@@ -203,6 +177,11 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             args.Dispose();
             return;
         }
+
+        // Release any buffer or Memory<byte> GCHandle the SAEA may still hold.
+        // SetBuffer(null,0,0) frees both _buffer and the _memoryHandle pin set by SetBuffer(Memory<byte>).
+        // args.Buffer returns null in the Memory<byte> path, so the condition check is omitted.
+        args.SetBuffer(null, 0, 0);
 
         pool.Push(proxy);
     }
@@ -219,11 +198,10 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
             base.Stop();
 
-            foreach (var item in m_ReadWritePool)
+            foreach (var item in m_ReadWritePool!)
                 item.SocketEventArgs.Dispose();
 
             m_ReadWritePool = null;
-            m_BufferManager = null;
             IsRunning = false;
         }
     }
@@ -246,7 +224,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
     }
 
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint localEndPoint)
+    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
         var taskSource = new TaskCompletionSource<ActiveConnectResult>();
         var socket = new Socket(targetEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -265,6 +243,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
     private void OnActiveConnectCallback(IAsyncResult result)
     {
         var connectState = result.AsyncState as ActiveConnectState;
+
+        if (connectState == null)
+            return;
 
         try
         {

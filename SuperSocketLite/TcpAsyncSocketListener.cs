@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
 
@@ -13,9 +15,10 @@ class TcpAsyncSocketListener : SocketListenerBase
 {
     private int m_ListenBackLog;
 
-    private Socket m_ListenSocket;
+    private Socket? m_ListenSocket;
 
-    private SocketAsyncEventArgs m_AcceptSAE;
+    // CTS that drives the accept loop; cancelled by Stop() to unblock AcceptAsync.
+    private CancellationTokenSource? m_StopCts;
 
     public TcpAsyncSocketListener(ListenerInfo info)
         : base(info)
@@ -37,19 +40,10 @@ class TcpAsyncSocketListener : SocketListenerBase
             m_ListenSocket.Bind(this.Info.EndPoint);
             m_ListenSocket.Listen(m_ListenBackLog);
 
-            //아래 옵션은 사용하지 않는다. 만약 사용한다면 아래 API는 닷넷코어에서 지원하지 않으므로 바꾸어야 한다.
-            //m_ListenSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
-            //m_ListenSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true);
-
-            SocketAsyncEventArgs acceptEventArg = new SocketAsyncEventArgs();
-            m_AcceptSAE = acceptEventArg;
-            acceptEventArg.Completed += new EventHandler<SocketAsyncEventArgs>(acceptEventArg_Completed);
-
-            if (!m_ListenSocket.AcceptAsync(acceptEventArg))
-                ProcessAccept(acceptEventArg);
+            m_StopCts = new CancellationTokenSource();
+            _ = AcceptLoopAsync(m_StopCts.Token);
 
             return true;
-
         }
         catch (Exception e)
         {
@@ -58,66 +52,70 @@ class TcpAsyncSocketListener : SocketListenerBase
         }
     }
 
-
-    void acceptEventArg_Completed(object sender, SocketAsyncEventArgs e)
+    /// <summary>
+    /// Continuously accepts new connections until the cancellation token is triggered
+    /// or the listen socket is closed.  Runs as a fire-and-forget background Task so
+    /// that Start() returns immediately, matching the original SAEA-based behaviour.
+    /// </summary>
+    private async Task AcceptLoopAsync(CancellationToken ct)
     {
-        ProcessAccept(e);
-    }
-
-    void ProcessAccept(SocketAsyncEventArgs e)
-    {
-        Socket socket = null;
-
-        if (e.SocketError != SocketError.Success)
-        {
-            var errorCode = (int)e.SocketError;
-
-            //The listen socket was closed
-            if (errorCode == 995 || errorCode == 10004 || errorCode == 10038)
-                return;
-
-            OnError(new SocketException(errorCode));
-        }
-        else
-        {
-            socket = e.AcceptSocket;
-        }
-
-        e.AcceptSocket = null;
-
-        bool willRaiseEvent = false;
-
         try
         {
-            willRaiseEvent = m_ListenSocket.AcceptAsync(e);
-        }
-        catch (ObjectDisposedException)
-        {
-            //The listener was stopped
-            //Do nothing
-            //make sure ProcessAccept won't be executed in this thread
-            willRaiseEvent = true;
-        }
-        catch (NullReferenceException)
-        {
-            //The listener was stopped
-            //Do nothing
-            //make sure ProcessAccept won't be executed in this thread
-            willRaiseEvent = true;
-        }
-        catch (Exception exc)
-        {
-            OnError(exc);
-            //make sure ProcessAccept won't be executed in this thread
-            willRaiseEvent = true;
-        }
+            while (true)
+            {
+                Socket client;
 
-        if (socket != null)
-            OnNewClientAccepted(socket, null);
+                try
+                {
+                    // .NET 5+ ValueTask<Socket> overload — cancellable natively.
+                    client = await m_ListenSocket!.AcceptAsync(ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Stop() was called (token cancelled).
+                    return;
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Listen socket was closed externally.
+                    return;
+                }
+                catch (SocketException se) when (IsStopError(se.ErrorCode))
+                {
+                    // Socket-level codes that mean the listener has been shut down:
+                    //   995  = OperationAborted
+                    //   10004 = Interrupted
+                    //   10038 = WSAENOTSOCK (socket already closed)
+                    return;
+                }
+                catch (Exception e)
+                {
+                    OnError(e);
 
-        if (!willRaiseEvent)
-            ProcessAccept(e);
+                    // Non-fatal error: keep accepting unless we've been asked to stop.
+                    if (ct.IsCancellationRequested)
+                        return;
+
+                    continue;
+                }
+
+                OnNewClientAccepted(client, null);
+            }
+        }
+        finally
+        {
+            // OnStopped is always raised exactly once, after the loop exits for any reason.
+            OnStopped();
+        }
     }
+
+    /// <summary>
+    /// Returns true for socket error codes that indicate the listener was intentionally stopped.
+    /// </summary>
+    private static bool IsStopError(int errorCode) =>
+        errorCode == 995      // OperationAborted
+        || errorCode == 10004 // Interrupted
+        || errorCode == 10038;// WSAENOTSOCK
 
     public override void Stop()
     {
@@ -129,9 +127,10 @@ class TcpAsyncSocketListener : SocketListenerBase
             if (m_ListenSocket == null)
                 return;
 
-            m_AcceptSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(acceptEventArg_Completed);
-            m_AcceptSAE.Dispose();
-            m_AcceptSAE = null;
+            // Cancel the accept loop first so AcceptAsync unblocks immediately.
+            m_StopCts?.Cancel();
+            m_StopCts?.Dispose();
+            m_StopCts = null;
 
             try
             {
@@ -143,6 +142,7 @@ class TcpAsyncSocketListener : SocketListenerBase
             }
         }
 
-        OnStopped();
+        // OnStopped() is invoked by AcceptLoopAsync's finally block once the loop exits,
+        // so we do NOT call it here to avoid a double-fire.
     }
 }

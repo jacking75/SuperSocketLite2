@@ -55,7 +55,7 @@ public class TerminatorReceiveFilterFactory : IReceiveFilterFactory<StringReques
     /// <returns>
     /// the new created request filer assosiated with this socketSession
     /// </returns>
-    public virtual IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint remoteEndPoint)
+    public virtual IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         return new TerminatorReceiveFilter(m_Terminator, m_Encoding, m_RequestInfoParser);
     }

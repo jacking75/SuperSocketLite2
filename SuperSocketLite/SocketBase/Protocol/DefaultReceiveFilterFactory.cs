@@ -21,7 +21,7 @@ public class DefaultReceiveFilterFactory<TReceiveFilter, TRequestInfo> : IReceiv
     /// <returns>
     /// the new created request filer assosiated with this socketSession
     /// </returns>
-    public virtual IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint remoteEndPoint)
+    public virtual IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         return new TReceiveFilter();
     }

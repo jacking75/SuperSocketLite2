@@ -18,7 +18,10 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
 
     private int m_UpdatingCount;
 
-    private bool m_ReadOnly = false;
+    // volatile: StopEnqueue() writes true on one thread; Enqueue()/TryEnqueue() read it
+    // on other threads.  Without volatile the write may be invisible on weak-memory-model
+    // architectures (ARM) and the while(!m_ReadOnly) spin could loop indefinitely.
+    private volatile bool m_ReadOnly = false;
 
     private ushort m_TrackID = 1;
 
@@ -318,7 +321,12 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
                 if (value.Array != null)
                     return value;
 
-                if (spinWait.Count > 50)
+                // The window between the CAS in TryEnqueue() (which increments m_CurrentCount)
+                // and the actual array write is a handful of instructions.  500 spins gives
+                // ample time (~500 ns on a modern CPU) for the writer to finish.
+                // If it still hasn't completed, return the default (null) segment; the caller
+                // (OnSendingCompleted) will detect the zero-length segment and handle it.
+                if (spinWait.Count > 500)
                     return value;
             }
         }
@@ -454,7 +462,7 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
             m_InnerOffset = i;
 
             var rest = subTotal - offset;
-            m_GlobalQueue[m_Offset + i] = new ArraySegment<byte>(segment.Array, segment.Offset + segment.Count - rest, rest);
+            m_GlobalQueue[m_Offset + i] = new ArraySegment<byte>(segment.Array!, segment.Offset + segment.Count - rest, rest);
 
             break;
         }

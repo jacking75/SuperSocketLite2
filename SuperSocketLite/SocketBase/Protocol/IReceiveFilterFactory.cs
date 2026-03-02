@@ -25,5 +25,5 @@ public interface IReceiveFilterFactory<TRequestInfo> : IReceiveFilterFactory
     /// <returns>
     /// the new created request filer assosiated with this socketSession
     /// </returns>
-    IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint remoteEndPoint);
+    IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint);
 }

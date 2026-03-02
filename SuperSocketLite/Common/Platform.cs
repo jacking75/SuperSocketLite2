@@ -32,7 +32,7 @@ public static class Platform
             SupportSocketIOControlByCodeEnum = true;
         }
 
-        Type t = Type.GetType("Mono.Runtime");
+        Type? t = Type.GetType("Mono.Runtime");
         IsMono = t != null;
     }
 

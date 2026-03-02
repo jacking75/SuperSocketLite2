@@ -20,7 +20,7 @@ public static class MimeHeaderHelper
     /// <param name="header">The header.</param>
     public static void ParseHttpHeader(string headerData, NameValueCollection header)
     {
-        string line;
+        string? line;
         string firstLine = string.Empty;
         string prevKey = string.Empty;
 
@@ -36,7 +36,7 @@ public static class MimeHeaderHelper
 
             if (line.StartsWith(Tab) && !string.IsNullOrEmpty(prevKey))
             {
-                string currentValue = header[prevKey];
+                string? currentValue = header[prevKey];
                 header[prevKey] = currentValue + line.Trim();
                 continue;
             }
@@ -63,7 +63,7 @@ public static class MimeHeaderHelper
             if (string.IsNullOrEmpty(key))
                 continue;
 
-            string oldValue = header[key];
+            string? oldValue = header[key];
 
             if (string.IsNullOrEmpty(oldValue))
             {

@@ -19,7 +19,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     /// <summary>
     /// Null request info
     /// </summary>
-    protected TRequestInfo NullRequestInfo = default(TRequestInfo);
+    protected TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BeginEndMarkReceiveFilter&lt;TRequestInfo&gt;"/> class.
@@ -41,7 +41,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest.</param>
     /// <returns></returns>
-    public override TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         rest = 0;
 
@@ -157,7 +157,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected abstract TRequestInfo ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
+    protected abstract TRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
 
     /// <summary>
     /// Resets this instance.

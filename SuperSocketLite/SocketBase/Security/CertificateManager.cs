@@ -11,7 +11,7 @@ namespace SuperSocketLite.SocketBase.Security;
 
 static class CertificateManager
 {
-    internal static X509Certificate Initialize(ICertificateConfig cerConfig, Func<string, string> relativePathHandler)
+    internal static X509Certificate? Initialize(ICertificateConfig cerConfig, Func<string, string> relativePathHandler)
     {
         if (!string.IsNullOrEmpty(cerConfig.FilePath))
         {

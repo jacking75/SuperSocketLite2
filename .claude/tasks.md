@@ -7,24 +7,6 @@
 
 ## 🔴 우선순위 높음
 
-### TASK-01: System.IO.Pipelines 도입
-- **파일**: `AsyncSocketSession.cs`, `AsyncStreamSocketSession.cs`
-- **목표**: byte[] 기반 수신을 PipeReader로 교체, 메모리 복사 감소
-- **작업**:
-  - PipeWriter에 직접 소켓 데이터 수신
-  - PipeReader → ReceiveFilter 데이터 전달
-  - 기존 ReceiveFilter 인터페이스 호환 유지
-
-### TASK-02: Span/Memory 송신 오버로드 추가
-- **파일**: `SocketSession.cs`, `AsyncSocketSession.cs`
-- **목표**: `TrySend(ReadOnlyMemory<byte>)`, `TrySend(ReadOnlySpan<byte>)` 추가
-- **작업**: 기존 `ArraySegment<byte>` 오버로드는 유지
-
-### TASK-03: CancellationToken 지원
-- **파일**: `AppServerBase.cs`, `TcpAsyncSocketListener.cs`
-- **목표**: `Start(CancellationToken)` 지원, Accept 루프에 취소 전달
-- **작업**: 기존 `Start()` 시그니처는 default 파라미터로 유지
-
 ### TASK-04: SocketAsyncEventArgs 풀 개선
 - **파일**: `AsyncSocketServer.cs`
 - **목표**: `ArrayPool<byte>.Shared` 조합으로 동적 연결 수 대응
@@ -54,10 +36,6 @@
 ---
 
 ## 🟢 우선순위 낮음
-
-### TASK-09: Nullable Reference Types 활성화
-- **파일**: `SuperSocketLite.csproj` 및 전체 소스
-- **목표**: `<Nullable>enable</Nullable>` 설정 후 모든 경고 해소
 
 ### TASK-10: 단위 테스트 추가 (xUnit)
 - **파일**: `Test/` 디렉토리

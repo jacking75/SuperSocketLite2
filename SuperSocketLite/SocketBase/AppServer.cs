@@ -97,7 +97,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     }
 
-    internal override IReceiveFilterFactory<TRequestInfo> CreateDefaultReceiveFilterFactory()
+    internal override IReceiveFilterFactory<TRequestInfo>? CreateDefaultReceiveFilterFactory()
     {
         return null;
     }
@@ -154,7 +154,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// <param name="sessionID">The session ID.</param>
     /// <returns></returns>
     [Obsolete("Use the method GetSessionByID instead")]
-    public TAppSession GetAppSessionByID(string sessionID)
+    public TAppSession? GetAppSessionByID(string sessionID)
     {
         return GetSessionByID(sessionID);
     }
@@ -164,12 +164,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// </summary>
     /// <param name="sessionID">The session ID.</param>
     /// <returns></returns>
-    public override TAppSession GetSessionByID(string sessionID)
+    public override TAppSession? GetSessionByID(string sessionID)
     {
         if (string.IsNullOrEmpty(sessionID))
             return NullAppSession;
 
-        TAppSession targetSession;
+        TAppSession? targetSession;
         m_SessionDict.TryGetValue(sessionID, out targetSession);
         return targetSession;
     }
@@ -185,7 +185,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
         if (!string.IsNullOrEmpty(sessionID))
         {
-            TAppSession removedSession;
+            TAppSession? removedSession;
             if (!m_SessionDict.TryRemove(sessionID, out removedSession))
             {
                 if (Logger.IsErrorEnabled)
@@ -212,7 +212,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     }
 
 
-    private System.Threading.Timer m_CollectSendSessionTimer = null;
+    private System.Threading.Timer? m_CollectSendSessionTimer = null;
 
     private void StartCollectSendSessionTimer()
     {
@@ -229,9 +229,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// 세션들의 데이터를 모아서 보내기
     /// </summary>
     /// <param name="state">The state.</param>
-    private void CollectSendSession(object state)
+    private void CollectSendSession(object? state)
     {
-        if (Monitor.TryEnter(state))
+        if (Monitor.TryEnter(state!))
         {
             try
             {
@@ -241,7 +241,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                 {
                     return;
                 }
-                
+
                 System.Threading.Tasks.Parallel.ForEach(sessionSource, s =>
                 {
                     var session = s.Value;
@@ -263,7 +263,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
             }
             finally
             {
-                Monitor.Exit(state);
+                Monitor.Exit(state!);
             }
         }
     }
@@ -271,7 +271,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
      
 
 
-    private System.Threading.Timer m_ClearIdleSessionTimer = null;
+    private System.Threading.Timer? m_ClearIdleSessionTimer = null;
 
     private void StartClearSessionTimer()
     {
@@ -283,9 +283,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// Clears the idle session.
     /// </summary>
     /// <param name="state">The state.</param>
-    private void ClearIdleSession(object state)
+    private void ClearIdleSession(object? state)
     {
-        if (Monitor.TryEnter(state))
+        if (Monitor.TryEnter(state!))
         {
             try
             {
@@ -319,12 +319,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
             }
             finally
             {
-                Monitor.Exit(state);
+                Monitor.Exit(state!);
             }
         }
     }
 
-    private KeyValuePair<string, TAppSession>[] SessionSource
+    private KeyValuePair<string, TAppSession>[]? SessionSource
     {
         get
         {
@@ -339,9 +339,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     
 
-    private System.Threading.Timer m_SessionSnapshotTimer = null;
+    private System.Threading.Timer? m_SessionSnapshotTimer = null;
 
-    private KeyValuePair<string, TAppSession>[] m_SessionsSnapshot = new KeyValuePair<string, TAppSession>[0];
+    private KeyValuePair<string, TAppSession>[]? m_SessionsSnapshot = new KeyValuePair<string, TAppSession>[0];
 
     private void StartSessionSnapshotTimer()
     {
@@ -349,12 +349,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         m_SessionSnapshotTimer = new System.Threading.Timer(TakeSessionSnapshot, new object(), interval, interval);
     }
 
-    private void TakeSessionSnapshot(object state)
+    private void TakeSessionSnapshot(object? state)
     {
-        if (Monitor.TryEnter(state))
+        if (Monitor.TryEnter(state!))
         {
             Interlocked.Exchange(ref m_SessionsSnapshot, m_SessionDict.ToArray());
-            Monitor.Exit(state);
+            Monitor.Exit(state!);
         }
     }
 
@@ -367,7 +367,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// </summary>
     /// <param name="critera">The prediction critera.</param>
     /// <returns></returns>
-    public override IEnumerable<TAppSession> GetSessions(Func<TAppSession, bool> critera)
+    public override IEnumerable<TAppSession>? GetSessions(Func<TAppSession, bool> critera)
     {
         var sessionSource = SessionSource;
 
@@ -381,7 +381,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// Gets all sessions in sessions snapshot.
     /// </summary>
     /// <returns></returns>
-    public override IEnumerable<TAppSession> GetAllSessions()
+    public override IEnumerable<TAppSession>? GetAllSessions()
     {
         var sessionSource = SessionSource;
 

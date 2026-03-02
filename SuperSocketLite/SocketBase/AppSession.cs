@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Security.Authentication;
@@ -25,7 +26,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the app server instance assosiated with the session.
     /// </summary>
-    public virtual AppServerBase<TAppSession, TRequestInfo> AppServer { get; private set; }
+    public virtual AppServerBase<TAppSession, TRequestInfo> AppServer { get; private set; } = null!;
 
     /// <summary>
     /// Gets the app server instance assosiated with the session.
@@ -41,9 +42,9 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The charset.
     /// </value>
-    public Encoding Charset { get; set; }
+    public Encoding Charset { get; set; } = null!;
 
-    private IDictionary<object, object> m_Items;
+    private IDictionary<object, object>? m_Items;
 
     /// <summary>
     /// Gets the items dictionary, only support 10 items maximum
@@ -60,7 +61,10 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     }
 
 
-    private bool m_Connected = false;
+    // volatile: set to false on the close thread (OnSocketSessionClosed), read on the
+    // sending thread inside InternalSend()'s while(m_Connected) spin.  Without volatile
+    // the write may not be visible on ARM, causing an infinite spin.
+    private volatile bool m_Connected = false;
 
     /// <summary>
     /// Gets a value indicating whether this <see cref="IAppSession"/> is connected.
@@ -80,7 +84,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The prev command.
     /// </value>
-    public string PrevCommand { get; set; }
+    public string? PrevCommand { get; set; }
 
     /// <summary>
     /// Gets or sets the current executing command.
@@ -88,7 +92,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The current command.
     /// </value>
-    public string CurrentCommand { get; set; }
+    public string? CurrentCommand { get; set; }
 
 
     /// <summary>
@@ -106,7 +110,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    public IPEndPoint LocalEndPoint
+    public IPEndPoint? LocalEndPoint
     {
         get { return SocketSession.LocalEndPoint; }
     }
@@ -114,7 +118,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the remote endpoint of client.
     /// </summary>
-    public IPEndPoint RemoteEndPoint
+    public IPEndPoint? RemoteEndPoint
     {
         get { return SocketSession.RemoteEndPoint; }
     }
@@ -143,12 +147,12 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the session ID.
     /// </summary>
-    public string SessionID { get; private set; }
+    public string SessionID { get; private set; } = null!;
 
     /// <summary>
     /// Gets the socket session of the AppSession.
     /// </summary>
-    public ISocketSession SocketSession { get; private set; }
+    public ISocketSession SocketSession { get; private set; } = null!;
 
     /// <summary>
     /// Gets the config of the server.
@@ -158,10 +162,13 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
         get { return AppServer.Config; }
     }
 
-    IReceiveFilter<TRequestInfo> m_ReceiveFilter;
+    IReceiveFilter<TRequestInfo> m_ReceiveFilter = null!;
 
-    
-    
+    // Per-session carry buffer for the Pipelines receive path.
+    // Filters accumulate partial packet data in this buffer between reads.
+    private byte[]? _filterBuffer;
+
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession, TRequestInfo&gt;"/> class.
     /// </summary>
@@ -226,7 +233,22 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <param name="reason">The reason.</param>
     internal protected virtual void OnSessionClosed(CloseReason reason)
     {
+        // _filterBuffer is returned to the pool by CompleteReceivePipe() which is called
+        // at the end of ProcessPipeAsync() — after the pipe loop fully exits.
+        // Setting null here is a safe fallback in case the session never started receiving.
+        _filterBuffer = null;
+    }
 
+    // Called by SocketSession.ProcessPipeAsync() after the PipeReader loop exits,
+    // guaranteeing no further access to _filterBuffer before returning it to the pool.
+    public void CompleteReceivePipe()
+    {
+        var buf = _filterBuffer;
+        if (buf != null)
+        {
+            _filterBuffer = null;
+            ArrayPool<byte>.Shared.Return(buf);
+        }
     }
 
 
@@ -236,7 +258,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <param name="e">The exception.</param>
     protected virtual void HandleException(Exception e)
     {
-        Logger.Error(this.ToString(), e);
+        Logger.Error(this.ToString()!, e);
         this.Close(CloseReason.ApplicationError);
     }
 
@@ -515,7 +537,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <param name="rest">The rest, the size of the data which has not been processed</param>
     /// <param name="offsetDelta">return offset delta of next receiving buffer.</param>
     /// <returns></returns>
-    TRequestInfo FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
+    TRequestInfo? FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
     {
         if (!AppServer.OnRawDataReceived(this, readBuffer, offset, length))
         {
@@ -612,6 +634,76 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
             offset = offset + length - rest;
             length = rest;
         }
+    }
+
+    /// <summary>
+    /// Processes the request data from the Pipelines receive path.
+    /// Maintains a per-session carry buffer so that existing IReceiveFilter implementations
+    /// work correctly without modification: partial data is preserved at offset 0 of the
+    /// carry buffer, and new bytes are appended at the filter's current OffsetDelta position.
+    /// </summary>
+    SequencePosition IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
+    {
+        // Determine where in the carry buffer the filter expects new bytes.
+        // IOffsetAdapter.OffsetDelta == m_ParsedLength of the current filter (bytes already accumulated).
+        var filterOffsetAdapter = m_ReceiveFilter as IOffsetAdapter;
+        int writeOffset = filterOffsetAdapter?.OffsetDelta ?? 0;
+
+        int newLength = (int)sequence.Length;
+        int neededSize = writeOffset + newLength;
+
+        // Lazily allocate or grow the carry buffer.
+        if (_filterBuffer == null || _filterBuffer.Length < neededSize)
+        {
+            int newSize = Math.Max(Config.ReceiveBufferSize * 2, neededSize);
+            var newBuf = ArrayPool<byte>.Shared.Rent(newSize);
+
+            // Preserve any partial data already copied by the filter into _filterBuffer[0..writeOffset].
+            if (_filterBuffer != null)
+            {
+                if (writeOffset > 0)
+                    Array.Copy(_filterBuffer, 0, newBuf, 0, writeOffset);
+                ArrayPool<byte>.Shared.Return(_filterBuffer);
+            }
+
+            _filterBuffer = newBuf;
+        }
+
+        // Copy new bytes from the PipeReader sequence into the carry buffer immediately after
+        // any existing partial data so the filter sees a contiguous buffer.
+        sequence.CopyTo(new Span<byte>(_filterBuffer, writeOffset, newLength));
+
+        // Run the filter loop on the carry buffer — identical logic to the byte[] overload.
+        int offset = writeOffset;
+        int length = newLength;
+
+        while (true)
+        {
+            var requestInfo = FilterRequest(_filterBuffer, offset, length, false, out int rest, out _);
+
+            if (requestInfo != null)
+            {
+                try
+                {
+                    AppServer.ExecuteCommand(this, requestInfo);
+                }
+                catch (Exception e)
+                {
+                    HandleException(e);
+                }
+            }
+
+            if (rest <= 0)
+                break;
+
+            // More requests present in the current buffer.
+            offset = offset + length - rest;
+            length = rest;
+        }
+
+        // Always tell the PipeReader that all bytes have been consumed.
+        // Partial-packet state is stored in _filterBuffer + filter's m_ParsedLength/m_OffsetDelta.
+        return sequence.End;
     }
 
 }

@@ -143,13 +143,13 @@ public interface ISmartPoolSourceCreator<T>
 /// <typeparam name="T"></typeparam>
 public class SmartPool<T> : ISmartPool<T>
 {
-    private ConcurrentStack<T> m_GlobalStack;
+    private ConcurrentStack<T> m_GlobalStack = null!;
 
-    private ISmartPoolSource[] m_ItemsSource;
+    private ISmartPoolSource[] m_ItemsSource = null!;
 
     private int m_CurrentSourceCount;
 
-    private ISmartPoolSourceCreator<T> m_SourceCreator;
+    private ISmartPoolSourceCreator<T> m_SourceCreator = null!;
 
     private int m_MinPoolSize;
 
@@ -267,6 +267,7 @@ public class SmartPool<T> : ISmartPool<T>
         m_GlobalStack.Push(item);
     }
 
+#pragma warning disable CS8601
     bool TryPopWithWait(out T item, int waitTicks)
     {
         var spinWait = new SpinWait();
@@ -313,7 +314,10 @@ public class SmartPool<T> : ISmartPool<T>
 
         IncreaseCapacity();
 
-        m_IsIncreasing = 0;
+        // Use Interlocked to guarantee a full memory barrier: all Push() calls inside
+        // IncreaseCapacity() must be visible to other threads before they observe
+        // m_IsIncreasing == 0 and attempt to pop the newly added items.
+        Interlocked.Exchange(ref m_IsIncreasing, 0);
 
         if (!m_GlobalStack.TryPop(out item))
         {
@@ -322,6 +326,7 @@ public class SmartPool<T> : ISmartPool<T>
 
         return true;
     }
+#pragma warning restore CS8601
 
     private void IncreaseCapacity()
     {

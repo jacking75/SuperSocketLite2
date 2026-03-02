@@ -18,7 +18,7 @@ public class ArraySegmentList<T> : IList<T>
         get { return m_Segments; }
     }
 
-    private ArraySegmentEx<T> m_PrevSegment;
+    private ArraySegmentEx<T>? m_PrevSegment;
     private int m_PrevSegmentIndex;
 
     private int m_Count;
@@ -94,29 +94,29 @@ public class ArraySegmentList<T> : IList<T>
     {
         get
         {
-            ArraySegmentEx<T> segment;
+            ArraySegmentEx<T>? segment;
 
             var internalIndex = GetElementInternalIndex(index, out segment);
 
             if (internalIndex < 0)
                 throw new IndexOutOfRangeException();
 
-            return segment.Array[internalIndex];
+            return segment!.Array[internalIndex];
         }
         set
         {
-            ArraySegmentEx<T> segment;
+            ArraySegmentEx<T>? segment;
 
             var internalIndex = GetElementInternalIndex(index, out segment);
 
             if (internalIndex < 0)
                 throw new IndexOutOfRangeException();
 
-            segment.Array[internalIndex] = value;
+            segment!.Array[internalIndex] = value;
         }
     }
 
-    private int GetElementInternalIndex(int index, out ArraySegmentEx<T> segment)
+    private int GetElementInternalIndex(int index, out ArraySegmentEx<T>? segment)
     {
         segment = null;
 
@@ -213,7 +213,7 @@ public class ArraySegmentList<T> : IList<T>
         return -1;
     }
 
-    internal ArraySegmentEx<T> QuickSearchSegment(int from, int to, int index, out int segmentIndex)
+    internal ArraySegmentEx<T>? QuickSearchSegment(int from, int to, int index, out int segmentIndex)
     {
         ArraySegmentEx<T> segment;
         segmentIndex = -1;
@@ -419,7 +419,7 @@ public class ArraySegmentList<T> : IList<T>
 
         var currentTotal = m_Count;
 
-        ArraySegmentEx<T> segment = null;
+        ArraySegmentEx<T>? segment = null;
 
         if (!toBeCopied)
             segment = new ArraySegmentEx<T>(array, offset, length);
@@ -480,7 +480,7 @@ public class ArraySegmentList<T> : IList<T>
             if (startSegment == null)
                 throw new IndexOutOfRangeException();
 
-            from = startIndex - startSegment.From;
+            from = startIndex - startSegment!.From;
         }
 
         for (var i = startSegmentIndex; i < m_Segments.Count; i++)
@@ -579,7 +579,7 @@ public class ArraySegmentList<T> : IList<T>
         int thisCopied = 0;
 
         int offsetSegmentIndex;
-        ArraySegmentEx<T> offsetSegment;
+        ArraySegmentEx<T>? offsetSegment;
 
         if (srcIndex > 0)
             offsetSegment = QuickSearchSegment(0, m_Segments.Count - 1, srcIndex, out offsetSegmentIndex);
@@ -589,7 +589,7 @@ public class ArraySegmentList<T> : IList<T>
             offsetSegmentIndex = 0;
         }
 
-        int thisOffset = srcIndex - offsetSegment.From + offsetSegment.Offset;
+        int thisOffset = srcIndex - offsetSegment!.From + offsetSegment.Offset;
         thisCopied = Math.Min(offsetSegment.Count - thisOffset + offsetSegment.Offset, length - copied);
 
         Array.Copy(offsetSegment.Array, thisOffset, to, copied + toIndex, thisCopied);
@@ -699,7 +699,7 @@ public class ArraySegmentList : ArraySegmentList<byte>
     {
         int maskLen = mask.Length;
         var startSegmentIndex = 0;
-        var startSegment = QuickSearchSegment(0, Segments.Count - 1, offset, out startSegmentIndex);
+        var startSegment = QuickSearchSegment(0, Segments.Count - 1, offset, out startSegmentIndex)!;
 
         var shouldDecode = Math.Min(length, startSegment.Count - offset + startSegment.From);
         var from = offset - startSegment.From + startSegment.Offset;

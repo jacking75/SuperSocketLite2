@@ -10,9 +10,9 @@ namespace SuperSocketLite.SocketEngine;
 
 class UdpSocketListener : SocketListenerBase
 {
-    private Socket m_ListenSocket;
+    private Socket? m_ListenSocket;
 
-    private SocketAsyncEventArgs m_ReceiveSAE;
+    private SocketAsyncEventArgs? m_ReceiveSAE;
 
     public UdpSocketListener(ListenerInfo info)
         : base(info)
@@ -66,7 +66,7 @@ class UdpSocketListener : SocketListenerBase
         }
     }
 
-    void eventArgs_Completed(object sender, SocketAsyncEventArgs e)
+    void eventArgs_Completed(object? sender, SocketAsyncEventArgs e)
     {
         if (e.SocketError != SocketError.Success)
         {
@@ -83,7 +83,7 @@ class UdpSocketListener : SocketListenerBase
         {
             try
             {
-                OnNewClientAcceptedAsync(m_ListenSocket, new object[] { e.Buffer.CloneRange(e.Offset, e.BytesTransferred), e.RemoteEndPoint.Serialize() });
+                OnNewClientAcceptedAsync(m_ListenSocket!, new object[] { e.Buffer!.CloneRange(e.Offset, e.BytesTransferred), e.RemoteEndPoint!.Serialize() });
             }
             catch (Exception exc)
             {
@@ -92,7 +92,7 @@ class UdpSocketListener : SocketListenerBase
 
             try
             {
-                m_ListenSocket.ReceiveFromAsync(e);
+                m_ListenSocket!.ReceiveFromAsync(e);
             }
             catch (Exception exc)
             {
@@ -111,7 +111,7 @@ class UdpSocketListener : SocketListenerBase
             if (m_ListenSocket == null)
                 return;
 
-            m_ReceiveSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
+            m_ReceiveSAE!.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
             m_ReceiveSAE.Dispose();
             m_ReceiveSAE = null;
 

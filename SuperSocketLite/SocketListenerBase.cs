@@ -30,9 +30,9 @@ abstract class SocketListenerBase : ISocketListener
 
     public abstract void Stop();
 
-    public event NewClientAcceptHandler NewClientAccepted;
+    public event NewClientAcceptHandler? NewClientAccepted;
 
-    public event ErrorHandler Error;
+    public event ErrorHandler? Error;
 
     protected void OnError(Exception e)
     {
@@ -47,7 +47,7 @@ abstract class SocketListenerBase : ISocketListener
         OnError(new Exception(errorMessage));
     }
 
-    protected virtual void OnNewClientAccepted(Socket socket, object state)
+    protected virtual void OnNewClientAccepted(Socket socket, object? state)
     {
         var handler = NewClientAccepted;
 
@@ -55,7 +55,7 @@ abstract class SocketListenerBase : ISocketListener
             handler(this, socket, state);
     }
 
-    protected void OnNewClientAcceptedAsync(Socket socket, object state)
+    protected void OnNewClientAcceptedAsync(Socket socket, object? state)
     {
         var handler = NewClientAccepted;
 
@@ -72,7 +72,7 @@ abstract class SocketListenerBase : ISocketListener
     /// <summary>
     /// Occurs when [stopped].
     /// </summary>
-    public event EventHandler Stopped;
+    public event EventHandler? Stopped;
 
     protected void OnStopped()
     {

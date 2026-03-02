@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.IO.Pipelines;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
@@ -12,7 +13,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 {
     private bool m_IsReset;
 
-    private SocketAsyncEventArgs m_SocketEventArgSend;
+    private SocketAsyncEventArgs? m_SocketEventArgSend;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy)
         : this(client, socketAsyncProxy, false)
@@ -49,7 +50,8 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     public override void Start()
     {
-        StartReceive(SocketAsyncProxy.SocketEventArgs);
+        StartReceive();
+        _ = ProcessPipeAsync();   // PipeReader consumer loop — independent Task
 
         if (!m_IsReset)
             StartSession();
@@ -72,22 +74,22 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         return false;
     }
 
-    void OnSendingCompleted(object sender, SocketAsyncEventArgs e)
+    void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
     {
         var queue = e.UserToken as SendingQueue;
 
         if (!ProcessCompleted(e))
         {
             ClearPrevSendState(e);
-            OnSendError(queue, CloseReason.SocketError);
+            OnSendError(queue!, CloseReason.SocketError);
             return;
         }
 
-        var count = queue.Sum(q => q.Count);
+        var count = queue!.Sum(q => q.Count);
 
         if (count != e.BytesTransferred)
         {
-            queue.InternalTrim(e.BytesTransferred);
+            queue!.InternalTrim(e.BytesTransferred);
             AppSession.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {queue.Sum(q => q.Count)} bytes right now.");
             ClearPrevSendState(e);
             SendAsync(queue);
@@ -95,7 +97,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
 
         ClearPrevSendState(e);
-        base.OnSendingCompleted(queue);
+        base.OnSendingCompleted(queue!);
     }
 
     private void ClearPrevSendState(SocketAsyncEventArgs e)
@@ -113,43 +115,30 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
     }
 
-    private void StartReceive(SocketAsyncEventArgs e)
+    /// <summary>
+    /// Asks the PipeWriter for a Memory&lt;byte&gt; segment, assigns it to the SAEA, and posts a ReceiveAsync.
+    /// No buffer offset tracking needed — the Pipe manages unconsumed data automatically.
+    /// </summary>
+    private void StartReceive()
     {
-        StartReceive(e, 0);
-    }
-
-    private void StartReceive(SocketAsyncEventArgs e, int offsetDelta)
-    {
-        bool willRaiseEvent = false;
+        var e = SocketAsyncProxy.SocketEventArgs;
 
         try
         {
-            if (offsetDelta < 0 || offsetDelta >= Config.ReceiveBufferSize)
-                throw new ArgumentException(string.Format("Illigal offsetDelta: {0}", offsetDelta), "offsetDelta");
+            var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
+            e.SetBuffer(memory);   // .NET 5+ Memory<byte> overload
 
-            var predictOffset = SocketAsyncProxy.OrigOffset + offsetDelta;
-
-            if (e.Offset != predictOffset)
-            {
-                e.SetBuffer(predictOffset, Config.ReceiveBufferSize - offsetDelta);
-            }
-
-            // the connection is closing or closed
             if (!OnReceiveStarted())
                 return;
 
-            willRaiseEvent = Client.ReceiveAsync(e);
+            bool willRaiseEvent = Client!.ReceiveAsync(e);
+            if (!willRaiseEvent)
+                ProcessReceive(e);
         }
         catch (Exception exc)
         {
             LogError(exc);
             OnReceiveTerminated(CloseReason.SocketError);
-            return;
-        }
-
-        if (!willRaiseEvent)
-        {
-            ProcessReceive(e);
         }
     }
 
@@ -166,7 +155,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 if (client == null)
                     return;
 
-                client.Send(item.Array, item.Offset, item.Count, SocketFlags.None);
+                client.Send(item.Array!, item.Offset, item.Count, SocketFlags.None);
             }
 
             OnSendingCompleted(queue);
@@ -184,14 +173,15 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         try
         {
-            m_SocketEventArgSend.UserToken = queue;
+            var sae = m_SocketEventArgSend!;
+            sae.UserToken = queue;
 
             if (queue.Count > 1)
-                m_SocketEventArgSend.BufferList = queue;
+                sae.BufferList = queue;
             else
             {
                 var item = queue[0];
-                m_SocketEventArgSend.SetBuffer(item.Array, item.Offset, item.Count);
+                sae.SetBuffer(item.Array, item.Offset, item.Count);
             }
 
             var client = Client;
@@ -202,49 +192,58 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 return;
             }
 
-            if (!client.SendAsync(m_SocketEventArgSend))
-                OnSendingCompleted(client, m_SocketEventArgSend);
+            if (!client.SendAsync(sae))
+                OnSendingCompleted(client, sae);
         }
         catch (Exception e)
         {
             LogError(e);
 
-            ClearPrevSendState(m_SocketEventArgSend);
+            ClearPrevSendState(m_SocketEventArgSend!);
             OnSendError(queue, CloseReason.SocketError);
         }
     }
 
     public SocketAsyncEventArgsProxy SocketAsyncProxy { get; private set; }
 
+    /// <summary>
+    /// Called by the IOCP completion thread when a ReceiveAsync completes.
+    /// Advances the PipeWriter and schedules the next receive — no AppSession call here.
+    /// </summary>
     public void ProcessReceive(SocketAsyncEventArgs e)
     {
         if (!ProcessCompleted(e))
         {
-            OnReceiveTerminated(e.SocketError == SocketError.Success ? CloseReason.ClientClosing : CloseReason.SocketError);
+            _pipeWriter!.Complete();
+            OnReceiveTerminated(e.SocketError == SocketError.Success
+                ? CloseReason.ClientClosing
+                : CloseReason.SocketError);
             return;
         }
 
         OnReceiveEnded();
 
-        int offsetDelta;
+        _pipeWriter!.Advance(e.BytesTransferred);
+        var flushTask = _pipeWriter.FlushAsync();
 
-        try
+        if (flushTask.IsCompleted)
         {
-            offsetDelta = this.AppSession.ProcessRequest(e.Buffer, e.Offset, e.BytesTransferred, true);
+            // Fast path: no backpressure
+            StartReceive();
         }
-        catch (Exception exc)
+        else
         {
-            LogError("Protocol error", exc);
-            this.Close(CloseReason.ProtocolError);
-            return;
+            // Slow path: wait for PipeReader to catch up, then restart receive
+            _ = flushTask.AsTask().ContinueWith(
+                _ => StartReceive(),
+                System.Threading.Tasks.TaskContinuationOptions.ExecuteSynchronously);
         }
-
-        //read the next block of data sent from the client
-        StartReceive(e, offsetDelta);
     }
 
     protected override void OnClosed(CloseReason reason)
     {
+        _pipeWriter?.Complete();
+
         var sae = m_SocketEventArgSend;
 
         if (sae == null)
@@ -263,10 +262,5 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     public override void ApplySecureProtocol()
     {
         //TODO: Implement async socket SSL/TLS encryption
-    }
-
-    public override int OrigReceiveOffset
-    {
-        get { return SocketAsyncProxy.OrigOffset; }
     }
 }

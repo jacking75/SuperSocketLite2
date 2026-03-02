@@ -7,9 +7,7 @@ namespace SuperSocketLite.SocketEngine;
 
 class SocketAsyncEventArgsProxy
 {
-    public SocketAsyncEventArgs SocketEventArgs { get; private set; }
-
-    public int OrigOffset { get; private set; }
+    public SocketAsyncEventArgs SocketEventArgs { get; private set; } = null!;
 
     public bool IsRecyclable { get; private set; }
 
@@ -21,18 +19,17 @@ class SocketAsyncEventArgsProxy
     public SocketAsyncEventArgsProxy(SocketAsyncEventArgs socketEventArgs)
         : this(socketEventArgs, true)
     {
-        
+
     }
 
     public SocketAsyncEventArgsProxy(SocketAsyncEventArgs socketEventArgs, bool isRecyclable)
     {
         SocketEventArgs = socketEventArgs;
-        OrigOffset = socketEventArgs.Offset;
         SocketEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(SocketEventArgs_Completed);
         IsRecyclable = isRecyclable;
     }
 
-    static void SocketEventArgs_Completed(object sender, SocketAsyncEventArgs e)
+    static void SocketEventArgs_Completed(object? sender, SocketAsyncEventArgs e)
     {
         var socketSession = e.UserToken as IAsyncSocketSession;
 

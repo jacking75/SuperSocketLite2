@@ -14,5 +14,5 @@ public class CommandAssemblyConfig : ICommandAssemblyConfig
     /// <value>
     /// The assembly.
     /// </value>
-    public string Assembly { get; set; }
+    public string Assembly { get; set; } = null!;
 }

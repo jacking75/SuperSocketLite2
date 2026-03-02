@@ -67,19 +67,19 @@ public partial class RootConfig : IRootConfig
     /// <value>
     /// The log factory.
     /// </value>
-    public string LogFactory { get; set; }
+    public string? LogFactory { get; set; }
 
     /// <summary>
     /// Gets/sets the option elements.
     /// </summary>
-    public NameValueCollection OptionElements { get; set; }
+    public NameValueCollection? OptionElements { get; set; }
 
-    
+
     /// <summary>
     /// Gets or sets the default culture.
     /// </summary>
     /// <value>
     /// The default culture.
     /// </value>
-    public string DefaultCulture { get; set; }
+    public string? DefaultCulture { get; set; }
 }

@@ -36,7 +36,7 @@ public interface ISocketServer
     /// <value>
     /// The sending queue pool.
     /// </value>
-    IPoolInfo SendingQueuePool { get; }
+    IPoolInfo? SendingQueuePool { get; }
 
     /// <summary>
     /// Stops this instance.

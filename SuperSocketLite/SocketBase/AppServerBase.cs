@@ -30,15 +30,15 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <summary>
     /// Null appSession instance
     /// </summary>
-    protected readonly TAppSession NullAppSession = default(TAppSession);
+    protected readonly TAppSession NullAppSession = default(TAppSession)!;
 
     /// <summary>
     /// Gets the server's config.
     /// </summary>
-    public IServerConfig Config { get; private set; }
+    public IServerConfig Config { get; private set; } = null!;
 
     //Server instance name
-    private string m_Name;
+    private string m_Name = null!;
 
     /// <summary>
     /// the current state's code
@@ -62,7 +62,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <summary>
     /// Gets the certificate of current server.
     /// </summary>
-    public X509Certificate Certificate { get; private set; }
+    public X509Certificate? Certificate { get; private set; }
 
     /// <summary>
     /// Gets or sets the receive filter factory.
@@ -70,7 +70,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <value>
     /// The receive filter factory.
     /// </value>
-    public virtual IReceiveFilterFactory<TRequestInfo> ReceiveFilterFactory { get; protected set; }
+    public virtual IReceiveFilterFactory<TRequestInfo> ReceiveFilterFactory { get; protected set; } = null!;
 
     /// <summary>
     /// Gets the Receive filter factory.
@@ -81,7 +81,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     }
       
 
-    private ISocketServerFactory m_SocketServerFactory;
+    private ISocketServerFactory m_SocketServerFactory = null!;
 
     /// <summary>
     /// Gets the basic transfer layer security protocol.
@@ -91,16 +91,23 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <summary>
     /// Gets the root config.
     /// </summary>
-    protected IRootConfig RootConfig { get; private set; }
+    protected IRootConfig RootConfig { get; private set; } = null!;
 
     /// <summary>
     /// Gets the logger assosiated with this object.
     /// </summary>
-    public ILog Logger { get; private set; }
+    public ILog Logger { get; private set; } = null!;
             
-    private static bool m_ThreadPoolConfigured = false;
+    // 0 = not configured, 1 = configured.
+    // Interlocked.CompareExchange prevents two concurrently-initialized AppServer instances
+    // from both configuring the thread pool (check-then-set race on plain bool).
+    private static int m_ThreadPoolConfigured = 0;
 
-    private List<IConnectionFilter> m_ConnectionFilters;
+    // Holds the registration created by Start(CancellationToken) so it can be
+    // disposed in Stop() — prevents the callback from firing after the server stops.
+    private CancellationTokenRegistration m_StopRegistration;
+
+    private List<IConnectionFilter>? m_ConnectionFilters;
 
     private long m_TotalHandledRequests = 0;
 
@@ -112,7 +119,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         get { return m_TotalHandledRequests; }
     }
 
-    private ListenerInfo[] m_Listeners;
+    private ListenerInfo[]? m_Listeners;
 
     /// <summary>
     /// Gets or sets the listeners inforamtion.
@@ -120,7 +127,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <value>
     /// The listeners.
     /// </value>
-    public ListenerInfo[] Listeners
+    public ListenerInfo[]? Listeners
     {
         get { return m_Listeners; }
     }
@@ -140,7 +147,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <value>
     /// The log factory.
     /// </value>
-    public ILogFactory LogFactory { get; private set; }
+    public ILogFactory LogFactory { get; private set; } = null!;
 
 
     /// <summary>
@@ -149,7 +156,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <value>
     /// The text encoding.
     /// </value>
-    public Encoding TextEncoding { get; private set; }
+    public Encoding TextEncoding { get; private set; } = null!;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AppServerBase&lt;TAppSession, TRequestInfo&gt;"/> class.
@@ -182,7 +189,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
 
     partial void SetDefaultCulture(IRootConfig rootConfig, IServerConfig config);
 
-    private void SetupBasic(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory socketServerFactory)
+    private void SetupBasic(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory)
     {
         if (rootConfig == null)
             throw new ArgumentNullException("rootConfig");
@@ -201,23 +208,23 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
 
         SetDefaultCulture(rootConfig, config);
 
-        if (!m_ThreadPoolConfigured)
+        // Only the first thread that wins the CAS configures the thread pool.
+        if (Interlocked.CompareExchange(ref m_ThreadPoolConfigured, 1, 0) == 0)
         {
             if (!TheadPoolEx.ResetThreadPool(rootConfig.MaxWorkingThreads >= 0 ? rootConfig.MaxWorkingThreads : new Nullable<int>(),
                     rootConfig.MaxCompletionPortThreads >= 0 ? rootConfig.MaxCompletionPortThreads : new Nullable<int>(),
                     rootConfig.MinWorkingThreads >= 0 ? rootConfig.MinWorkingThreads : new Nullable<int>(),
                     rootConfig.MinCompletionPortThreads >= 0 ? rootConfig.MinCompletionPortThreads : new Nullable<int>()))
             {
+                Interlocked.Exchange(ref m_ThreadPoolConfigured, 0); // allow retry
                 throw new Exception("Failed to configure thread pool!");
             }
-
-            m_ThreadPoolConfigured = true;
         }
 
         if (socketServerFactory == null)
         {
-            var socketServerFactoryType = Type.GetType("SuperSocketLite.SocketEngine.SocketServerFactory, SuperSocketLite", true);
-            socketServerFactory = (ISocketServerFactory)Activator.CreateInstance(socketServerFactoryType);
+            var socketServerFactoryType = Type.GetType("SuperSocketLite.SocketEngine.SocketServerFactory, SuperSocketLite", true)!;
+            socketServerFactory = (ISocketServerFactory)Activator.CreateInstance(socketServerFactoryType)!;
         }
 
         m_SocketServerFactory = socketServerFactory;
@@ -229,7 +236,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
             TextEncoding = new ASCIIEncoding();
     }
 
-    private bool SetupMedium(IReceiveFilterFactory<TRequestInfo> receiveFilterFactory, IEnumerable<IConnectionFilter> connectionFilters)
+    private bool SetupMedium(IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory, IEnumerable<IConnectionFilter>? connectionFilters)
     {
         if (receiveFilterFactory != null)
             ReceiveFilterFactory = receiveFilterFactory;
@@ -257,14 +264,14 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     }
 
 
-    internal abstract IReceiveFilterFactory<TRequestInfo> CreateDefaultReceiveFilterFactory();
+    internal abstract IReceiveFilterFactory<TRequestInfo>? CreateDefaultReceiveFilterFactory();
 
     private bool SetupFinal()
     {
         //Check receiveFilterFactory
         if (ReceiveFilterFactory == null)
         {
-            ReceiveFilterFactory = CreateDefaultReceiveFilterFactory();
+            ReceiveFilterFactory = CreateDefaultReceiveFilterFactory()!;
 
             if (ReceiveFilterFactory == null)
             {
@@ -321,7 +328,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="connectionFilters">The connection filters.</param>
     /// <param name="commandLoaders">The command loaders.</param>
     /// <returns></returns>
-    public bool Setup(IServerConfig config, ISocketServerFactory socketServerFactory = null, IReceiveFilterFactory<TRequestInfo> receiveFilterFactory = null, ILogFactory logFactory = null, IEnumerable<IConnectionFilter> connectionFilters = null)
+    public bool Setup(IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
         return Setup(new RootConfig(), config, socketServerFactory, receiveFilterFactory, logFactory, connectionFilters);
     }
@@ -337,7 +344,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="connectionFilters">The connection filters.</param>
     /// <param name="commandLoaders">The command loaders.</param>
     /// <returns></returns>
-    public bool Setup(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory socketServerFactory = null, IReceiveFilterFactory<TRequestInfo> receiveFilterFactory = null, ILogFactory logFactory = null, IEnumerable<IConnectionFilter> connectionFilters = null)
+    public bool Setup(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
         TrySetInitializedState();
 
@@ -373,7 +380,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="logFactory">The log factory.</param>
     /// <param name="connectionFilters">The connection filters.</param>
     /// <returns>return setup result</returns>
-    public bool Setup(string ip, int port, ISocketServerFactory socketServerFactory = null, IReceiveFilterFactory<TRequestInfo> receiveFilterFactory = null, ILogFactory logFactory = null, IEnumerable<IConnectionFilter> connectionFilters = null)
+    public bool Setup(string ip, int port, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
         return Setup(new ServerConfig
                         {
@@ -386,7 +393,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
                       connectionFilters);
     }
            
-    private bool SetupLogFactory(ILogFactory logFactory)
+    private bool SetupLogFactory(ILogFactory? logFactory)
     {
         if (logFactory != null)
         {
@@ -472,7 +479,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// </summary>
     /// <param name="certificate">The certificate config.</param>
     /// <returns></returns>
-    protected virtual X509Certificate GetCertificate(ICertificateConfig certificate)
+    protected virtual X509Certificate? GetCertificate(ICertificateConfig? certificate)
     {
         if (certificate == null)
         {
@@ -492,7 +499,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         return CertificateManager.Initialize(certificate, GetFilePath);
     }
 
-    bool IRemoteCertificateValidator.Validate(IAppSession session, object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+    bool IRemoteCertificateValidator.Validate(IAppSession session, object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
     {
         return ValidateClientCertificate((TAppSession)session, sender, certificate, chain, sslPolicyErrors);
     }
@@ -506,7 +513,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="chain">The chain.</param>
     /// <param name="sslPolicyErrors">The SSL policy errors.</param>
     /// <returns>return the validation result</returns>
-    protected virtual bool ValidateClientCertificate(TAppSession session, object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+    protected virtual bool ValidateClientCertificate(TAppSession session, object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
     {
         return sslPolicyErrors == SslPolicyErrors.None;
     }
@@ -519,7 +526,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     {
         try
         {
-            m_SocketServer = m_SocketServerFactory.CreateSocketServer<TRequestInfo>(this, m_Listeners, Config);
+            m_SocketServer = m_SocketServerFactory.CreateSocketServer<TRequestInfo>(this, m_Listeners!, Config);
             return m_SocketServer != null;
         }
         catch (Exception e)
@@ -531,7 +538,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         }
     }
 
-    private IPAddress ParseIPAddress(string ip)
+    private IPAddress ParseIPAddress(string? ip)
     {
         if (string.IsNullOrEmpty(ip) || "Any".Equals(ip, StringComparison.OrdinalIgnoreCase))
             return IPAddress.Any;
@@ -647,7 +654,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         get { return m_Name; }
     }
 
-    private ISocketServer m_SocketServer;
+    private ISocketServer m_SocketServer = null!;
 
     /// <summary>
     /// Gets the socket server.
@@ -658,6 +665,32 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     ISocketServer ISocketServerAccessor.SocketServer
     {
         get { return m_SocketServer; }
+    }
+
+    /// <summary>
+    /// Starts this server instance and stops it automatically when
+    /// <paramref name="cancellationToken"/> is cancelled.
+    /// The existing parameterless <see cref="Start()"/> still works unchanged.
+    /// </summary>
+    /// <param name="cancellationToken">
+    /// Token that triggers <see cref="Stop"/> when cancelled.
+    /// Pass <see cref="CancellationToken.None"/> (or omit) for the original behaviour.
+    /// </param>
+    /// <returns>true if the server started successfully; otherwise false.</returns>
+    public bool Start(CancellationToken cancellationToken)
+    {
+        if (!Start())
+            return false;
+
+        if (cancellationToken.CanBeCanceled)
+        {
+            // Use a static lambda + state object to avoid allocating a closure.
+            m_StopRegistration = cancellationToken.Register(
+                static s => ((AppServerBase<TAppSession, TRequestInfo>)s!).Stop(),
+                this);
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -751,6 +784,13 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
             return;
         }
 
+        // Dispose the cancellation registration so the callback cannot fire after Stop()
+        // has already run.  Dispose() is safe to call from within the callback itself
+        // (.NET guarantees no deadlock in that case).
+        var reg = m_StopRegistration;
+        m_StopRegistration = default;
+        reg.Dispose();
+
         m_SocketServer.Stop();
 
         m_StateCode = ServerStateConst.NotStarted;
@@ -762,7 +802,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     }
 
 
-    private Func<TAppSession, byte[], int, int, bool> m_RawDataReceivedHandler;
+    private Func<TAppSession, byte[], int, int, bool>? m_RawDataReceivedHandler;
 
     /// <summary>
     /// Gets or sets the raw binary data received event handler.
@@ -794,7 +834,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         return handler((TAppSession)session, buffer, offset, length);
     }
 
-    private RequestHandler<TAppSession, TRequestInfo> m_RequestHandler;
+    private RequestHandler<TAppSession, TRequestInfo>? m_RequestHandler;
 
     /// <summary>
     /// Occurs when a full request item received.
@@ -812,12 +852,16 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="session">The session.</param>
     /// <param name="requestInfo">The request info.</param>
     protected virtual void ExecuteCommand(TAppSession session, TRequestInfo requestInfo)
-    {            
+    {
         session.CurrentCommand = requestInfo.Key;
+
+        var handler = m_RequestHandler;
+        if (handler == null)
+            return;
 
         try
         {
-            m_RequestHandler(session, requestInfo);
+            handler(session, requestInfo);
         }
         catch (Exception e)
         {
@@ -864,7 +908,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <value>
     /// The server's connection filters
     /// </value>
-    public IEnumerable<IConnectionFilter> ConnectionFilters
+    public IEnumerable<IConnectionFilter>? ConnectionFilters
     {
         get { return m_ConnectionFilters; }
     }
@@ -874,7 +918,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// </summary>
     /// <param name="remoteAddress">The remote address.</param>
     /// <returns></returns>
-    private bool ExecuteConnectionFilters(IPEndPoint remoteAddress)
+    private bool ExecuteConnectionFilters(IPEndPoint? remoteAddress)
     {
         if (m_ConnectionFilters == null)
             return true;
@@ -927,7 +971,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <returns></returns>
     bool IAppServer.RegisterSession(IAppSession session)
     {
-        var appSession = session as TAppSession;
+        var appSession = (session as TAppSession)!;
 
         if (!RegisterSession(appSession.SessionID, appSession))
             return false;
@@ -953,7 +997,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     }
 
 
-    private SessionHandler<TAppSession> m_NewSessionConnected;
+    private SessionHandler<TAppSession>? m_NewSessionConnected;
 
     /// <summary>
     /// The action which will be executed after a new session connect
@@ -988,7 +1032,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     {
         try
         {
-            var handler = (SessionHandler<TAppSession>)result.AsyncState;
+            var handler = (SessionHandler<TAppSession>)result.AsyncState!;
             handler.EndInvoke(result);
         }
         catch (Exception e)
@@ -1018,12 +1062,12 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         //if (Logger.IsInfoEnabled && (Config.LogBasicSessionActivity || (reason != CloseReason.ServerClosing && reason != CloseReason.ClientClosing && reason != CloseReason.ServerShutdown && reason != CloseReason.SocketError)))
             //Logger.Info(session, string.Format("This session was closed for {0}!", reason));
 
-        var appSession = session.AppSession as TAppSession;
+        var appSession = (session.AppSession as TAppSession)!;
         appSession.Connected = false;
         OnSessionClosed(appSession, reason);
     }
 
-    private SessionHandler<TAppSession, CloseReason> m_SessionClosed;
+    private SessionHandler<TAppSession, CloseReason>? m_SessionClosed;
     /// <summary>
     /// Gets/sets the session closed event handler.
     /// </summary>
@@ -1062,7 +1106,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     {
         try
         {
-            var handler = (SessionHandler<TAppSession, CloseReason>)result.AsyncState;
+            var handler = (SessionHandler<TAppSession, CloseReason>)result.AsyncState!;
             handler.EndInvoke(result);
         }
         catch (Exception e)
@@ -1076,14 +1120,14 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// </summary>
     /// <param name="sessionID">The session ID.</param>
     /// <returns></returns>
-    public abstract TAppSession GetSessionByID(string sessionID);
+    public abstract TAppSession? GetSessionByID(string sessionID);
 
     /// <summary>
     /// Gets the app session by ID.
     /// </summary>
     /// <param name="sessionID"></param>
     /// <returns></returns>
-    IAppSession IAppServer.GetSessionByID(string sessionID)
+    IAppSession? IAppServer.GetSessionByID(string sessionID)
     {
         return this.GetSessionByID(sessionID);
     }
@@ -1092,7 +1136,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// Gets the matched sessions from sessions snapshot.
     /// </summary>
     /// <param name="critera">The prediction critera.</param>
-    public virtual IEnumerable<TAppSession> GetSessions(Func<TAppSession, bool> critera)
+    public virtual IEnumerable<TAppSession>? GetSessions(Func<TAppSession, bool> critera)
     {
         throw new NotSupportedException();
     }
@@ -1100,7 +1144,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <summary>
     /// Gets all sessions in sessions snapshot.
     /// </summary>
-    public virtual IEnumerable<TAppSession> GetAllSessions()
+    public virtual IEnumerable<TAppSession>? GetAllSessions()
     {
         throw new NotSupportedException();
     }
@@ -1131,7 +1175,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// <param name="localEndPoint">The local end point.</param>
     /// <returns></returns>
     /// <exception cref="System.Exception">This server cannot support active connect.</exception>
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint localEndPoint)
+    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
         var activeConnector = m_SocketServer as IActiveConnector;
 

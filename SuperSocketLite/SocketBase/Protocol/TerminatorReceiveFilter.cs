@@ -13,12 +13,12 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 {
     private readonly SearchMarkState<byte> m_SearchState;
 
-    private IAppSession m_Session;
+    private IAppSession? m_Session;
 
     /// <summary>
     /// Gets the session assosiated with the Receive filter.
     /// </summary>
-    protected IAppSession Session
+    protected IAppSession? Session
     {
         get { return m_Session; }
     }
@@ -26,7 +26,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// <summary>
     /// Null RequestInfo
     /// </summary>
-    protected static readonly TRequestInfo NullRequestInfo = default(TRequestInfo);
+    protected static readonly TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     private int m_ParsedLengthInBuffer = 0;
 
@@ -53,7 +53,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
     /// <returns>return the parsed TRequestInfo</returns>
-    public override TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         rest = 0;
 
@@ -74,7 +74,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
             {
                 m_ParsedLengthInBuffer += length;
 
-                if (m_ParsedLengthInBuffer >= m_Session.Config.ReceiveBufferSize)
+                if (m_ParsedLengthInBuffer >= m_Session!.Config.ReceiveBufferSize)
                 {
                     this.AddArraySegment(readBuffer, offset + length - m_ParsedLengthInBuffer, m_ParsedLengthInBuffer, toBeCopied);
                     m_ParsedLengthInBuffer = 0;
@@ -102,7 +102,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 
         rest = length - findLen - currentMatched;
 
-        TRequestInfo requestInfo;
+        TRequestInfo? requestInfo;
 
         if (findLen > 0)
         {
@@ -191,8 +191,8 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         m_OffsetDelta = 0;
     }
 
-    
-    private TRequestInfo ProcessMatchedRequest(ArraySegmentList data, int offset, int length)
+
+    private TRequestInfo? ProcessMatchedRequest(ArraySegmentList data, int offset, int length)
     {
         var targetData = data.ToArrayData(offset, length);
         return ProcessMatchedRequest(targetData, 0, length);
@@ -205,7 +205,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected abstract TRequestInfo ProcessMatchedRequest(byte[] data, int offset, int length);
+    protected abstract TRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length);
 
     
     private int m_OffsetDelta;
@@ -254,7 +254,7 @@ public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
     /// <returns></returns>
-    protected override StringRequestInfo ProcessMatchedRequest(byte[] data, int offset, int length)
+    protected override StringRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length)
     {
         if(length == 0)
             return m_RequestParser.ParseRequestInfo(string.Empty);

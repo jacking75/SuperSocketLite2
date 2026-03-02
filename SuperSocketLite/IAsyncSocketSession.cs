@@ -7,7 +7,7 @@ interface IAsyncSocketSessionBase : ILoggerProvider
 {
     SocketAsyncEventArgsProxy SocketAsyncProxy { get; }
     
-    Socket Client { get; }
+    Socket? Client { get; }
 }
 
 interface IAsyncSocketSession : IAsyncSocketSessionBase

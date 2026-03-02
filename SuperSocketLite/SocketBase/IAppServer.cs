@@ -29,7 +29,7 @@ public interface IAppServer : IWorkItem, ILoggerProvider
     /// <value>
     /// The listeners.
     /// </value>
-    ListenerInfo[] Listeners { get; }
+    ListenerInfo[]? Listeners { get; }
 
     /// <summary>
     /// Gets the Receive filter factory.
@@ -39,7 +39,7 @@ public interface IAppServer : IWorkItem, ILoggerProvider
     /// <summary>
     /// Gets the certificate of current server.
     /// </summary>
-    X509Certificate Certificate { get; }
+    X509Certificate? Certificate { get; }
 
     /// <summary>
     /// Gets the transfer layer security protocol.
@@ -66,7 +66,7 @@ public interface IAppServer : IWorkItem, ILoggerProvider
     /// </summary>
     /// <param name="sessionID">The session ID.</param>
     /// <returns></returns>
-    IAppSession GetSessionByID(string sessionID);
+    IAppSession? GetSessionByID(string sessionID);
 
     /// <summary>
     /// Resets the session's security protocol.
@@ -111,13 +111,13 @@ public interface IAppServer<TAppSession> : IAppServer
     /// </summary>
     /// <param name="critera">The prediction critera.</param>
     /// <returns></returns>
-    IEnumerable<TAppSession> GetSessions(Func<TAppSession, bool> critera);
+    IEnumerable<TAppSession>? GetSessions(Func<TAppSession, bool> critera);
 
     /// <summary>
     /// Gets all sessions in sessions snapshot.
     /// </summary>
     /// <returns></returns>
-    IEnumerable<TAppSession> GetAllSessions();
+    IEnumerable<TAppSession>? GetAllSessions();
 
     /// <summary>
     /// Gets/sets the new session connected event handler.
@@ -188,5 +188,5 @@ public interface IRemoteCertificateValidator
     /// <param name="chain">The chain.</param>
     /// <param name="sslPolicyErrors">The SSL policy errors.</param>
     /// <returns></returns>
-    bool Validate(IAppSession session, object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors);
+    bool Validate(IAppSession session, object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors);
 }

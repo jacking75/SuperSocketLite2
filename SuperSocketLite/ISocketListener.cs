@@ -8,7 +8,7 @@ namespace SuperSocketLite.SocketEngine;
 
 delegate void ErrorHandler(ISocketListener listener, Exception e);
 
-delegate void NewClientAcceptHandler(ISocketListener listener, Socket client, object state);
+delegate void NewClientAcceptHandler(ISocketListener listener, Socket client, object? state);
 
 /// <summary>
 /// The interface for socket listener
@@ -40,16 +40,16 @@ interface ISocketListener
     /// <summary>
     /// Occurs when new client accepted.
     /// </summary>
-    event NewClientAcceptHandler NewClientAccepted;
+    event NewClientAcceptHandler? NewClientAccepted;
 
     /// <summary>
     /// Occurs when error got.
     /// </summary>
-    event ErrorHandler Error;
+    event ErrorHandler? Error;
 
 
     /// <summary>
     /// Occurs when [stopped].
     /// </summary>
-    event EventHandler Stopped;
+    event EventHandler? Stopped;
 }

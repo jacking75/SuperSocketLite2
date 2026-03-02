@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Text;
@@ -36,7 +37,7 @@ public interface IAppSession : ISessionBase
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    IPEndPoint LocalEndPoint { get; }
+    IPEndPoint? LocalEndPoint { get; }
 
     /// <summary>
     /// Gets or sets the last active time of the session.
@@ -82,7 +83,7 @@ public interface IAppSession : ISessionBase
     /// <value>
     /// The prev command.
     /// </value>
-    string PrevCommand { get; set; }
+    string? PrevCommand { get; set; }
 
     /// <summary>
     /// Gets or sets the current executing command.
@@ -90,7 +91,7 @@ public interface IAppSession : ISessionBase
     /// <value>
     /// The current command.
     /// </value>
-    string CurrentCommand { get; set; }
+    string? CurrentCommand { get; set; }
 
     /// <summary>
     /// Gets the logger assosiated with this session.
@@ -106,6 +107,20 @@ public interface IAppSession : ISessionBase
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <returns>return offset delta of next receiving buffer</returns>
     int ProcessRequest(byte[] readBuffer, int offset, int length, bool toBeCopied);
+
+    /// <summary>
+    /// Processes the request data from the Pipelines receive path.
+    /// </summary>
+    /// <param name="buffer">The read-only sequence buffer from PipeReader.</param>
+    /// <returns>The consumed position (always buffer.End; partial data is managed internally).</returns>
+    SequencePosition ProcessRequest(ReadOnlySequence<byte> buffer);
+
+    /// <summary>
+    /// Releases the receive filter carry buffer back to ArrayPool.
+    /// Called by SocketSession.ProcessPipeAsync() after the pipe loop exits,
+    /// ensuring the buffer is not returned while it is still in use.
+    /// </summary>
+    void CompleteReceivePipe();
 
     /// <summary>
     /// Starts the session.

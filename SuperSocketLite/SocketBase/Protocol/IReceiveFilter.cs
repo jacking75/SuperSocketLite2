@@ -17,7 +17,7 @@ public interface IReceiveFilter<TRequestInfo>
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
     /// <returns></returns>
-    TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
+    TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
 
     /// <summary>
     /// Gets the size of the rest buffer.
@@ -30,7 +30,7 @@ public interface IReceiveFilter<TRequestInfo>
     /// <summary>
     /// Gets the next Receive filter.
     /// </summary>
-    IReceiveFilter<TRequestInfo> NextReceiveFilter { get; }
+    IReceiveFilter<TRequestInfo>? NextReceiveFilter { get; }
 
     /// <summary>
     /// Resets this instance to initial state.

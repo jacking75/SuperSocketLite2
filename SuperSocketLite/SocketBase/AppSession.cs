@@ -168,7 +168,6 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     // Filters accumulate partial packet data in this buffer between reads.
     private byte[]? _filterBuffer;
 
-
     /// <summary>
     /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession, TRequestInfo&gt;"/> class.
     /// </summary>

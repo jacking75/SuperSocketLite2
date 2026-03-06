@@ -321,9 +321,11 @@ class AsyncStreamSocketSession : SocketSession, IAsyncSocketSessionBase, INegoti
 
         if (asyncResult != null)
             asyncResult.AsyncWaitHandle.WaitOne();
-    }
+}
 
     public SocketAsyncEventArgsProxy SocketAsyncProxy { get; private set; }
+
+    public SocketAsyncEventArgs? SendSAEA => null;  // SSL stream uses BeginWrite/EndWrite, not SAEA
 
     ILog ILoggerProvider.Logger
     {

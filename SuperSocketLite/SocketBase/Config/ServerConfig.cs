@@ -399,4 +399,15 @@ public partial class ServerConfig : IServerConfig
 
     public int CollectSendIntervalMillSec { get; set; }
 
+    /// <summary>
+    /// Gets or sets a value indicating whether to pre-allocate SocketAsyncEventArgs objects at startup.
+    /// true: Pre-allocate MaxConnectionNumber SAEA objects at startup (default, better performance)
+    /// false: Start with MinPoolSize and grow dynamically as needed
+    /// </summary>
+    public bool PreAllocateSAEA { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets the minimum pool size for SAEA objects when PreAllocateSAEA is false.
+    /// </summary>
+    public int MinPoolSize { get; set; } = 100;
 }

@@ -265,7 +265,7 @@ public partial interface IServerConfig
     string? DefaultCulture { get; }
 
 
-    /// <summary>
+/// <summary>
     /// Nodelay
     /// </summary>
     /// <value>
@@ -275,11 +275,23 @@ public partial interface IServerConfig
 
 
     /// <summary>
-    /// �����͸� ���� �� send �����忡�� �ϰ������� ������ ��� ���� send ����. �ð��� �и��������̸� 0 ���� ũ�� ���.
-    /// Ŭ���̾�Ʈ�� �����͸� ���� ������ ��쿡�� ����ϴ� ���� ����.
+    /// Gets the interval for collect send, in milliseconds.
     /// </summary>
     /// <value>
-    /// default�� 0
+    /// default is 0
     /// </value>
     int CollectSendIntervalMillSec { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether to pre-allocate SocketAsyncEventArgs objects at startup.
+    /// true: Pre-allocate MaxConnectionNumber SAEA objects at startup (default, better performance)
+    /// false: Start with MinPoolSize and grow dynamically as needed
+    /// </summary>
+    bool PreAllocateSAEA { get; }
+
+    /// <summary>
+    /// Gets the minimum pool size for SAEA objects when PreAllocateSAEA is false.
+    /// Default is 100.
+    /// </summary>
+    int MinPoolSize { get; }
 }

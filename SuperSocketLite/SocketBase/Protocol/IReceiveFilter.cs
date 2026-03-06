@@ -1,4 +1,6 @@
 ﻿
+using System;
+
 namespace SuperSocketLite.SocketBase.Protocol;
 
 /// <summary>
@@ -18,6 +20,21 @@ public interface IReceiveFilter<TRequestInfo>
     /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
     /// <returns></returns>
     TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
+
+    /// <summary>
+    /// Filters received data using ReadOnlySpan for better performance.
+    /// Default implementation copies span to array for backward compatibility.
+    /// Override in derived classes for zero-allocation processing.
+    /// </summary>
+    /// <param name="buffer">The receive buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
+    /// <returns></returns>
+    TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
+    {
+        byte[] tempBuffer = buffer.ToArray();
+        return Filter(tempBuffer, 0, tempBuffer.Length, toBeCopied, out rest);
+    }
 
     /// <summary>
     /// Gets the size of the rest buffer.

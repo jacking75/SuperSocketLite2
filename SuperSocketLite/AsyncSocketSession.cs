@@ -12,19 +12,27 @@ namespace SuperSocketLite.SocketEngine;
 class AsyncSocketSession : SocketSession, IAsyncSocketSession
 {
     private bool m_IsReset;
-
+    private bool m_SendSAEAFromPool;
     private SocketAsyncEventArgs? m_SocketEventArgSend;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy)
-        : this(client, socketAsyncProxy, false)
+        : this(client, socketAsyncProxy, null, false)
     {
 
     }
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, bool isReset)
+        : this(client, socketAsyncProxy, null, isReset)
+    {
+
+    }
+
+    public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, SocketAsyncEventArgs? sendSAEA, bool isReset)
         : base(client)
     {
         SocketAsyncProxy = socketAsyncProxy;
+        m_SocketEventArgSend = sendSAEA;
+        m_SendSAEAFromPool = sendSAEA != null;
         m_IsReset = isReset;
     }
 
@@ -32,6 +40,8 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         get { return AppSession.Logger; }
     }
+
+    public SocketAsyncEventArgs? SendSAEA => m_SocketEventArgSend;
 
     public override void Initialize(IAppSession appSession)
     {
@@ -43,7 +53,9 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         if (!SyncSend)
         {
             //Initialize SocketAsyncEventArgs for sending
-            m_SocketEventArgSend = new SocketAsyncEventArgs();
+            if (m_SocketEventArgSend == null)
+                m_SocketEventArgSend = new SocketAsyncEventArgs();
+            
             m_SocketEventArgSend.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendingCompleted);
         }
     }
@@ -206,7 +218,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     public SocketAsyncEventArgsProxy SocketAsyncProxy { get; private set; }
 
-    /// <summary>
+/// <summary>
     /// Called by the IOCP completion thread when a ReceiveAsync completes.
     /// Advances the PipeWriter and schedules the next receive — no AppSession call here.
     /// </summary>
@@ -223,6 +235,9 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         OnReceiveEnded();
 
+        // Track bytes received for metrics
+        AppSession?.AppServer.RecordBytesReceived(e.BytesTransferred);
+
         _pipeWriter!.Advance(e.BytesTransferred);
         var flushTask = _pipeWriter.FlushAsync();
 
@@ -238,7 +253,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 _ => StartReceive(),
                 System.Threading.Tasks.TaskContinuationOptions.ExecuteSynchronously);
         }
-    }
+}
 
     protected override void OnClosed(CloseReason reason)
     {
@@ -254,7 +269,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         if (Interlocked.CompareExchange(ref m_SocketEventArgSend, null, sae) == sae)
         {
-            sae.Dispose();
+            sae.Completed -= OnSendingCompleted;
+            
+            // Only dispose if not from pool - pool manages lifecycle
+            if (!m_SendSAEAFromPool)
+            {
+                sae.Dispose();
+            }
+            
             base.OnClosed(reason);
         }
     }

@@ -82,6 +82,33 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     }
 
     /// <summary>
+    /// Filters received data using ReadOnlySpan for better performance.
+    /// </summary>
+    /// <param name="buffer">The receive buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
+    /// <returns></returns>
+    public virtual TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
+    {
+        rest = m_ParsedLength + buffer.Length - m_Size;
+
+        if (rest >= 0)
+        {
+            var requestInfo = ProcessMatchedRequest(buffer.Slice(0, m_Size), toBeCopied);
+            InternalReset();
+            return requestInfo;
+        }
+        else
+        {
+            m_ParsedLength += buffer.Length;
+            m_OffsetDelta = m_ParsedLength;
+            rest = 0;
+
+            return NullRequestInfo;
+        }
+    }
+
+    /// <summary>
     /// Filters the buffer after the server receive the enough size of data.
     /// </summary>
     /// <param name="buffer">The buffer.</param>
@@ -90,6 +117,19 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <returns></returns>
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied);
+
+    /// <summary>
+    /// Filters the buffer using ReadOnlySpan after the server receives enough data.
+    /// Default implementation converts span to array and calls the byte[] version.
+    /// Override for zero-allocation processing.
+    /// </summary>
+    /// <param name="buffer">The buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <returns></returns>
+    protected virtual TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
+    {
+        return ProcessMatchedRequest(buffer.ToArray(), 0, buffer.Length, toBeCopied);
+    }
 
     /// <summary>
     /// Gets the size of the rest buffer.

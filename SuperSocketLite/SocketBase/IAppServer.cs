@@ -79,6 +79,18 @@ public interface IAppServer : IWorkItem, ILoggerProvider
     /// Gets the log factory.
     /// </summary>
     ILogFactory LogFactory { get; }
+
+    /// <summary>
+    /// Records bytes received for metrics.
+    /// </summary>
+    /// <param name="count">The number of bytes received.</param>
+    void RecordBytesReceived(int count);
+
+    /// <summary>
+    /// Records bytes sent for metrics.
+    /// </summary>
+    /// <param name="count">The number of bytes sent.</param>
+    void RecordBytesSent(int count);
 }
 
 /// <summary>

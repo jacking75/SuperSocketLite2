@@ -16,10 +16,6 @@
 
 ## 🟡 우선순위 중간
 
-### TASK-05: IAsyncDisposable 구현
-- **파일**: `AppServerBase.cs`
-- **목표**: `await using` 패턴 지원, 모든 세션 비동기 종료 대기
-
 ### TASK-06: System.Diagnostics.Metrics 추가
 - **파일**: `AppServerBase.cs`, `AsyncSocketServer.cs`
 - **목표**: `Meter("SuperSocketLite")`로 런타임 메트릭 노출
@@ -28,22 +24,3 @@
 ### TASK-07: ReceiveFilter Span 오버로드
 - **파일**: `SocketBase/Protocol/IReceiveFilter.cs`, `Protocol/FixedHeaderReceiveFilter.cs`
 - **목표**: `ReadOnlySpan<byte>` 기반 처리로 전환 (default 구현으로 하위 호환 유지)
-
-### TASK-08: IP Rate Limiting 연결 필터
-- **파일**: `SocketBase/IConnectionFilter.cs` (새 파일: `IpRateLimitConnectionFilter.cs`)
-- **목표**: 동일 IP 초당 연결 시도 횟수 제한 기본 구현 제공
-
----
-
-## 🟢 우선순위 낮음
-
-### TASK-10: 단위 테스트 추가 (xUnit)
-- **파일**: `Test/` 디렉토리
-- **목표**: 핵심 컴포넌트 테스트
-- **대상**: `FixedHeaderReceiveFilter`, `SocketSession` 상태 머신, `SmartPool<T>`, `BufferManager`
-
-### TASK-11: 레거시 코드 정리
-- **파일**: `AppServerBase.cs`, `AppSession.cs`
-- **목표**:
-  - `[Obsolete]` `OnStartup()` 제거, `OnStarted()`로 통일
-  - 주석 처리된 `BeginInvoke`/`EndInvoke` 코드 제거  

@@ -151,6 +151,20 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     }
 
     /// <summary>
+    /// Filters received data using ReadOnlySpan for better performance.
+    /// Default implementation converts to byte[] for backward compatibility.
+    /// </summary>
+    /// <param name="buffer">The receive buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
+    /// <returns></returns>
+    public override TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
+    {
+        byte[] tempBuffer = buffer.ToArray();
+        return Filter(tempBuffer, 0, tempBuffer.Length, toBeCopied, out rest);
+    }
+
+    /// <summary>
     /// Processes the matched request.
     /// </summary>
     /// <param name="readBuffer">The read buffer.</param>

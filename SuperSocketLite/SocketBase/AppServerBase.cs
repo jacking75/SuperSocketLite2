@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
@@ -79,7 +80,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     {
         get { return this.ReceiveFilterFactory; }
     }
-      
+       
 
     private ISocketServerFactory m_SocketServerFactory = null!;
 
@@ -97,7 +98,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// Gets the logger assosiated with this object.
     /// </summary>
     public ILog Logger { get; private set; } = null!;
-            
+             
     // 0 = not configured, 1 = configured.
     // Interlocked.CompareExchange prevents two concurrently-initialized AppServer instances
     // from both configuring the thread pool (check-then-set race on plain bool).
@@ -119,7 +120,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         get { return m_TotalHandledRequests; }
     }
 
-    private ListenerInfo[]? m_Listeners;
+private ListenerInfo[]? m_Listeners;
 
     /// <summary>
     /// Gets or sets the listeners inforamtion.
@@ -139,6 +140,46 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     /// The started time.
     /// </value>
     public DateTime StartedTime { get; private set; }
+
+    // Metrics
+    private static readonly Meter s_Meter = new Meter("SuperSocketLite");
+    private static readonly Counter<long> s_TotalRequestsCounter = s_Meter.CreateCounter<long>("total-requests", "requests", "Total number of requests received");
+    private static readonly Counter<long> s_TotalBytesReceivedCounter = s_Meter.CreateCounter<long>("total-bytes-received", "bytes", "Total bytes received");
+    private static readonly Counter<long> s_TotalBytesSentCounter = s_Meter.CreateCounter<long>("total-bytes-sent", "bytes", "Total bytes sent");
+    private static UpDownCounter<int>? s_ActiveConnectionsCounter;
+    
+    private long m_TotalBytesReceived = 0;
+    private long m_TotalBytesSent = 0;
+
+    /// <summary>
+    /// Records bytes received for metrics.
+    /// </summary>
+    /// <param name="count">The number of bytes received.</param>
+    public void RecordBytesReceived(int count)
+    {
+        Interlocked.Add(ref m_TotalBytesReceived, count);
+        s_TotalBytesReceivedCounter.Add(count, new KeyValuePair<string, object?>("server", Name));
+    }
+
+    /// <summary>
+    /// Records bytes sent for metrics.
+    /// </summary>
+    /// <param name="count">The number of bytes sent.</param>
+    public void RecordBytesSent(int count)
+    {
+        Interlocked.Add(ref m_TotalBytesSent, count);
+        s_TotalBytesSentCounter.Add(count, new KeyValuePair<string, object?>("server", Name));
+    }
+
+    /// <summary>
+    /// Gets the total bytes received.
+    /// </summary>
+    public long TotalBytesReceived => m_TotalBytesReceived;
+
+    /// <summary>
+    /// Gets the total bytes sent.
+    /// </summary>
+    public long TotalBytesSent => m_TotalBytesSent;
 
 
     /// <summary>
@@ -693,7 +734,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         return true;
     }
 
-    /// <summary>
+/// <summary>
     /// Starts this server instance.
     /// </summary>
     /// <returns>
@@ -713,6 +754,9 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
 
             return false;
         }
+
+        // Initialize active connections counter for metrics
+        s_ActiveConnectionsCounter ??= s_Meter.CreateUpDownCounter<int>("active-connections", "connections", "Number of active connections");
 
         if (!m_SocketServer.Start())
         {
@@ -871,14 +915,17 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         session.PrevCommand = requestInfo.Key;
         session.LastActiveTime = DateTime.Now;
 
-        if (Config.LogCommand && Logger.IsInfoEnabled)
+if (Config.LogCommand && Logger.IsInfoEnabled)
         {
             //Logger.Info(session, string.Format("Command - {0}", requestInfo.Key));
             var message = string.Format("Command - {0}", requestInfo.Key);
             Logger.Info(string.Format("Session: {0}/{1}", session.SessionID, session.RemoteEndPoint) + Environment.NewLine + message);
         }
 
-        Interlocked.Increment(ref m_TotalHandledRequests);
+Interlocked.Increment(ref m_TotalHandledRequests);
+        
+        // Track total requests for metrics
+        s_TotalRequestsCounter.Add(1, new KeyValuePair<string, object?>("server", Name));
     }
 
 
@@ -964,7 +1011,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         return new TAppSession();
     }
 
-    /// <summary>
+/// <summary>
     /// Registers the new created app session into the appserver's session container.
     /// </summary>
     /// <param name="session">The session.</param>
@@ -977,6 +1024,9 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
             return false;
 
         appSession.SocketSession.Closed += OnSocketSessionClosed;
+
+        // Track active connections
+        s_ActiveConnectionsCounter?.Add(1, new KeyValuePair<string, object?>("server", Name));
 
         //if (Config.LogBasicSessionActivity && Logger.IsInfoEnabled)
             //Logger.Info(session, "A new session connected!");
@@ -1051,13 +1101,16 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         m_SocketServer.ResetSessionSecurity(session, security);
     }
 
-    /// <summary>
+/// <summary>
     /// Called when [socket session closed].
     /// </summary>
     /// <param name="session">The socket session.</param>
     /// <param name="reason">The reason.</param>
     private void OnSocketSessionClosed(ISocketSession session, CloseReason reason)
     {
+        // Track active connections
+        s_ActiveConnectionsCounter?.Add(-1, new KeyValuePair<string, object?>("server", Name));
+
         //Even if LogBasicSessionActivity is false, we also log the unexpected closing because the close reason probably be useful
         //if (Logger.IsInfoEnabled && (Config.LogBasicSessionActivity || (reason != CloseReason.ServerClosing && reason != CloseReason.ClientClosing && reason != CloseReason.ServerShutdown && reason != CloseReason.SocketError)))
             //Logger.Info(session, string.Format("This session was closed for {0}!", reason));

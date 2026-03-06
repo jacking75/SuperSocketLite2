@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
@@ -18,22 +18,52 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     }
 
-    private ConcurrentStack<SocketAsyncEventArgsProxy>? m_ReadWritePool;
+    private ISmartPool<SocketAsyncEventArgsProxy>? m_ReceiveSAEAPool;
+    private ISmartPool<SocketAsyncEventArgs>? m_SendSAEAPool;
 
     public override bool Start()
     {
         try
         {
-            // Pre-allocate SocketAsyncEventArgs objects without pre-pinning receive buffers.
-            // With System.IO.Pipelines, each session obtains memory from its PipeWriter on demand.
-            var socketArgsProxyList = new List<SocketAsyncEventArgsProxy>(AppServer.Config.MaxConnectionNumber);
-
-            for (int i = 0; i < AppServer.Config.MaxConnectionNumber; i++)
+            // Initialize receive SAEA pool
+            m_ReceiveSAEAPool = new SmartPool<SocketAsyncEventArgsProxy>();
+            var receiveCreator = new SAEAProxyCreator();
+            
+            if (AppServer.Config.PreAllocateSAEA)
             {
-                socketArgsProxyList.Add(new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs()));
+                // Pre-allocate all SAEA objects at startup for maximum performance
+                m_ReceiveSAEAPool.Initialize(
+                    AppServer.Config.MaxConnectionNumber,
+                    AppServer.Config.MaxConnectionNumber,
+                    receiveCreator);
+            }
+            else
+            {
+                // Start with minimum and grow dynamically
+                m_ReceiveSAEAPool.Initialize(
+                    AppServer.Config.MinPoolSize,
+                    AppServer.Config.MaxConnectionNumber,
+                    receiveCreator);
             }
 
-            m_ReadWritePool = new ConcurrentStack<SocketAsyncEventArgsProxy>(socketArgsProxyList);
+            // Initialize send SAEA pool
+            m_SendSAEAPool = new SmartPool<SocketAsyncEventArgs>();
+            var sendCreator = new SAEACreator();
+            
+            if (AppServer.Config.PreAllocateSAEA)
+            {
+                m_SendSAEAPool.Initialize(
+                    AppServer.Config.MaxConnectionNumber,
+                    AppServer.Config.MaxConnectionNumber,
+                    sendCreator);
+            }
+            else
+            {
+                m_SendSAEAPool.Initialize(
+                    AppServer.Config.MinPoolSize,
+                    AppServer.Config.MaxConnectionNumber,
+                    sendCreator);
+            }
 
             if (!base.Start())
                 return false;
@@ -58,10 +88,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     private IAppSession? ProcessNewClient(Socket client, SslProtocols security)
     {
-        //Get the socket for the accepted client connection and put it into the
-        //ReadEventArg object user token
+        // Get receive SAEA from pool
         SocketAsyncEventArgsProxy? socketEventArgsProxy;
-        if (!m_ReadWritePool!.TryPop(out socketEventArgsProxy))
+        if (!m_ReceiveSAEAPool!.TryGet(out socketEventArgsProxy))
         {
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
@@ -70,10 +99,25 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             return null;
         }
 
+        // Get send SAEA from pool (only for non-SSL connections)
+        SocketAsyncEventArgs? sendSAEA = null;
+        if (security == SslProtocols.None)
+        {
+            if (!m_SendSAEAPool!.TryGet(out sendSAEA))
+            {
+                socketEventArgsProxy.Reset();
+                m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+                AppServer.AsyncRun(client.SafeClose);
+                if (AppServer.Logger.IsErrorEnabled)
+                    AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
+                return null;
+            }
+        }
+
         ISocketSession socketSession;
 
         if (security == SslProtocols.None)
-            socketSession = new AsyncSocketSession(client, socketEventArgsProxy);
+            socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false);
         else
             socketSession = new AsyncStreamSocketSession(client, security, socketEventArgsProxy);
 
@@ -82,7 +126,13 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         if (session == null)
         {
             socketEventArgsProxy.Reset();
-            this.m_ReadWritePool.Push(socketEventArgsProxy);
+            m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+            
+            if (sendSAEA != null)
+            {
+                m_SendSAEAPool!.Push(sendSAEA);
+            }
+            
             AppServer.AsyncRun(client.SafeClose);
             return null;
         }
@@ -143,7 +193,15 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         var socketAsyncProxy = ((IAsyncSocketSessionBase)session.SocketSession).SocketAsyncProxy;
 
         if (security == SslProtocols.None)
-            socketSession = new AsyncSocketSession(session.SocketSession.Client!, socketAsyncProxy, true);
+        {
+            SocketAsyncEventArgs? sendSAEA;
+            if (!m_SendSAEAPool!.TryGet(out sendSAEA))
+            {
+                session.Close(CloseReason.InternalError);
+                return;
+            }
+            socketSession = new AsyncSocketSession(session.SocketSession.Client!, socketAsyncProxy, sendSAEA, true);
+        }
         else
             socketSession = new AsyncStreamSocketSession(session.SocketSession.Client!, security, socketAsyncProxy, true);
 
@@ -162,28 +220,37 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         var args = proxy.SocketEventArgs;
 
         var serverState = AppServer.State;
-        var pool = this.m_ReadWritePool;
+        var receivePool = this.m_ReceiveSAEAPool;
+        var sendPool = this.m_SendSAEAPool;
 
-        if (pool == null || serverState == ServerState.Stopping || serverState == ServerState.NotStarted)
+        if (receivePool == null || sendPool == null || serverState == ServerState.Stopping || serverState == ServerState.NotStarted)
         {
             if (!Environment.HasShutdownStarted && !AppDomain.CurrentDomain.IsFinalizingForUnload())
+            {
                 args.Dispose();
+                socketSession.SendSAEA?.Dispose();
+            }
             return;
         }
 
         if (!proxy.IsRecyclable)
         {
-            //cannot be recycled, so release the resource and don't return it to the pool
             args.Dispose();
+            socketSession.SendSAEA?.Dispose();
             return;
         }
 
         // Release any buffer or Memory<byte> GCHandle the SAEA may still hold.
-        // SetBuffer(null,0,0) frees both _buffer and the _memoryHandle pin set by SetBuffer(Memory<byte>).
-        // args.Buffer returns null in the Memory<byte> path, so the condition check is omitted.
         args.SetBuffer(null, 0, 0);
+        receivePool.Push(proxy);
 
-        pool.Push(proxy);
+        // Return send SAEA to pool
+        var sendSAEA = socketSession.SendSAEA;
+        if (sendSAEA != null)
+        {
+            sendSAEA.SetBuffer(null, 0, 0);
+            sendPool.Push(sendSAEA);
+        }
     }
 
     public override void Stop()
@@ -198,10 +265,26 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
             base.Stop();
 
-            foreach (var item in m_ReadWritePool!)
-                item.SocketEventArgs.Dispose();
+            // Dispose all receive SAEA objects by draining the pool
+            if (m_ReceiveSAEAPool != null)
+            {
+                while (m_ReceiveSAEAPool.TryGet(out var proxy))
+                {
+                    proxy.SocketEventArgs.Dispose();
+                }
+                m_ReceiveSAEAPool = null;
+            }
 
-            m_ReadWritePool = null;
+            // Dispose all send SAEA objects by draining the pool
+            if (m_SendSAEAPool != null)
+            {
+                while (m_SendSAEAPool.TryGet(out var saea))
+                {
+                    saea.Dispose();
+                }
+                m_SendSAEAPool = null;
+            }
+
             IsRunning = false;
         }
     }
@@ -263,5 +346,37 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         {
             connectState.TaskSource.SetException(e);
         }
+    }
+}
+
+/// <summary>
+/// Creator for SocketAsyncEventArgsProxy objects used in SmartPool
+/// </summary>
+class SAEAProxyCreator : ISmartPoolSourceCreator<SocketAsyncEventArgsProxy>
+{
+    public ISmartPoolSource Create(int size, out SocketAsyncEventArgsProxy[] poolItems)
+    {
+        poolItems = new SocketAsyncEventArgsProxy[size];
+        for (int i = 0; i < size; i++)
+        {
+            poolItems[i] = new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs());
+        }
+        return new SmartPoolSource(poolItems, size);
+    }
+}
+
+/// <summary>
+/// Creator for SocketAsyncEventArgs objects used in SmartPool (for send operations)
+/// </summary>
+class SAEACreator : ISmartPoolSourceCreator<SocketAsyncEventArgs>
+{
+    public ISmartPoolSource Create(int size, out SocketAsyncEventArgs[] poolItems)
+    {
+        poolItems = new SocketAsyncEventArgs[size];
+        for (int i = 0; i < size; i++)
+        {
+            poolItems[i] = new SocketAsyncEventArgs();
+        }
+        return new SmartPoolSource(poolItems, size);
     }
 }

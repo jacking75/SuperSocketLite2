@@ -102,6 +102,73 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     }
 
     /// <summary>
+    /// Filters received data using ReadOnlySpan for better performance.
+    /// </summary>
+    /// <param name="buffer">The receive buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
+    /// <returns></returns>
+    public override TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
+    {
+        if (!m_FoundHeader)
+            return base.Filter(buffer, toBeCopied, out rest);
+
+        if (m_BodyBuffer == null || m_BodyBuffer.Count == 0)
+        {
+            if (buffer.Length < m_BodyLength)
+            {
+                if (m_BodyBuffer == null)
+                    m_BodyBuffer = new ArraySegmentList();
+
+                m_BodyBuffer.AddSegment(buffer.ToArray(), 0, buffer.Length, toBeCopied);
+                rest = 0;
+                return NullRequestInfo;
+            }
+            else if (buffer.Length == m_BodyLength)
+            {
+                rest = 0;
+                m_FoundHeader = false;
+                return ResolveRequestInfo(m_Header, buffer.ToArray(), 0, buffer.Length);
+            }
+            else
+            {
+                rest = buffer.Length - m_BodyLength;
+                m_FoundHeader = false;
+                return ResolveRequestInfo(m_Header, buffer.Slice(0, m_BodyLength).ToArray(), 0, m_BodyLength);
+            }
+        }
+        else
+        {
+            int required = m_BodyLength - m_BodyBuffer.Count;
+
+            if (buffer.Length < required)
+            {
+                m_BodyBuffer.AddSegment(buffer.ToArray(), 0, buffer.Length, toBeCopied);
+                rest = 0;
+                return NullRequestInfo;
+            }
+            else if (buffer.Length == required)
+            {
+                m_BodyBuffer.AddSegment(buffer.ToArray(), 0, buffer.Length, toBeCopied);
+                rest = 0;
+                m_FoundHeader = false;
+                var requestInfo = ResolveRequestInfo(m_Header, m_BodyBuffer.ToArrayData());
+                m_BodyBuffer.ClearSegements();
+                return requestInfo;
+            }
+            else
+            {
+                m_BodyBuffer.AddSegment(buffer.Slice(0, required).ToArray(), 0, required, toBeCopied);
+                rest = buffer.Length - required;
+                m_FoundHeader = false;
+                var requestInfo = ResolveRequestInfo(m_Header, m_BodyBuffer.ToArrayData(0, m_BodyLength));
+                m_BodyBuffer.ClearSegements();
+                return requestInfo;
+            }
+        }
+    }
+
+    /// <summary>
     /// Processes the fix size request.
     /// </summary>
     /// <param name="buffer">The buffer.</param>
@@ -127,6 +194,30 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return ResolveRequestInfo(m_Header, null, 0, 0);//Empty body
     }
 
+    /// <summary>
+    /// Processes the fix size request using ReadOnlySpan.
+    /// </summary>
+    /// <param name="buffer">The buffer as ReadOnlySpan.</param>
+    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <returns></returns>
+    protected override TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
+    {
+        m_FoundHeader = true;
+
+        m_BodyLength = GetBodyLengthFromHeader(buffer);
+
+        if (toBeCopied)
+            m_Header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
+        else
+            m_Header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
+
+        if (m_BodyLength > 0)
+            return NullRequestInfo;
+
+        m_FoundHeader = false;
+        return ResolveRequestInfo(m_Header, null, 0, 0);//Empty body
+    }
+
     private TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer)
     {
         return ResolveRequestInfo(header, bodyBuffer, 0, bodyBuffer.Length);
@@ -140,6 +231,17 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     /// <param name="length">The length.</param>
     /// <returns></returns>
     protected abstract int GetBodyLengthFromHeader(byte[] header, int offset, int length);
+
+    /// <summary>
+    /// Gets the body length from header using ReadOnlySpan.
+    /// Default implementation converts to array and calls the byte[] version.
+    /// </summary>
+    /// <param name="header">The header as ReadOnlySpan.</param>
+    /// <returns></returns>
+    protected virtual int GetBodyLengthFromHeader(ReadOnlySpan<byte> header)
+    {
+        return GetBodyLengthFromHeader(header.ToArray(), 0, header.Length);
+    }
 
     /// <summary>
     /// Resolves the request data.

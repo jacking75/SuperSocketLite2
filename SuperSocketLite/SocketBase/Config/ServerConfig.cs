@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Linq;
 using SuperSocketLite.Common;
 
@@ -88,9 +87,6 @@ public partial class ServerConfig : IServerConfig
     public ServerConfig(IServerConfig serverConfig)
     {
         serverConfig.CopyPropertiesTo(this);
-        
-        this.Options = serverConfig.Options;
-        this.OptionElements = serverConfig.OptionElements;
 
         if (serverConfig.Certificate != null)
             this.Certificate = serverConfig.Certificate.CopyPropertiesTo(new CertificateConfig());
@@ -98,11 +94,6 @@ public partial class ServerConfig : IServerConfig
         if (serverConfig.Listeners != null && serverConfig.Listeners.Any())
         {
             this.Listeners = serverConfig.Listeners.Select(l => l.CopyPropertiesTo(new ListenerConfig())).OfType<ListenerConfig>().ToArray();
-        }
-
-        if (serverConfig.CommandAssemblies != null && serverConfig.CommandAssemblies.Any())
-        {
-            this.CommandAssemblies = serverConfig.CommandAssemblies.Select(c => c.CopyPropertiesTo(new CommandAssemblyConfig())).OfType<CommandAssemblyConfig>().ToArray();
         }
     }
 
@@ -124,28 +115,8 @@ public partial class ServerConfig : IServerConfig
         ClearIdleSessionInterval = DefaultClearIdleSessionInterval;
         IdleSessionTimeOut = DefaultIdleSessionTimeOut;
         SendBufferSize = DefaultSendBufferSize;
-        LogBasicSessionActivity = true;
         SessionSnapshotInterval = DefaultSessionSnapshotInterval;
     }
-
-    
-
-    /// <summary>
-    /// Gets/sets the name of the server type of this appServer want to use.
-    /// </summary>
-    /// <value>
-    /// The name of the server type.
-    /// </value>
-    public string? ServerTypeName { get; set; }
-
-
-    /// <summary>
-    /// Gets/sets the type definition of the appserver.
-    /// </summary>
-    /// <value>
-    /// The type of the server.
-    /// </value>
-    public string? ServerType { get; set; }
 
     /// <summary>
     /// Gets/sets the Receive filter factory.
@@ -161,18 +132,6 @@ public partial class ServerConfig : IServerConfig
     /// Gets/sets the port.
     /// </summary>
     public int Port { get; set; }
-
-    /// <summary>
-    /// Gets/sets the options.
-    /// </summary>
-    [HotUpdate]
-    public NameValueCollection? Options { get; set; }
-
-    /// <summary>
-    /// Gets the option elements.
-    /// </summary>
-    [HotUpdate]
-    public NameValueCollection? OptionElements { get; set; }
 
     /// <summary>
     /// Gets/sets a value indicating whether this <see cref="IServerConfig"/> is disabled.
@@ -217,7 +176,6 @@ public partial class ServerConfig : IServerConfig
     /// The size of the send buffer.
     /// </value>
     public int SendBufferSize { get; set; }
-
 
     /// <summary>
     /// Gets a value indicating whether sending is in synchronous mode.
@@ -305,11 +263,6 @@ public partial class ServerConfig : IServerConfig
     public string? ConnectionFilter { get; set; }
 
     /// <summary>
-    /// Gets the command loader, multiple values should be separated by comma.
-    /// </summary>
-    public string? CommandLoader { get; set; }
-
-    /// <summary>
     /// Gets/sets the start keep alive time, in seconds
     /// </summary>
     public int KeepAliveTime { get; set; }
@@ -324,12 +277,6 @@ public partial class ServerConfig : IServerConfig
     /// </summary>
     public int ListenBacklog { get; set; }
 
-    /// <summary>
-    /// Gets/sets the startup order of the server instance.
-    /// </summary>
-    public int StartupOrder { get; set; }
-
-   
     /// <summary>
     /// Gets and sets the listeners' configuration.
     /// </summary>
@@ -349,15 +296,6 @@ public partial class ServerConfig : IServerConfig
     public int SendingQueueSize { get; set; }
 
     /// <summary>
-    /// Gets a value indicating whether [log basic session activity like connected and disconnected].
-    /// </summary>
-    /// <value>
-    /// 	<c>true</c> if [log basic session activity]; otherwise, <c>false</c>.
-    /// </value>
-    [HotUpdate]
-    public bool LogBasicSessionActivity { get; set; }
-
-    /// <summary>
     /// Gets/sets a value indicating whether [log all socket exception].
     /// </summary>
     /// <value>
@@ -375,16 +313,6 @@ public partial class ServerConfig : IServerConfig
     public string? TextEncoding { get; set; }
 
     /// <summary>
-    /// Gets the command assemblies configuration.
-    /// </summary>
-    /// <value>
-    /// The command assemblies.
-    /// </value>
-    public IEnumerable<ICommandAssemblyConfig>? CommandAssemblies { get; set; }
-
-
-
-    /// <summary>
     /// Gets or sets the default culture.
     /// </summary>
     /// <value>
@@ -392,10 +320,7 @@ public partial class ServerConfig : IServerConfig
     /// </value>
     public string? DefaultCulture { get; set; }
 
-
-
     public bool NoDelay { get; set; }
-
 
     public int CollectSendIntervalMillSec { get; set; }
 

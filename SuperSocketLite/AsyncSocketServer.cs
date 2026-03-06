@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using System.Threading.Tasks;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
@@ -83,10 +81,10 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         if (IsStopped)
             return;
 
-        ProcessNewClient(client, listener.Info.Security);
+        ProcessNewClient(client);
     }
 
-    private IAppSession? ProcessNewClient(Socket client, SslProtocols security)
+    private IAppSession? ProcessNewClient(Socket client)
     {
         // Get receive SAEA from pool
         SocketAsyncEventArgsProxy? socketEventArgsProxy;
@@ -99,27 +97,19 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             return null;
         }
 
-        // Get send SAEA from pool (only for non-SSL connections)
-        SocketAsyncEventArgs? sendSAEA = null;
-        if (security == SslProtocols.None)
+        // Get send SAEA from pool
+        SocketAsyncEventArgs? sendSAEA;
+        if (!m_SendSAEAPool!.TryGet(out sendSAEA))
         {
-            if (!m_SendSAEAPool!.TryGet(out sendSAEA))
-            {
-                socketEventArgsProxy.Reset();
-                m_ReceiveSAEAPool.Push(socketEventArgsProxy);
-                AppServer.AsyncRun(client.SafeClose);
-                if (AppServer.Logger.IsErrorEnabled)
-                    AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
-                return null;
-            }
+            socketEventArgsProxy.Reset();
+            m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+            AppServer.AsyncRun(client.SafeClose);
+            if (AppServer.Logger.IsErrorEnabled)
+                AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
+            return null;
         }
 
-        ISocketSession socketSession;
-
-        if (security == SslProtocols.None)
-            socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false);
-        else
-            socketSession = new AsyncStreamSocketSession(client, security, socketEventArgsProxy);
+        var socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false);
 
         var session = CreateSession(client, socketSession);
 
@@ -127,54 +117,19 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         {
             socketEventArgsProxy.Reset();
             m_ReceiveSAEAPool.Push(socketEventArgsProxy);
-            
-            if (sendSAEA != null)
-            {
-                m_SendSAEAPool!.Push(sendSAEA);
-            }
-            
+            m_SendSAEAPool.Push(sendSAEA);
             AppServer.AsyncRun(client.SafeClose);
             return null;
         }
 
         socketSession.Closed += SessionClosed;
 
-        var negotiateSession = socketSession as INegotiateSocketSession;
-
-        if (negotiateSession == null)
-        {
-            if (RegisterSession(session))
-            {
-                AppServer.AsyncRun(() => socketSession.Start());
-            }
-
-            return session;
-        }
-
-        negotiateSession.NegotiateCompleted += OnSocketSessionNegotiateCompleted;
-        negotiateSession.Negotiate();
-
-        return null;
-    }
-
-    private void OnSocketSessionNegotiateCompleted(object? sender, EventArgs e)
-    {
-        var socketSession = sender as ISocketSession;
-        var negotiateSession = socketSession as INegotiateSocketSession;
-
-        if (negotiateSession == null || socketSession == null)
-            return;
-
-        if (!negotiateSession.Result)
-        {
-            socketSession.Close(CloseReason.SocketError);
-            return;
-        }
-
-        if (RegisterSession(negotiateSession.AppSession))
+        if (RegisterSession(session))
         {
             AppServer.AsyncRun(() => socketSession.Start());
         }
+
+        return session;
     }
 
     private bool RegisterSession(IAppSession appSession)
@@ -184,29 +139,6 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
         appSession.SocketSession.Close(CloseReason.InternalError);
         return false;
-    }
-
-    public override void ResetSessionSecurity(IAppSession session, SslProtocols security)
-    {
-        ISocketSession socketSession;
-
-        var socketAsyncProxy = ((IAsyncSocketSessionBase)session.SocketSession).SocketAsyncProxy;
-
-        if (security == SslProtocols.None)
-        {
-            SocketAsyncEventArgs? sendSAEA;
-            if (!m_SendSAEAPool!.TryGet(out sendSAEA))
-            {
-                session.Close(CloseReason.InternalError);
-                return;
-            }
-            socketSession = new AsyncSocketSession(session.SocketSession.Client!, socketAsyncProxy, sendSAEA, true);
-        }
-        else
-            socketSession = new AsyncStreamSocketSession(session.SocketSession.Client!, security, socketAsyncProxy, true);
-
-        socketSession.Initialize(session);
-        socketSession.Start();
     }
 
     void SessionClosed(ISocketSession session, CloseReason reason)
@@ -335,7 +267,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             var socket = connectState.Socket;
             socket.EndConnect(result);
 
-            var session = ProcessNewClient(socket, SslProtocols.None);
+            var session = ProcessNewClient(socket);
 
             if (session == null)
                 connectState.TaskSource.SetException(new Exception("Failed to create session for this socket."));

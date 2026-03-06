@@ -1,4 +1,3 @@
-﻿using System.Security.Authentication;
 using SuperSocketLite.Common;
 
 
@@ -16,12 +15,6 @@ public interface ISocketServer
     /// <returns></returns>
     bool Start();
 
-    /// <summary>
-    /// Resets the session's security protocol.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="security">The security protocol.</param>
-    void ResetSessionSecurity(IAppSession session, SslProtocols security);
     /// <summary>
     /// Gets a value indicating whether this instance is running.
     /// </summary>

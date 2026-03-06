@@ -63,10 +63,6 @@ abstract class SocketListenerBase : ISocketListener
         {
             System.Threading.Tasks.Task.Run(() => handler(this, socket, state));
         }
-        //var handler = NewClientAccepted;
-
-        //if (handler != null)
-        //    handler.BeginInvoke(this, socket, state, null, null);
     }
 
     /// <summary>

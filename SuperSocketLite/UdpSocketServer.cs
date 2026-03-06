@@ -218,11 +218,6 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         return new UdpSocketListener(listenerInfo);
     }
 
-    public override void ResetSessionSecurity(IAppSession session, System.Security.Authentication.SslProtocols security)
-    {
-        throw new NotSupportedException();
-    }
-
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint)
     {
         return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);

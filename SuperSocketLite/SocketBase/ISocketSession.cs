@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Security.Authentication;
 using System.Net.Sockets;
 
 
@@ -106,12 +105,7 @@ public interface ISocketSession : ISessionBase
     /// </summary>
     /// <param name="memory">The memory.</param>
     bool TrySend(ReadOnlyMemory<byte> memory);
-
-    /// <summary>
-    /// Applies the secure protocol.
-    /// </summary>
-    void ApplySecureProtocol();
-
+        
     /// <summary>
     /// Gets the client socket.
     /// </summary>
@@ -121,14 +115,6 @@ public interface ISocketSession : ISessionBase
     /// Gets the local listening endpoint.
     /// </summary>
     IPEndPoint? LocalEndPoint { get; }
-
-    /// <summary>
-    /// Gets or sets the secure protocol.
-    /// </summary>
-    /// <value>
-    /// The secure protocol.
-    /// </value>
-    SslProtocols SecureProtocol { get; set; }
 
     /// <summary>
     /// Occurs when [closed].

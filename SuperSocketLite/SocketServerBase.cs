@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Logging;
@@ -43,8 +42,6 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         ListenerInfos = listeners;
         Listeners = new List<ISocketListener>(listeners.Length);
     }
-
-    public abstract void ResetSessionSecurity(IAppSession session, SslProtocols security);
 
     public virtual bool Start()
     {

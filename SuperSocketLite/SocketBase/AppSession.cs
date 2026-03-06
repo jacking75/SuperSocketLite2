@@ -92,20 +92,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <value>
     /// The current command.
     /// </value>
-    public string? CurrentCommand { get; set; }
-
-
-    /// <summary>
-    /// Gets or sets the secure protocol of transportation layer.
-    /// </summary>
-    /// <value>
-    /// The secure protocol.
-    /// </value>
-    public SslProtocols SecureProtocol
-    {
-        get { return SocketSession.SecureProtocol; }
-        set { SocketSession.SecureProtocol = value; }
-    }
+public string? CurrentCommand { get; set; }
 
     /// <summary>
     /// Gets the local listening endpoint.

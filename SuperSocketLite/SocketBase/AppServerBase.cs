@@ -4,9 +4,6 @@ using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Linq;
 using System.Net;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +11,6 @@ using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
-using SuperSocketLite.SocketBase.Security;
 
 
 namespace SuperSocketLite.SocketBase;
@@ -24,7 +20,7 @@ namespace SuperSocketLite.SocketBase;
 /// </summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, ISocketServerAccessor, IRemoteCertificateValidator, IActiveConnector, ISystemEndPoint, IDisposable
+public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, ISocketServerAccessor, IActiveConnector, ISystemEndPoint, IDisposable
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
@@ -61,11 +57,6 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
     }
 
     /// <summary>
-    /// Gets the certificate of current server.
-    /// </summary>
-    public X509Certificate? Certificate { get; private set; }
-
-    /// <summary>
     /// Gets or sets the receive filter factory.
     /// </summary>
     /// <value>
@@ -83,11 +74,6 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
        
 
     private ISocketServerFactory m_SocketServerFactory = null!;
-
-    /// <summary>
-    /// Gets the basic transfer layer security protocol.
-    /// </summary>
-    public SslProtocols BasicSecurity { get; private set; }
 
     /// <summary>
     /// Gets the root config.
@@ -293,11 +279,8 @@ private ListenerInfo[]? m_Listeners;
         return true;
     }
 
-    private bool SetupAdvanced(IServerConfig config)
+private bool SetupAdvanced(IServerConfig config)
     {
-        if (!SetupSecurity(config))
-            return false;
-
         if (!SetupListeners(config))
             return false;
                                 
@@ -459,104 +442,7 @@ private ListenerInfo[]? m_Listeners;
     /// <returns></returns>
     protected virtual ILog CreateLogger(string loggerName)
     {
-        return LogFactory.GetLog(loggerName);
-    }
-
-    /// <summary>
-    /// Setups the security option of socket communications.
-    /// </summary>
-    /// <param name="config">The config of the server instance.</param>
-    /// <returns></returns>
-    private bool SetupSecurity(IServerConfig config)
-    {
-        if (!string.IsNullOrEmpty(config.Security))
-        {
-            SslProtocols configProtocol;
-            if (!config.Security.TryParseEnum<SslProtocols>(true, out configProtocol))
-            {
-                if (Logger.IsErrorEnabled)
-                    Logger.Error($"Failed to parse '{config.Security}' to SslProtocol!");
-
-                return false;
-            }
-
-            BasicSecurity = configProtocol;
-        }
-        else
-        {
-            BasicSecurity = SslProtocols.None;
-        }
-
-        try
-        {
-            var certificate = GetCertificate(config.Certificate);
-
-            if (certificate != null)
-            {
-                Certificate = certificate;
-            }
-            else if(BasicSecurity != SslProtocols.None)
-            {
-                if (Logger.IsErrorEnabled)
-                    Logger.Error("Certificate is required in this security mode!");
-
-                return false;
-            }
-            
-        }
-        catch (Exception e)
-        {
-            if (Logger.IsErrorEnabled)
-                Logger.Error("Failed to initialize certificate!", e);
-
-            return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Gets the certificate from server configuguration.
-    /// </summary>
-    /// <param name="certificate">The certificate config.</param>
-    /// <returns></returns>
-    protected virtual X509Certificate? GetCertificate(ICertificateConfig? certificate)
-    {
-        if (certificate == null)
-        {
-            if (BasicSecurity != SslProtocols.None && Logger.IsErrorEnabled)
-                Logger.Error("There is no certificate configured!");
-            return null;
-        }
-
-        if (string.IsNullOrEmpty(certificate.FilePath) && string.IsNullOrEmpty(certificate.Thumbprint))
-        {
-            if (BasicSecurity != SslProtocols.None && Logger.IsErrorEnabled)
-                Logger.Error("You should define certificate node and either attribute 'filePath' or 'thumbprint' is required!");
-
-            return null;
-        }
-
-        return CertificateManager.Initialize(certificate, GetFilePath);
-    }
-
-    bool IRemoteCertificateValidator.Validate(IAppSession session, object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-    {
-        return ValidateClientCertificate((TAppSession)session, sender, certificate, chain, sslPolicyErrors);
-    }
-
-    /// <summary>
-    /// Validates the client certificate. This method is only used if the certificate configuration attribute "clientCertificateRequired" is true.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="sender">The sender.</param>
-    /// <param name="certificate">The certificate.</param>
-    /// <param name="chain">The chain.</param>
-    /// <param name="sslPolicyErrors">The SSL policy errors.</param>
-    /// <returns>return the validation result</returns>
-    protected virtual bool ValidateClientCertificate(TAppSession session, object? sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors)
-    {
-        return sslPolicyErrors == SslPolicyErrors.None;
+return LogFactory.GetLog(loggerName);
     }
 
     /// <summary>
@@ -589,7 +475,7 @@ private ListenerInfo[]? m_Listeners;
            return IPAddress.Parse(ip);
     }
 
-    /// <summary>
+/// <summary>
     /// Setups the listeners base on server configuration
     /// </summary>
     /// <param name="config">The config.</param>
@@ -605,8 +491,7 @@ private ListenerInfo[]? m_Listeners;
                 listeners.Add(new ListenerInfo
                 {
                     EndPoint = new IPEndPoint(ParseIPAddress(config.Ip), config.Port),
-                    BackLog = config.ListenBacklog,
-                    Security = BasicSecurity
+                    BackLog = config.ListenBacklog
                 });
             }
             else
@@ -636,32 +521,10 @@ private ListenerInfo[]? m_Listeners;
 
                 foreach (var l in config.Listeners)
                 {
-                    SslProtocols configProtocol;
-
-                    if (string.IsNullOrEmpty(l.Security))
-                    {
-                        configProtocol = BasicSecurity;
-                    }
-                    else if (!l.Security.TryParseEnum<SslProtocols>(true, out configProtocol))
-                    {
-                        if (Logger.IsErrorEnabled)
-                            Logger.Error($"Failed to parse '{config.Security}' to SslProtocol!");
-
-                        return false;
-                    }
-
-                    if (configProtocol != SslProtocols.None && (Certificate == null))
-                    {
-                        if (Logger.IsErrorEnabled)
-                            Logger.Error("There is no certificate loaded, but there is a secure listener defined!");
-                        return false;
-                    }
-
                     listeners.Add(new ListenerInfo
                     {
                         EndPoint = new IPEndPoint(ParseIPAddress(l.Ip), l.Port),
-                        BackLog = l.Backlog,
-                        Security = configProtocol
+                        BackLog = l.Backlog
                     });
                 }
             }
@@ -1070,50 +933,19 @@ Interlocked.Increment(ref m_TotalHandledRequests);
             return;
         }
 
-        Task.Run(() => handler(session));            
-        //var handler = m_NewSessionConnected;
-        //if (handler == null)
-        //    return;
-
-        //handler.BeginInvoke(session, OnNewSessionConnectedCallback, handler);
-    }
-
-    private void OnNewSessionConnectedCallback(IAsyncResult result)
-    {
-        try
-        {
-            var handler = (SessionHandler<TAppSession>)result.AsyncState!;
-            handler.EndInvoke(result);
-        }
-        catch (Exception e)
-        {
-            Logger.Error(e.ToString());
-        }
+Task.Run(() => handler(session));            
     }
 
     /// <summary>
     /// Resets the session's security protocol.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="security">The security protocol.</param>
-    public void ResetSessionSecurity(IAppSession session, SslProtocols security)
-    {
-        m_SocketServer.ResetSessionSecurity(session, security);
-    }
-
-/// <summary>
+    /// <summary>
     /// Called when [socket session closed].
     /// </summary>
     /// <param name="session">The socket session.</param>
     /// <param name="reason">The reason.</param>
     private void OnSocketSessionClosed(ISocketSession session, CloseReason reason)
     {
-        // Track active connections
         s_ActiveConnectionsCounter?.Add(-1, new KeyValuePair<string, object?>("server", Name));
-
-        //Even if LogBasicSessionActivity is false, we also log the unexpected closing because the close reason probably be useful
-        //if (Logger.IsInfoEnabled && (Config.LogBasicSessionActivity || (reason != CloseReason.ServerClosing && reason != CloseReason.ClientClosing && reason != CloseReason.ServerShutdown && reason != CloseReason.SocketError)))
-            //Logger.Info(session, string.Format("This session was closed for {0}!", reason));
 
         var appSession = (session.AppSession as TAppSession)!;
         appSession.Connected = false;
@@ -1130,7 +962,7 @@ Interlocked.Increment(ref m_TotalHandledRequests);
         remove { m_SessionClosed -= value; }
     }
 
-    /// <summary>
+/// <summary>
     /// Called when [session closed].
     /// </summary>
     /// <param name="session">The appSession.</param>
@@ -1145,27 +977,6 @@ Interlocked.Increment(ref m_TotalHandledRequests);
         }
 
         session.OnSessionClosed(reason);
-        //var handler = m_SessionClosed;
-
-        //if (handler != null)
-        //{
-        //    handler.BeginInvoke(session, reason, OnSessionClosedCallback, handler);
-        //}
-
-        //session.OnSessionClosed(reason);
-    }
-
-    private void OnSessionClosedCallback(IAsyncResult result)
-    {
-        try
-        {
-            var handler = (SessionHandler<TAppSession, CloseReason>)result.AsyncState!;
-            handler.EndInvoke(result);
-        }
-        catch (Exception e)
-        {
-            Logger.Error(e.ToString());
-        }
     }
 
     /// <summary>

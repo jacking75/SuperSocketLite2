@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.Net;
-using System.Security.Authentication;
 
 
 namespace SuperSocketLite.SocketBase;
@@ -26,12 +25,4 @@ public class ListenerInfo
     /// The back log.
     /// </value>
     public int BackLog { get; set; }
-
-    /// <summary>
-    /// Gets or sets the security protocol.
-    /// </summary>
-    /// <value>
-    /// The security.
-    /// </value>
-    public SslProtocols Security { get; set; }
 }

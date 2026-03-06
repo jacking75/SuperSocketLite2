@@ -1,11 +1,10 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
-using System.Security.Authentication;
 using System.Threading;
 using System.Threading.Tasks;
 using SuperSocketLite.Common;
@@ -462,15 +461,8 @@ abstract partial class SocketSession : ISocketSession
         }
         else
         {
-            StartSend(newQueue, newQueue.TrackID, false);
+StartSend(newQueue, newQueue.TrackID, false);
         }
-    }
-
-    public abstract void ApplySecureProtocol();
-
-    public Stream GetUnderlyStream()
-    {
-        return new NetworkStream(Client!);
     }
 
     private Socket? m_Client;
@@ -499,17 +491,11 @@ abstract partial class SocketSession : ISocketSession
     /// <value>The local end point.</value>
     public virtual IPEndPoint? LocalEndPoint { get; protected set; }
 
-    /// <summary>
+/// <summary>
     /// Gets the remote end point.
     /// </summary>
     /// <value>The remote end point.</value>
     public virtual IPEndPoint? RemoteEndPoint { get; protected set; }
-
-    /// <summary>
-    /// Gets or sets the secure protocol.
-    /// </summary>
-    /// <value>The secure protocol.</value>
-    public SslProtocols SecureProtocol { get; set; }
 
     protected virtual bool TryValidateClosedBySocket(out Socket? socket)
     {

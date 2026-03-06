@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Collections.Specialized;
 
 namespace SuperSocketLite.SocketBase.Config;
 
@@ -8,22 +7,6 @@ namespace SuperSocketLite.SocketBase.Config;
 /// </summary>
 public partial interface IServerConfig
 {
-    /// <summary>
-    /// Gets the name of the server type this appServer want to use.
-    /// </summary>
-    /// <value>
-    /// The name of the server type.
-    /// </value>
-    string? ServerTypeName { get; }
-
-    /// <summary>
-    /// Gets the type definition of the appserver.
-    /// </summary>
-    /// <value>
-    /// The type of the server.
-    /// </value>
-    string? ServerType { get; }
-
     /// <summary>
     /// Gets the Receive filter factory.
     /// </summary>
@@ -38,17 +21,6 @@ public partial interface IServerConfig
     /// Gets the port.
     /// </summary>
     int Port { get; }
-
-    /// <summary>
-    /// Gets the options.
-    /// </summary>
-    NameValueCollection? Options { get; }
-
-
-    /// <summary>
-    /// Gets the option elements.
-    /// </summary>
-    NameValueCollection? OptionElements { get; }
 
     /// <summary>
     /// Gets a value indicating whether this <see cref="IServerConfig"/> is disabled.
@@ -94,7 +66,6 @@ public partial interface IServerConfig
     /// </value>
     int SendBufferSize { get; }
 
-
     /// <summary>
     /// Gets a value indicating whether sending is in synchronous mode.
     /// </summary>
@@ -121,7 +92,6 @@ public partial interface IServerConfig
     /// <value>The clear idle session interval.</value>
     int ClearIdleSessionInterval { get; }
 
-
     /// <summary>
     /// Gets the idle session timeout time length, in seconds.
     /// </summary>
@@ -134,12 +104,10 @@ public partial interface IServerConfig
     /// <value>X509Certificate configuration.</value>
     ICertificateConfig? Certificate { get; }
 
-
     /// <summary>
     /// Gets the security protocol, X509 certificate.
     /// </summary>
     string? Security { get; }
-
 
     /// <summary>
     /// Gets the length of the max request.
@@ -149,7 +117,6 @@ public partial interface IServerConfig
     /// </value>
     int MaxRequestLength { get; }
 
-
     /// <summary>
     /// Gets a value indicating whether [disable session snapshot].
     /// </summary>
@@ -157,6 +124,7 @@ public partial interface IServerConfig
     /// 	<c>true</c> if [disable session snapshot]; otherwise, <c>false</c>.
     /// </value>
     bool DisableSessionSnapshot { get; }
+
     /// <summary>
     /// Gets the interval to taking snapshot for all live sessions.
     /// </summary>
@@ -171,33 +139,19 @@ public partial interface IServerConfig
     string? ConnectionFilter { get; }
 
     /// <summary>
-    /// Gets the command loader, multiple values should be separated by comma.
-    /// </summary>
-    string? CommandLoader { get; }
-
-    /// <summary>
     /// Gets the start keep alive time, in seconds
     /// </summary>
     int KeepAliveTime { get; }
-
 
     /// <summary>
     /// Gets the keep alive interval, in seconds.
     /// </summary>
     int KeepAliveInterval { get; }
 
-
     /// <summary>
     /// Gets the backlog size of socket listening.
     /// </summary>
     int ListenBacklog { get; }
-
-
-    /// <summary>
-    /// Gets the startup order of the server instance.
-    /// </summary>
-    int StartupOrder { get; }
-           
 
     /// <summary>
     /// Gets the listeners' configuration.
@@ -209,7 +163,6 @@ public partial interface IServerConfig
     /// </summary>
     string? LogFactory { get; }
 
-
     /// <summary>
     /// Gets the size of the sending queue.
     /// </summary>
@@ -217,17 +170,6 @@ public partial interface IServerConfig
     /// The size of the sending queue.
     /// </value>
     int SendingQueueSize { get; }
-
-
-
-    /// <summary>
-    /// Gets a value indicating whether [log basic session activity like connected and disconnected].
-    /// </summary>
-    /// <value>
-    /// 	<c>true</c> if [log basic session activity]; otherwise, <c>false</c>.
-    /// </value>
-    bool LogBasicSessionActivity { get; }
-
 
     /// <summary>
     /// Gets a value indicating whether [log all socket exception].
@@ -237,7 +179,6 @@ public partial interface IServerConfig
     /// </value>
     bool LogAllSocketException { get; }
 
-
     /// <summary>
     /// Gets the default text encoding.
     /// </summary>
@@ -245,16 +186,6 @@ public partial interface IServerConfig
     /// The text encoding.
     /// </value>
     string? TextEncoding { get; }
-
-
-    /// <summary>
-    /// Gets the command assemblies configuration.
-    /// </summary>
-    /// <value>
-    /// The command assemblies.
-    /// </value>
-    IEnumerable<ICommandAssemblyConfig>? CommandAssemblies { get; }
-
 
     /// <summary>
     /// Gets the default culture for this server.
@@ -264,15 +195,13 @@ public partial interface IServerConfig
     /// </value>
     string? DefaultCulture { get; }
 
-
-/// <summary>
+    /// <summary>
     /// Nodelay
     /// </summary>
     /// <value>
     /// 	<c>true</c> if [disable nagel]; otherwise, <c>false</c>.
     /// </value>
     bool NoDelay { get; }
-
 
     /// <summary>
     /// Gets the interval for collect send, in milliseconds.

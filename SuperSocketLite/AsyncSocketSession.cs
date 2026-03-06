@@ -280,9 +280,5 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             base.OnClosed(reason);
         }
     }
-
-    public override void ApplySecureProtocol()
-    {
-        //TODO: Implement async socket SSL/TLS encryption
-    }
+       
 }

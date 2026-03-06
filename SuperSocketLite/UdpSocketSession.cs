@@ -106,12 +106,7 @@ class UdpSocketSession : SocketSession
 
         OnSendingCompleted(queue);
     }
-
-    public override void ApplySecureProtocol()
-    {
-        throw new NotSupportedException();
-    }
-
+       
     protected override bool TryValidateClosedBySocket(out Socket socket)
     {
         socket = null!;

@@ -97,18 +97,7 @@ public partial interface IServerConfig
     /// </summary>
     /// <value>The idle session time out.</value>
     int IdleSessionTimeOut { get; }
-
-    /// <summary>
-    /// Gets X509Certificate configuration.
-    /// </summary>
-    /// <value>X509Certificate configuration.</value>
-    ICertificateConfig? Certificate { get; }
-
-    /// <summary>
-    /// Gets the security protocol, X509 certificate.
-    /// </summary>
-    string? Security { get; }
-
+           
     /// <summary>
     /// Gets the length of the max request.
     /// </summary>

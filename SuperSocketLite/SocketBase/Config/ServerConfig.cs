@@ -87,10 +87,7 @@ public partial class ServerConfig : IServerConfig
     public ServerConfig(IServerConfig serverConfig)
     {
         serverConfig.CopyPropertiesTo(this);
-
-        if (serverConfig.Certificate != null)
-            this.Certificate = serverConfig.Certificate.CopyPropertiesTo(new CertificateConfig());
-
+               
         if (serverConfig.Listeners != null && serverConfig.Listeners.Any())
         {
             this.Listeners = serverConfig.Listeners.Select(l => l.CopyPropertiesTo(new ListenerConfig())).OfType<ListenerConfig>().ToArray();
@@ -102,7 +99,6 @@ public partial class ServerConfig : IServerConfig
     /// </summary>
     public ServerConfig()
     {
-        Security = "None";
         MaxConnectionNumber = DefaultMaxConnectionNumber;
         Mode = SocketMode.Tcp;
         MaxRequestLength = DefaultMaxRequestLength;
@@ -218,20 +214,7 @@ public partial class ServerConfig : IServerConfig
     /// </value>
     [HotUpdate]
     public int IdleSessionTimeOut { get; set; }
-
-    /// <summary>
-    /// Gets/sets X509Certificate configuration.
-    /// </summary>
-    /// <value>
-    /// X509Certificate configuration.
-    /// </value>
-    public ICertificateConfig? Certificate { get; set; }
-
-    /// <summary>
-    /// Gets/sets the security protocol, X509 certificate.
-    /// </summary>
-    public string? Security { get; set; }
-
+          
     /// <summary>
     /// Gets/sets the length of the max request.
     /// </summary>

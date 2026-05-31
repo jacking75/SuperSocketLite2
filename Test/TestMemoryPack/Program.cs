@@ -15,6 +15,9 @@ Test3();
 Console.WriteLine("");
 
 Test6();
+Console.WriteLine("");
+
+Test7();
 
 
 // 기본적인 직렬화가 잘 되는지 테스트
@@ -107,6 +110,36 @@ void Test6()
         if (obj.Id == reqPkt.Id && obj.AuthToken == reqPkt.AuthToken)
         {
             Console.WriteLine("OK - Test6");
+        }
+    }
+}
+
+// 네트워크 헤더는 고정 포맷으로 예약하고, MemoryPack은 보디만 같은 버퍼에 직렬화한다.
+void Test7()
+{
+    Console.WriteLine("[ Test 7 ] IBufferWriter 기반 패킷 데이터 직렬화");
+
+    var reqPkt = new PKTReqLoginBody
+    {
+        UserID = "jacking75",
+        AuthToken = "jacking75",
+    };
+
+    var sendPacket = MemoryPackBodyPacketToBytes.Make(22, reqPkt);
+    var headerInfo = MemoryPackBodyPacketHeadInfo.Read(sendPacket);
+    headerInfo.DebugConsolOutHeaderInfo();
+
+    var obj = MemoryPackBodyPacketToBytes.DeserializeBody<PKTReqLoginBody>(sendPacket);
+
+    if (obj != null)
+    {
+        Console.WriteLine($"{obj.UserID}:{obj.AuthToken}");
+
+        if (headerInfo.TotalSize == sendPacket.Count &&
+            headerInfo.Id == 22 &&
+            obj.AuthToken == reqPkt.AuthToken)
+        {
+            Console.WriteLine("OK - Test7");
         }
     }
 }

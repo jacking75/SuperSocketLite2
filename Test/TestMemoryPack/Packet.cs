@@ -1,19 +1,12 @@
 ﻿using MemoryPack;
 
+using System.Buffers;
+using System.Buffers.Binary;
+
 namespace TestMemoryPack;
 
 
-/*public class PacketDef
-{
-    public const Int16 MEMORYPACK_PACKET_HEADER_SIZE = 8;
-
-    public const Int16 PACKET_HEADER_SIZE = 8;
-    public const int MAX_USER_ID_BYTE_LENGTH = 16;
-    public const int MAX_USER_PW_BYTE_LENGTH = 16;
-
-    public const int INVALID_ROOM_NUMBER = -1;
-}*/
-
+// MemoryPackt로 패킷의 헤더와 바디를 같이 인코딩/디코딩 할 때 사용한다.
 public struct MemoryPackPacketHeadInfo
 {
     const int PacketHeaderMemoryPackStartPos = 1;
@@ -72,42 +65,162 @@ public struct MemoryPackPacketHeadInfo
 }
 
 
-public class PacketToBytes
+// MemoryPack으로 패킷의 헤더는 고정된 크기로 인코딩/디코딩 하고, 바디는 MemoryPack으로 인코딩/디코딩 할 때 사용한다.
+public struct MemoryPackBodyPacketHeadInfo
 {
-    public static byte[] Make(Int16 packetID, byte[] bodyData)
+    public const int HeadSize = 5;
+
+    public UInt16 TotalSize;
+    public UInt16 Id;
+    public byte Type;
+
+    public static MemoryPackBodyPacketHeadInfo Read(ArraySegment<byte> packetData)
     {
-        byte type = 0;
-        var pktID = packetID;
-        Int16 bodyDataSize = 0;
-        if (bodyData != null)
+        if (packetData.Count < HeadSize)
         {
-            bodyDataSize = (Int16)bodyData.Length;
-        }
-        var packetSize = (Int16)(bodyDataSize + MemoryPackPacketHeadInfo.HeadSize);
-
-        var dataSource = new byte[packetSize];
-        Buffer.BlockCopy(BitConverter.GetBytes(packetSize), 0, dataSource, 0, 2);
-        Buffer.BlockCopy(BitConverter.GetBytes(pktID), 0, dataSource, 2, 2);
-        dataSource[4] = type;
-
-        if (bodyData != null)
-        {
-            Buffer.BlockCopy(bodyData, 0, dataSource, 5, bodyDataSize);
+            throw new InvalidDataException("Packet data is smaller than header size.");
         }
 
-        return dataSource;
+        var span = packetData.AsSpan();
+        return new MemoryPackBodyPacketHeadInfo
+        {
+            TotalSize = BinaryPrimitives.ReadUInt16LittleEndian(span),
+            Id = BinaryPrimitives.ReadUInt16LittleEndian(span.Slice(2)),
+            Type = span[4],
+        };
     }
 
-    public static Tuple<int, byte[]> ClientReceiveData(int recvLength, byte[] recvData)
+    public void Write(Span<byte> packetData)
     {
-        var packetSize = BitConverter.ToInt16(recvData, 0);
-        var packetID = BitConverter.ToInt16(recvData, 2);
-        var bodySize = packetSize - MemoryPackPacketHeadInfo.HeadSize;
+        if (packetData.Length < HeadSize)
+        {
+            throw new InvalidDataException("Packet data is smaller than header size.");
+        }
 
-        var packetBody = new byte[bodySize];
-        Buffer.BlockCopy(recvData, MemoryPackPacketHeadInfo.HeadSize, packetBody, 0, bodySize);
+        BinaryPrimitives.WriteUInt16LittleEndian(packetData, TotalSize);
+        BinaryPrimitives.WriteUInt16LittleEndian(packetData.Slice(2), Id);
+        packetData[4] = Type;
+    }
 
-        return new Tuple<int, byte[]>(packetID, packetBody);
+    public void DebugConsolOutHeaderInfo()
+    {
+        Console.WriteLine("DebugConsolOutHeaderInfo");
+        Console.WriteLine("TotalSize : " + TotalSize);
+        Console.WriteLine("Id : " + Id);
+        Console.WriteLine("Type : " + Type);
+    }
+}
+
+
+public class MemoryPackBodyPacketToBytes
+{
+    public static ArraySegment<byte> Make<T>(UInt16 packetID, T bodyData, byte type = 0)
+    {
+        var writer = new PacketBufferWriter(256);
+
+        var headerSpan = writer.GetSpan(MemoryPackBodyPacketHeadInfo.HeadSize);
+        headerSpan.Slice(0, MemoryPackBodyPacketHeadInfo.HeadSize).Clear();
+        writer.Advance(MemoryPackBodyPacketHeadInfo.HeadSize);
+
+        MemoryPackSerializer.Serialize(writer, bodyData);
+
+        if (writer.WrittenCount > UInt16.MaxValue)
+        {
+            throw new InvalidDataException($"Packet size is too large: {writer.WrittenCount}");
+        }
+
+        var header = new MemoryPackBodyPacketHeadInfo
+        {
+            TotalSize = (UInt16)writer.WrittenCount,
+            Id = packetID,
+            Type = type,
+        };
+        header.Write(writer.WrittenSpan.Slice(0, MemoryPackBodyPacketHeadInfo.HeadSize));
+
+        return writer.WrittenSegment;
+    }
+
+    public static T? DeserializeBody<T>(ArraySegment<byte> packetData)
+    {
+        var header = MemoryPackBodyPacketHeadInfo.Read(packetData);
+        if (header.TotalSize != packetData.Count)
+        {
+            throw new InvalidDataException($"Packet size mismatch. Header: {header.TotalSize}, Data: {packetData.Count}");
+        }
+
+        var bodySpan = packetData.AsSpan().Slice(MemoryPackBodyPacketHeadInfo.HeadSize);
+        return MemoryPackSerializer.Deserialize<T>(bodySpan);
+    }
+}
+
+
+public class PacketBufferWriter : IBufferWriter<byte>
+{
+    byte[] _buffer;
+
+    public PacketBufferWriter(int initialCapacity)
+    {
+        if (initialCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(initialCapacity));
+        }
+
+        _buffer = new byte[initialCapacity];
+    }
+
+    public int WrittenCount { get; private set; }
+
+    public Span<byte> WrittenSpan => _buffer.AsSpan(0, WrittenCount);
+
+    public ArraySegment<byte> WrittenSegment => new(_buffer, 0, WrittenCount);
+
+    public void Advance(int count)
+    {
+        if (count < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(count));
+        }
+
+        if (WrittenCount + count > _buffer.Length)
+        {
+            throw new InvalidOperationException("Cannot advance past the end of the buffer.");
+        }
+
+        WrittenCount += count;
+    }
+
+    public Memory<byte> GetMemory(int sizeHint = 0)
+    {
+        EnsureCapacity(sizeHint);
+        return _buffer.AsMemory(WrittenCount);
+    }
+
+    public Span<byte> GetSpan(int sizeHint = 0)
+    {
+        EnsureCapacity(sizeHint);
+        return _buffer.AsSpan(WrittenCount);
+    }
+
+    void EnsureCapacity(int sizeHint)
+    {
+        if (sizeHint < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sizeHint));
+        }
+
+        if (sizeHint == 0)
+        {
+            sizeHint = 1;
+        }
+
+        var available = _buffer.Length - WrittenCount;
+        if (available >= sizeHint)
+        {
+            return;
+        }
+
+        var growBy = Math.Max(sizeHint, _buffer.Length);
+        Array.Resize(ref _buffer, checked(_buffer.Length + growBy));
     }
 }
 
@@ -133,4 +246,12 @@ public partial class PKTResRoomEnter : PkHeader
 {
     public Int16 ErrorCode { get; set; }
     public int RoomNumber { get; set; }
+}
+
+
+[MemoryPackable]
+public partial class PKTReqLoginBody
+{
+    public string UserID { get; set; } = default!;
+    public string AuthToken { get; set; } = default!;
 }

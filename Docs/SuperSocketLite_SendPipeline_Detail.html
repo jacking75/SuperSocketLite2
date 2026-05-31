@@ -1,0 +1,1757 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SuperSocketLite 송신 파이프라인 상세 문서</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5a6678;
+      --soft: #f5f7fb;
+      --paper: #ffffff;
+      --line: #d8deea;
+      --code: #101828;
+      --teal: #0f766e;
+      --blue: #2563eb;
+      --amber: #b45309;
+      --rose: #be123c;
+      --violet: #6d28d9;
+      --green: #15803d;
+      --shadow: 0 14px 36px rgba(23, 32, 51, .10);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #fbfcff;
+      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+      line-height: 1.7;
+    }
+
+    a { color: var(--teal); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      padding: .12rem .32rem;
+      border-radius: 5px;
+      background: #edf1f7;
+      color: #111827;
+      font-family: Consolas, "Cascadia Code", "SFMono-Regular", monospace;
+      font-size: .93em;
+    }
+    pre {
+      margin: 1rem 0 0;
+      overflow: auto;
+      border: 1px solid #223047;
+      border-radius: 8px;
+      background: var(--code);
+      color: #eef2ff;
+      line-height: 1.5;
+    }
+    pre code {
+      display: block;
+      padding: 1rem;
+      background: transparent;
+      color: inherit;
+      white-space: pre;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      padding: 1.1rem;
+    }
+    .brand {
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand strong {
+      display: block;
+      font-size: 1.05rem;
+      line-height: 1.35;
+    }
+    .brand span {
+      display: block;
+      margin-top: .35rem;
+      color: var(--muted);
+      font-size: .87rem;
+    }
+    .toc {
+      display: grid;
+      gap: .18rem;
+      font-size: .92rem;
+    }
+    .toc a {
+      display: block;
+      padding: .46rem .55rem;
+      border-radius: 6px;
+      color: #334155;
+    }
+    .toc a:hover,
+    .toc a.active {
+      background: #e8f7f3;
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    main { min-width: 0; }
+    .hero {
+      min-height: 72vh;
+      display: grid;
+      align-content: center;
+      gap: 1rem;
+      padding: 4rem clamp(1.2rem, 4vw, 4.5rem) 3rem;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(115deg, rgba(255,255,255,.96), rgba(255,255,255,.78)),
+        repeating-linear-gradient(90deg, #edf1f7 0 1px, transparent 1px 68px),
+        repeating-linear-gradient(0deg, #edf1f7 0 1px, transparent 1px 68px);
+    }
+    .hero h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2.05rem, 5vw, 4.4rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+    .hero p {
+      max-width: 980px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.04rem;
+    }
+    .quick {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem;
+      margin-top: .35rem;
+    }
+    .pill,
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.75rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: .28rem .66rem;
+      color: #334155;
+      font-size: .84rem;
+      white-space: nowrap;
+    }
+    .badge.app { border-color: #99d6cd; background: #e8f7f3; color: #0f766e; }
+    .badge.socket { border-color: #aac0ff; background: #eef3ff; color: #1d4ed8; }
+    .badge.queue { border-color: #fdc581; background: #fff7ed; color: #9a3412; }
+    .badge.async { border-color: #d8b4fe; background: #f5f0ff; color: #6d28d9; }
+
+    .section {
+      padding: 3rem clamp(1.2rem, 4vw, 4.5rem);
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .section.alt { background: var(--soft); }
+    .section h2 {
+      margin: 0 0 1rem;
+      font-size: clamp(1.55rem, 3vw, 2.35rem);
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+    .section h3 {
+      margin: 2rem 0 .75rem;
+      font-size: 1.25rem;
+      letter-spacing: 0;
+    }
+    .lead {
+      max-width: 1040px;
+      margin: 0 0 1.3rem;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      margin: 1rem 0;
+    }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 1rem;
+      box-shadow: 0 8px 24px rgba(23, 32, 51, .06);
+    }
+    .card h3,
+    .card h4 {
+      margin-top: 0;
+      margin-bottom: .55rem;
+    }
+    .card p { margin: .45rem 0 0; }
+    .note {
+      margin: 1rem 0;
+      border-left: 4px solid var(--teal);
+      border-radius: 8px;
+      background: #ecfdf5;
+      padding: .9rem 1rem;
+    }
+    .note.warn {
+      border-left-color: var(--amber);
+      background: #fff7ed;
+    }
+    .note.danger {
+      border-left-color: var(--rose);
+      background: #fff1f2;
+    }
+    .diagram {
+      margin: 1.1rem 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .diagram svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .packet-dot {
+      offset-rotate: 0deg;
+      animation: travel 4.2s linear infinite;
+    }
+    .packet-dot.delay-1 { animation-delay: .8s; }
+    .packet-dot.delay-2 { animation-delay: 1.6s; }
+    @keyframes travel {
+      from { offset-distance: 0%; opacity: .15; }
+      10% { opacity: 1; }
+      88% { opacity: 1; }
+      to { offset-distance: 100%; opacity: .15; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .packet-dot { animation: none; }
+      html { scroll-behavior: auto; }
+    }
+
+    .table-wrap {
+      overflow: auto;
+      margin: 1rem 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+    th, td {
+      padding: .8rem .9rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      background: #f2f5fa;
+      font-size: .9rem;
+    }
+    tr:last-child td { border-bottom: 0; }
+
+    .code-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .5rem;
+      margin-top: 1.35rem;
+    }
+    .code-head h3,
+    .code-head h4 {
+      margin: 0;
+    }
+    .two-pane {
+      display: grid;
+      grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    .callout-list {
+      display: grid;
+      gap: .75rem;
+      margin-top: 1rem;
+    }
+    .callout {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: .85rem;
+    }
+    .callout strong {
+      display: block;
+      margin-bottom: .25rem;
+    }
+
+    .flow-explorer {
+      max-width: 1100px;
+      margin-top: 1.2rem;
+    }
+    .flow-card {
+      position: relative;
+      margin: 0 0 2.15rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(23, 32, 51, .07);
+      scroll-margin-top: 1rem;
+    }
+    .flow-card::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -2.05rem;
+      width: 2px;
+      height: 1.9rem;
+      background: linear-gradient(var(--blue), var(--teal));
+    }
+    .flow-card::before {
+      content: "";
+      position: absolute;
+      left: calc(50% - 6px);
+      bottom: -2.08rem;
+      width: 12px;
+      height: 12px;
+      border-right: 2px solid var(--teal);
+      border-bottom: 2px solid var(--teal);
+      transform: rotate(45deg);
+      background: transparent;
+    }
+    .flow-card:last-child::after,
+    .flow-card:last-child::before {
+      display: none;
+    }
+    .flow-card[open] {
+      border-color: #a9c7ff;
+    }
+    .flow-card.flash {
+      outline: 3px solid rgba(37, 99, 235, .28);
+      outline-offset: 3px;
+    }
+    .flow-card summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: .8rem;
+      align-items: center;
+      min-height: 4.2rem;
+      padding: .85rem 1rem;
+      cursor: pointer;
+      list-style: none;
+    }
+    .flow-card summary::-webkit-details-marker { display: none; }
+    .fn-title {
+      min-width: 0;
+      font-family: Consolas, "Cascadia Code", monospace;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .fn-meta {
+      display: inline-flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: .4rem;
+    }
+    .flow-body {
+      border-top: 1px solid var(--line);
+      padding: 1rem;
+    }
+    .flow-body p {
+      margin: 0 0 .85rem;
+      color: #334155;
+    }
+    .call-link {
+      border: 0;
+      border-radius: 4px;
+      background: rgba(20, 184, 166, .18);
+      color: #99f6e4;
+      padding: 0 .2rem;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+    .call-link:hover,
+    .call-link:focus {
+      background: rgba(250, 204, 21, .22);
+      color: #fde68a;
+      outline: none;
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin: .9rem 0 1.2rem;
+    }
+    .footer-note {
+      color: var(--muted);
+      font-size: .92rem;
+    }
+
+    @media (max-width: 1040px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .toc {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .cols-2,
+      .cols-3,
+      .two-pane {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .toc { grid-template-columns: 1fr; }
+      .section,
+      .hero {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+      .flow-card summary {
+        grid-template-columns: 1fr;
+      }
+      .fn-meta {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="brand">
+        <strong>SuperSocketLite 송신 파이프라인</strong>
+        <span>원문 6, 7장 배경 + 8장 상세 확장 문서</span>
+      </div>
+      <nav class="toc" aria-label="문서 목차">
+        <a href="#overview">개요</a>
+        <a href="#receive">6. 수신 파이프라인</a>
+        <a href="#filter">7. ReceiveFilter</a>
+        <a href="#send-overview">8. 송신 큰 흐름</a>
+        <a href="#appsession">AppSession Send API</a>
+        <a href="#queue-swap">큐 스왑 핵심</a>
+        <a href="#sendingqueue">SendingQueue 내부</a>
+        <a href="#async-send">실제 Socket Send</a>
+        <a href="#completion">완료와 재송신</a>
+        <a href="#interactive">인터랙티브 호출 흐름</a>
+      </nav>
+    </aside>
+
+    <main>
+      <section class="hero" id="overview">
+        <h1>SuperSocketLite 2 송신 파이프라인과 SendingQueue 상세 해설</h1>
+        <p>
+          이 문서는 기존 <code>SuperSocketLite_Architecture.html</code>의 8장 내용을 별도 HTML로 확장한 것입니다.
+          송신을 이해하는 데 필요한 6장 수신 파이프라인과 7장 ReceiveFilter 흐름을 먼저 짧게 정리한 뒤,
+          <code>AppSession.Send()</code>에서 <code>Socket.SendAsync()</code> 완료 콜백까지 코드 중심으로 추적합니다.
+        </p>
+        <div class="quick">
+          <span class="pill">대상: 모바일 게임 서버 TCP 송신 경로</span>
+          <span class="pill">핵심: 단일 송신권 + 이중 SendingQueue</span>
+          <span class="pill">코드 기준: .NET 10.0 프로젝트</span>
+          <span class="pill">아래쪽에 함수 호출 탐색기 포함</span>
+        </div>
+      </section>
+
+      <section class="section" id="receive">
+        <h2>6. 수신 파이프라인: 송신과 대비되는 입력 경로</h2>
+        <p class="lead">
+          송신 파이프라인은 큐를 중심으로 “나가는 데이터”를 직렬화합니다. 반대로 수신 파이프라인은
+          <code>SocketAsyncEventArgs</code>와 <code>PipeWriter</code>/<code>PipeReader</code>를 통해 “들어오는 데이터”를 프로토콜 파서로 넘깁니다.
+          두 경로를 나란히 보면 송신 쪽의 <code>SendingQueue</code>가 왜 필요한지 더 분명해집니다.
+        </p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 1180 390" role="img" aria-label="수신 파이프라인 다이어그램">
+            <defs>
+              <marker id="arrow-rx" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#475569"></path>
+              </marker>
+            </defs>
+            <rect x="45" y="90" width="145" height="92" rx="8" fill="#eef3ff" stroke="#93a4d8"></rect>
+            <text x="118" y="127" text-anchor="middle" font-weight="700">Socket</text>
+            <text x="118" y="153" text-anchor="middle">ReceiveAsync</text>
+            <rect x="260" y="75" width="180" height="122" rx="8" fill="#fff7ed" stroke="#f3a85c"></rect>
+            <text x="350" y="113" text-anchor="middle" font-weight="700">SocketAsyncEventArgs</text>
+            <text x="350" y="140" text-anchor="middle">Memory&lt;byte&gt;</text>
+            <text x="350" y="166" text-anchor="middle">BytesTransferred</text>
+            <rect x="515" y="90" width="155" height="92" rx="8" fill="#ecfdf5" stroke="#86c9a4"></rect>
+            <text x="593" y="127" text-anchor="middle" font-weight="700">PipeWriter</text>
+            <text x="593" y="153" text-anchor="middle">Advance/Flush</text>
+            <rect x="745" y="90" width="155" height="92" rx="8" fill="#ecfeff" stroke="#65b8c2"></rect>
+            <text x="823" y="127" text-anchor="middle" font-weight="700">PipeReader</text>
+            <text x="823" y="153" text-anchor="middle">ReadAsync</text>
+            <rect x="975" y="75" width="170" height="122" rx="8" fill="#fff1f2" stroke="#f0a0b5"></rect>
+            <text x="1060" y="113" text-anchor="middle" font-weight="700">AppSession</text>
+            <text x="1060" y="140" text-anchor="middle">ProcessRequest</text>
+            <text x="1060" y="166" text-anchor="middle">ReceiveFilter</text>
+            <line x1="190" y1="136" x2="260" y2="136" stroke="#475569" stroke-width="2" marker-end="url(#arrow-rx)"></line>
+            <line x1="440" y1="136" x2="515" y2="136" stroke="#475569" stroke-width="2" marker-end="url(#arrow-rx)"></line>
+            <line x1="670" y1="136" x2="745" y2="136" stroke="#475569" stroke-width="2" marker-end="url(#arrow-rx)"></line>
+            <line x1="900" y1="136" x2="975" y2="136" stroke="#475569" stroke-width="2" marker-end="url(#arrow-rx)"></line>
+            <path d="M118 136 L350 136 L593 136 L823 136 L1060 136" fill="none" stroke="transparent" id="rx-path"></path>
+            <circle r="7" fill="#2563eb" class="packet-dot" style="offset-path:path('M118 136 L350 136 L593 136 L823 136 L1060 136')"></circle>
+            <circle r="7" fill="#0f766e" class="packet-dot delay-1" style="offset-path:path('M118 136 L350 136 L593 136 L823 136 L1060 136')"></circle>
+            <text x="593" y="265" text-anchor="middle" fill="#526070">수신은 Pipe를 통과해 프로토콜 파싱 루프로 들어갑니다.</text>
+            <text x="593" y="292" text-anchor="middle" fill="#526070">송신은 반대로 AppSession에서 시작해 SocketSession의 큐로 내려갑니다.</text>
+          </svg>
+        </div>
+
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>ReceiveAsync 완료</h3>
+            <p><code>AsyncSocketSession.ProcessReceive()</code>가 <code>BytesTransferred</code>를 확인하고 PipeWriter에 기록합니다.</p>
+          </div>
+          <div class="card">
+            <h3>PipeReader 소비</h3>
+            <p><code>SocketSession</code>의 PipeReader 루프가 버퍼를 읽고 <code>AppSession.ProcessRequest()</code>로 넘깁니다.</p>
+          </div>
+          <div class="card">
+            <h3>요청 핸들러</h3>
+            <p>요청 처리 중 응답을 보내면 다시 <code>session.Send(...)</code>가 호출되어 송신 파이프라인으로 진입합니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="filter">
+        <h2>7. ReceiveFilter와 요청 처리: 응답 송신의 출발점</h2>
+        <p class="lead">
+          ReceiveFilter는 byte stream을 <code>IRequestInfo</code>로 변환합니다. 게임 서버에서는 요청 핸들러가 처리 결과를 만든 뒤
+          <code>AppSession.Send()</code> 또는 <code>TrySend()</code>를 호출하는 경우가 많습니다. 따라서 7장은 8장의 바로 앞 단계입니다.
+        </p>
+
+        <div class="two-pane">
+          <div>
+            <div class="code-head">
+              <h3>요청 처리에서 송신으로 이어지는 모양</h3>
+              <span class="badge app">AppSession.cs</span>
+            </div>
+            <pre><code class="language-csharp">ProcessRequest(ReadOnlySequence&lt;byte&gt; buffer)
+  -&gt; FilterRequest(...)
+     -&gt; m_ReceiveFilter.Filter(...)
+  -&gt; AppServer.ExecuteCommand(this, requestInfo)
+     -&gt; NewRequestReceived(session, requestInfo)
+        -&gt; session.Send(responseBytes)</code></pre>
+          </div>
+          <div class="callout-list">
+            <div class="callout">
+              <strong>수신 쪽 관심사</strong>
+              <span>패킷 경계 찾기, 부분 패킷 보존, 프로토콜 오류 차단, 요청 객체 생성입니다.</span>
+            </div>
+            <div class="callout">
+              <strong>송신 쪽 관심사</strong>
+              <span>여러 스레드의 응답 데이터를 하나의 socket send 흐름으로 직렬화하고, 부분 송신과 close 상태를 처리하는 것입니다.</span>
+            </div>
+            <div class="callout">
+              <strong>핵심 연결점</strong>
+              <span>요청 핸들러는 <code>AppSession</code>만 보지만 실제 제어는 <code>SocketSession</code>과 <code>SendingQueue</code>가 담당합니다.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="send-overview">
+        <h2>8. 송신 파이프라인 큰 흐름</h2>
+        <p class="lead">
+          송신은 공개 API인 <code>AppSession.Send()</code>/<code>TrySend()</code>에서 시작됩니다.
+          <code>AppSession</code>은 연결 상태와 재시도 정책을 담당하고, <code>SocketSession</code>은 현재 쓰기 가능한
+          <code>SendingQueue</code>에 데이터를 넣은 뒤 송신권을 얻어 실제 socket send를 시작합니다.
+        </p>
+
+        <div class="diagram">
+          <svg viewBox="0 0 1220 500" role="img" aria-label="송신 파이프라인 애니메이션 다이어그램">
+            <defs>
+              <marker id="arrow-tx" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#475569"></path>
+              </marker>
+            </defs>
+            <rect x="55" y="85" width="165" height="95" rx="8" fill="#e8f7f3" stroke="#72c9bd"></rect>
+            <text x="138" y="122" text-anchor="middle" font-weight="700">AppSession</text>
+            <text x="138" y="150" text-anchor="middle">Send / TrySend</text>
+            <rect x="290" y="85" width="180" height="95" rx="8" fill="#eef3ff" stroke="#93a4d8"></rect>
+            <text x="380" y="122" text-anchor="middle" font-weight="700">SocketSession</text>
+            <text x="380" y="150" text-anchor="middle">TrySend</text>
+            <rect x="545" y="55" width="190" height="120" rx="8" fill="#fff7ed" stroke="#f3a85c"></rect>
+            <text x="640" y="94" text-anchor="middle" font-weight="700">Current Queue</text>
+            <text x="640" y="121" text-anchor="middle">Enqueue 허용</text>
+            <text x="640" y="148" text-anchor="middle">TrackID 검사</text>
+            <rect x="545" y="255" width="190" height="120" rx="8" fill="#f5f0ff" stroke="#c4a6ef"></rect>
+            <text x="640" y="294" text-anchor="middle" font-weight="700">New Queue</text>
+            <text x="640" y="321" text-anchor="middle">다음 enqueue 담당</text>
+            <text x="640" y="348" text-anchor="middle">StartEnqueue</text>
+            <rect x="810" y="85" width="170" height="95" rx="8" fill="#fff1f2" stroke="#f0a0b5"></rect>
+            <text x="895" y="122" text-anchor="middle" font-weight="700">Send Queue</text>
+            <text x="895" y="150" text-anchor="middle">StopEnqueue</text>
+            <rect x="1050" y="85" width="135" height="95" rx="8" fill="#f8fafc" stroke="#cbd5e1"></rect>
+            <text x="1118" y="122" text-anchor="middle" font-weight="700">Socket</text>
+            <text x="1118" y="150" text-anchor="middle">SendAsync</text>
+
+            <line x1="220" y1="133" x2="290" y2="133" stroke="#475569" stroke-width="2" marker-end="url(#arrow-tx)"></line>
+            <line x1="470" y1="133" x2="545" y2="133" stroke="#475569" stroke-width="2" marker-end="url(#arrow-tx)"></line>
+            <line x1="735" y1="118" x2="810" y2="118" stroke="#475569" stroke-width="2" marker-end="url(#arrow-tx)"></line>
+            <line x1="980" y1="133" x2="1050" y2="133" stroke="#475569" stroke-width="2" marker-end="url(#arrow-tx)"></line>
+            <path d="M735 152 C780 220 780 265 735 315" fill="none" stroke="#6d28d9" stroke-width="2" marker-end="url(#arrow-tx)"></path>
+            <path d="M1118 180 C1118 430 640 440 640 375" fill="none" stroke="#0f766e" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#arrow-tx)"></path>
+            <text x="885" y="425" text-anchor="middle" fill="#0f766e">완료 콜백: 보낸 큐 clear/pool 반환, 새 큐에 데이터가 있으면 다음 송신 시작</text>
+            <path d="M138 133 L380 133 L640 133 L895 133 L1118 133" fill="none" stroke="transparent"></path>
+            <circle r="7" fill="#2563eb" class="packet-dot" style="offset-path:path('M138 133 L380 133 L640 133 L895 133 L1118 133')"></circle>
+            <circle r="7" fill="#b45309" class="packet-dot delay-1" style="offset-path:path('M138 133 L380 133 L640 133 L895 133 L1118 133')"></circle>
+            <circle r="7" fill="#0f766e" class="packet-dot delay-2" style="offset-path:path('M1118 180 C1118 430 640 440 640 375')"></circle>
+          </svg>
+        </div>
+
+        <div class="grid cols-3">
+          <div class="card">
+            <h3>1. enqueue</h3>
+            <p><code>SocketSession.TrySend()</code>가 현재 <code>m_SendingQueue</code>를 읽고, 같은 <code>TrackID</code>일 때만 데이터를 넣습니다.</p>
+          </div>
+          <div class="card">
+            <h3>2. 송신권 획득</h3>
+            <p><code>StartSend(..., initial: true)</code>가 <code>SocketState.InSending</code> 플래그를 잡아 중복 송신 시작을 막습니다.</p>
+          </div>
+          <div class="card">
+            <h3>3. 큐 교체</h3>
+            <p>보낼 큐는 read-only로 잠그고, 새 큐를 <code>m_SendingQueue</code>에 연결해 이후 enqueue를 받게 합니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="appsession">
+        <h2>AppSession Send API: 사용자 코드가 보는 표면</h2>
+        <p class="lead">
+          사용자 코드가 직접 만나는 API는 <code>AppSession</code>입니다. <code>TrySend()</code>는 큐에 넣지 못하면 바로
+          <code>false</code>를 반환합니다. <code>Send()</code>는 <code>InternalSend()</code>로 들어가며, 큐가 꽉 찼거나 잠시 교체 중이면
+          <code>Config.SendTimeOut</code> 정책에 따라 재시도합니다.
+        </p>
+
+        <div class="code-head">
+          <h3>공개 API와 내부 래퍼</h3>
+          <span class="badge app">AppSession.cs:316</span>
+          <span class="badge app">AppSession.cs:327</span>
+          <span class="badge app">AppSession.cs:332</span>
+        </div>
+        <pre><code class="language-csharp">public virtual bool TrySend(byte[] data, int offset, int length)
+{
+    return InternalTrySend(new ArraySegment&lt;byte&gt;(data, offset, length));
+}
+
+public virtual void Send(byte[] data, int offset, int length)
+{
+    InternalSend(new ArraySegment&lt;byte&gt;(data, offset, length));
+}
+
+private bool InternalTrySend(ArraySegment&lt;byte&gt; segment)
+{
+    if (!SocketSession.TrySend(segment))
+        return false;
+
+    LastActiveTime = DateTime.Now;
+    return true;
+}</code></pre>
+
+        <div class="code-head">
+          <h3>Send()가 TrySend() 실패 시 재시도하는 부분</h3>
+          <span class="badge app">AppSession.cs:355</span>
+        </div>
+        <pre><code class="language-csharp">private void InternalSend(ArraySegment&lt;byte&gt; segment)
+{
+    if (!m_Connected)
+        return;
+
+    if (InternalTrySend(segment))
+        return;
+
+    var sendTimeOut = Config.SendTimeOut;
+
+    if (sendTimeOut &lt; 0)
+    {
+        throw new TimeoutException("The sending attempt timed out");
+    }
+
+    var timeOutTime = sendTimeOut &gt; 0 ? DateTime.Now.AddMilliseconds(sendTimeOut) : DateTime.Now;
+    var spinWait = new SpinWait();
+
+    while (m_Connected)
+    {
+        spinWait.SpinOnce();
+
+        if (InternalTrySend(segment))
+            return;
+
+        if (sendTimeOut &gt; 0 &amp;&amp; DateTime.Now &gt;= timeOutTime)
+        {
+            throw new TimeoutException("The sending attempt timed out");
+        }
+    }
+}</code></pre>
+
+        <div class="note warn">
+          <strong>해석:</strong> <code>Send()</code>가 “socket send 완료까지 기다린다”는 뜻은 아닙니다.
+          큐에 넣는 데 성공할 때까지 기다리는 API입니다. 실제 네트워크 송신 완료는 뒤에서 <code>OnSendingCompleted()</code>로 처리됩니다.
+        </div>
+      </section>
+
+      <section class="section" id="queue-swap">
+        <h2>SocketSession.TrySend와 StartSend: 큐 스왑의 핵심</h2>
+        <p class="lead">
+          <code>SocketSession</code>은 세션당 하나의 <code>m_SendingQueue</code>를 현재 enqueue 대상으로 유지합니다.
+          <code>TrySend()</code>는 이 큐에 데이터를 넣고, <code>StartSend()</code>는 “이 큐를 이제 보낼 큐로 고정”합니다.
+          이때 새 큐를 pool에서 꺼내 <code>m_SendingQueue</code>로 바꾸므로, 송신 중에도 다른 스레드가 다음 데이터를 계속 enqueue할 수 있습니다.
+        </p>
+
+        <div class="code-head">
+          <h3>TrySend: 현재 큐에 넣고 송신 시작 시도</h3>
+          <span class="badge socket">SocketSession.cs:283</span>
+        </div>
+        <pre><code class="language-csharp">public bool TrySend(ArraySegment&lt;byte&gt; segment)
+{
+    if (IsClosed)
+        return false;
+
+    var queue = m_SendingQueue;
+
+    if (queue == null)
+        return false;
+
+    var trackID = queue.TrackID;
+
+    if (!queue.Enqueue(segment, trackID))
+        return false;
+
+    StartSend(queue, trackID, true);
+    return true;
+}</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>코드</th>
+                <th>왜 필요한가</th>
+                <th>실패하면</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>IsClosed</code></td>
+                <td>이미 닫힌 세션에 데이터를 쌓지 않습니다.</td>
+                <td><code>false</code> 반환</td>
+              </tr>
+              <tr>
+                <td><code>queue == null</code></td>
+                <td>초기화 실패 또는 close 처리 중인 상태를 방어합니다.</td>
+                <td><code>false</code> 반환</td>
+              </tr>
+              <tr>
+                <td><code>trackID</code></td>
+                <td>큐가 clear 후 재사용된 경우, 오래된 스레드가 잘못 enqueue하지 못하게 합니다.</td>
+                <td><code>Enqueue()</code> 실패</td>
+              </tr>
+              <tr>
+                <td><code>StartSend(..., true)</code></td>
+                <td>실제로 송신 중이 아니면 이 호출자가 송신권을 얻습니다.</td>
+                <td>이미 다른 송신자가 있으면 조용히 반환</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-head">
+          <h3>StartSend: 송신권, 새 큐 확보, CompareExchange</h3>
+          <span class="badge socket">SocketSession.cs:349</span>
+        </div>
+        <pre><code class="language-csharp">private void StartSend(SendingQueue queue, int sendingTrackID, bool initial)
+{
+    if (initial)
+    {
+        if (!TryAddStateFlag(SocketState.InSending))
+        {
+            return;
+        }
+
+        var currentQueue = m_SendingQueue;
+
+        if (currentQueue != queue || sendingTrackID != currentQueue.TrackID)
+        {
+            //Has been sent
+            OnSendEnd();
+            return;
+        }
+    }
+
+    Socket? client;
+
+    if (IsInClosingOrClosed &amp;&amp; TryValidateClosedBySocket(out client))
+    {
+        OnSendEnd();
+        return;
+    }
+
+    SendingQueue? newQueue;
+
+    if (!m_SendingQueuePool.TryGet(out newQueue))
+    {
+        OnSendEnd(CloseReason.InternalError, true);
+        AppSession.Logger.Error("There is no enougth sending queue can be used.");
+        return;
+    }
+
+    var oldQueue = Interlocked.CompareExchange(ref m_SendingQueue, newQueue, queue);
+
+    if (!ReferenceEquals(oldQueue, queue))
+    {
+        if (newQueue != null)
+            m_SendingQueuePool.Push(newQueue);
+
+        if (IsInClosingOrClosed)
+            OnSendEnd();
+        else
+            OnSendEnd(CloseReason.InternalError, true);
+
+        return;
+    }
+
+    newQueue!.StartEnqueue();
+    queue.StopEnqueue();
+
+    if (queue.Count == 0)
+    {
+        m_SendingQueuePool.Push(queue);
+        OnSendEnd(CloseReason.InternalError, true);
+        AppSession.Logger.Error("There is no data to be sent in the queue.");
+        return;
+    }
+
+    Send(queue);
+}</code></pre>
+
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>initial == true</h3>
+            <p><code>TrySend()</code>에서 처음 호출할 때입니다. <code>SocketState.InSending</code> 플래그를 잡은 호출자만 실제 송신을 시작합니다.</p>
+          </div>
+          <div class="card">
+            <h3>initial == false</h3>
+            <p>완료 콜백에서 다음 큐를 바로 이어 보낼 때입니다. 이미 송신 흐름 안에 있으므로 <code>InSending</code>을 다시 잡지 않습니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="sendingqueue">
+        <h2>SendingQueue 내부: lock 대신 CAS와 read-only 전환</h2>
+        <p class="lead">
+          <code>SendingQueue</code>는 <code>IList&lt;ArraySegment&lt;byte&gt;&gt;</code>처럼 보이지만 일반 리스트가 아닙니다.
+          pool이 제공한 큰 <code>ArraySegment&lt;byte&gt;[]</code> 배열의 일부 구간을 자기 큐처럼 사용합니다.
+          enqueue는 <code>Interlocked.CompareExchange</code>로 슬롯 수를 예약하고, 실제 socket send 시점에는 <code>StopEnqueue()</code>로 더 이상 쓰지 못하게 합니다.
+        </p>
+
+        <div class="code-head">
+          <h3>핵심 필드</h3>
+          <span class="badge queue">SendingQueue.cs:7</span>
+        </div>
+        <pre><code class="language-csharp">public sealed class SendingQueue : IList&lt;ArraySegment&lt;byte&gt;&gt;
+{
+    private readonly int m_Offset;
+    private readonly int m_Capacity;
+    private int m_CurrentCount = 0;
+    private ArraySegment&lt;byte&gt;[] m_GlobalQueue;
+    private int m_UpdatingCount;
+    private volatile bool m_ReadOnly = false;
+    private ushort m_TrackID = 1;
+    private int m_InnerOffset = 0;
+
+    public ushort TrackID
+    {
+        get { return m_TrackID; }
+    }
+}</code></pre>
+
+        <div class="code-head">
+          <h3>Enqueue: 슬롯 예약 후 배열에 기록</h3>
+          <span class="badge queue">SendingQueue.cs:54</span>
+          <span class="badge queue">SendingQueue.cs:89</span>
+        </div>
+        <pre><code class="language-csharp">private bool TryEnqueue(ArraySegment&lt;byte&gt; item, out bool conflict, ushort trackID)
+{
+    conflict = false;
+
+    var oldCount = m_CurrentCount;
+
+    if (oldCount &gt;= Capacity)
+        return false;
+
+    if (m_ReadOnly)
+        return false;
+
+    if (trackID != m_TrackID)
+        return false;
+
+    int compareCount = Interlocked.CompareExchange(ref m_CurrentCount, oldCount + 1, oldCount);
+
+    if (compareCount != oldCount)
+    {
+        conflict = true;
+        return false;
+    }
+
+    m_GlobalQueue[m_Offset + oldCount] = item;
+    return true;
+}
+
+public bool Enqueue(ArraySegment&lt;byte&gt; item, ushort trackID)
+{
+    if (m_ReadOnly)
+        return false;
+
+    Interlocked.Increment(ref m_UpdatingCount);
+
+    while (!m_ReadOnly)
+    {
+        bool conflict = false;
+
+        if (TryEnqueue(item, out conflict, trackID))
+        {
+            Interlocked.Decrement(ref m_UpdatingCount);
+            return true;
+        }
+
+        if (!conflict)
+            break;
+    }
+
+    Interlocked.Decrement(ref m_UpdatingCount);
+    return false;
+}</code></pre>
+
+        <div class="code-head">
+          <h3>StopEnqueue와 StartEnqueue</h3>
+          <span class="badge queue">SendingQueue.cs:185</span>
+          <span class="badge queue">SendingQueue.cs:209</span>
+        </div>
+        <pre><code class="language-csharp">public void StopEnqueue()
+{
+    if (m_ReadOnly)
+        return;
+
+    m_ReadOnly = true;
+
+    if (m_UpdatingCount &lt;= 0)
+        return;
+
+    var spinWait = new SpinWait();
+    spinWait.SpinOnce();
+
+    while (m_UpdatingCount &gt; 0)
+    {
+        spinWait.SpinOnce();
+    }
+}
+
+public void StartEnqueue()
+{
+    m_ReadOnly = false;
+}</code></pre>
+
+        <div class="note">
+          <strong>핵심 포인트:</strong> <code>StopEnqueue()</code>는 단순히 플래그만 바꾸지 않습니다.
+          이미 <code>Enqueue()</code> 안으로 들어와 슬롯을 예약했지만 아직 배열에 쓰는 중일 수 있는 스레드를
+          <code>m_UpdatingCount</code>로 기다립니다. 그래서 실제 socket send는 안정된 스냅샷 큐를 대상으로 진행됩니다.
+        </div>
+      </section>
+
+      <section class="section" id="async-send">
+        <h2>실제 Socket Send: SyncSend와 SendAsync 분기</h2>
+        <p class="lead">
+          <code>SocketSession.Send(SendingQueue)</code>는 설정에 따라 동기 송신 또는 비동기 송신으로 분기합니다.
+          TCP 구현체인 <code>AsyncSocketSession</code>은 <code>SendSync()</code>와 <code>SendAsync()</code>를 override합니다.
+        </p>
+
+        <div class="code-head">
+          <h3>분기점</h3>
+          <span class="badge socket">SocketSession.cs:337</span>
+        </div>
+        <pre><code class="language-csharp">private void Send(SendingQueue queue)
+{
+    if (SyncSend)
+    {
+        SendSync(queue);
+    }
+    else
+    {
+        SendAsync(queue);
+    }
+}</code></pre>
+
+        <div class="code-head">
+          <h3>비동기 송신</h3>
+          <span class="badge async">AsyncSocketSession.cs:184</span>
+        </div>
+        <pre><code class="language-csharp">protected override void SendAsync(SendingQueue queue)
+{
+    try
+    {
+        var sae = m_SocketEventArgSend!;
+        sae.UserToken = queue;
+
+        if (queue.Count &gt; 1)
+            sae.BufferList = queue;
+        else
+        {
+            var item = queue[0];
+            sae.SetBuffer(item.Array, item.Offset, item.Count);
+        }
+
+        var client = Client;
+
+        if (client == null)
+        {
+            OnSendError(queue, CloseReason.SocketError);
+            return;
+        }
+
+        if (!client.SendAsync(sae))
+            OnSendingCompleted(client, sae);
+    }
+    catch (Exception e)
+    {
+        LogError(e);
+        ClearPrevSendState(m_SocketEventArgSend!);
+        OnSendError(queue, CloseReason.SocketError);
+    }
+}</code></pre>
+
+        <div class="code-head">
+          <h3>동기 송신</h3>
+          <span class="badge async">AsyncSocketSession.cs:157</span>
+        </div>
+        <pre><code class="language-csharp">protected override void SendSync(SendingQueue queue)
+{
+    try
+    {
+        for (var i = 0; i &lt; queue.Count; i++)
+        {
+            var item = queue[i];
+            var client = Client;
+
+            if (client == null)
+                return;
+
+            client.Send(item.Array!, item.Offset, item.Count, SocketFlags.None);
+        }
+
+        OnSendingCompleted(queue);
+    }
+    catch (Exception e)
+    {
+        LogError(e);
+        OnSendError(queue, CloseReason.SocketError);
+        return;
+    }
+}</code></pre>
+
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>queue.Count &gt; 1</h3>
+            <p><code>SocketAsyncEventArgs.BufferList</code>에 큐 자체를 넣어 scatter/gather 송신을 사용합니다.</p>
+          </div>
+          <div class="card">
+            <h3>queue.Count == 1</h3>
+            <p>단일 <code>ArraySegment&lt;byte&gt;</code>는 <code>SetBuffer()</code>로 직접 지정합니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="completion">
+        <h2>완료, 부분 송신, 다음 큐 이어 보내기</h2>
+        <p class="lead">
+          <code>Socket.SendAsync()</code>는 요청한 모든 byte를 항상 한 번에 보냈다고 보장하지 않습니다.
+          <code>AsyncSocketSession.OnSendingCompleted()</code>는 실제 전송 byte 수를 확인하고, 덜 보냈으면
+          <code>InternalTrim()</code>으로 이미 전송된 앞부분을 잘라낸 뒤 같은 큐를 다시 보냅니다.
+        </p>
+
+        <div class="code-head">
+          <h3>SocketAsyncEventArgs 완료 콜백</h3>
+          <span class="badge async">AsyncSocketSession.cs:89</span>
+        </div>
+        <pre><code class="language-csharp">void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
+{
+    var queue = e.UserToken as SendingQueue;
+
+    if (!ProcessCompleted(e))
+    {
+        ClearPrevSendState(e);
+        OnSendError(queue!, CloseReason.SocketError);
+        return;
+    }
+
+    var count = queue!.Sum(q =&gt; q.Count);
+
+    if (count != e.BytesTransferred)
+    {
+        queue!.InternalTrim(e.BytesTransferred);
+        AppSession.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {queue.Sum(q =&gt; q.Count)} bytes right now.");
+        ClearPrevSendState(e);
+        SendAsync(queue);
+        return;
+    }
+
+    ClearPrevSendState(e);
+    base.OnSendingCompleted(queue!);
+}</code></pre>
+
+        <div class="code-head">
+          <h3>공통 완료 처리: 보낸 큐 반환 후 새 큐 확인</h3>
+          <span class="badge socket">SocketSession.cs:431</span>
+        </div>
+        <pre><code class="language-csharp">protected virtual void OnSendingCompleted(SendingQueue queue)
+{
+    queue.Clear();
+    m_SendingQueuePool.Push(queue);
+
+    var newQueue = m_SendingQueue!;
+
+    if (IsInClosingOrClosed)
+    {
+        Socket? client;
+
+        if (newQueue.Count &gt; 0 &amp;&amp; !TryValidateClosedBySocket(out client))
+        {
+            StartSend(newQueue, newQueue.TrackID, false);
+            return;
+        }
+
+        OnSendEnd();
+        return;
+    }
+
+    if (newQueue.Count == 0)
+    {
+        OnSendEnd();
+
+        if (newQueue.Count &gt; 0)
+        {
+            StartSend(newQueue, newQueue.TrackID, true);
+        }
+    }
+    else
+    {
+        StartSend(newQueue, newQueue.TrackID, false);
+    }
+}</code></pre>
+
+        <div class="code-head">
+          <h3>Clear와 InternalTrim</h3>
+          <span class="badge queue">SendingQueue.cs:353</span>
+          <span class="badge queue">SendingQueue.cs:449</span>
+        </div>
+        <pre><code class="language-csharp">public void Clear()
+{
+    if (m_TrackID &gt;= ushort.MaxValue)
+        m_TrackID = 1;
+    else
+        m_TrackID++;
+
+    for (var i = 0; i &lt; m_CurrentCount; i++)
+    {
+        m_GlobalQueue[m_Offset + i] = m_Null;
+    }
+
+    m_CurrentCount = 0;
+    m_InnerOffset = 0;
+    Position = 0;
+}
+
+public void InternalTrim(int offset)
+{
+    var innerCount = m_CurrentCount - m_InnerOffset;
+    var subTotal = 0;
+
+    for (var i = m_InnerOffset; i &lt; innerCount; i++)
+    {
+        var segment = m_GlobalQueue[m_Offset + i];
+        subTotal += segment.Count;
+
+        if (subTotal &lt;= offset)
+            continue;
+
+        m_InnerOffset = i;
+
+        var rest = subTotal - offset;
+        m_GlobalQueue[m_Offset + i] =
+            new ArraySegment&lt;byte&gt;(segment.Array!, segment.Offset + segment.Count - rest, rest);
+
+        break;
+    }
+}</code></pre>
+
+        <div class="note danger">
+          <strong>주의할 점:</strong> <code>OnSendingCompleted()</code>에서 <code>newQueue.Count == 0</code>이라도
+          <code>OnSendEnd()</code> 직후 다시 <code>newQueue.Count &gt; 0</code>를 확인합니다. 송신 플래그를 내리는 아주 짧은 순간에
+          다른 스레드가 enqueue했을 수 있기 때문입니다.
+        </div>
+      </section>
+
+      <section class="section" id="interactive">
+        <h2>인터랙티브 함수 호출 흐름</h2>
+        <p class="lead">
+          아래 카드는 위에서 아래 방향으로 송신 흐름을 나타냅니다. 함수 이름을 클릭하면 코드가 펼쳐지고,
+          코드 안의 다른 함수 이름을 클릭하면 해당 함수 카드로 이동합니다. 각 카드에는 파일 소스 배지가 표시됩니다.
+        </p>
+        <div class="legend">
+          <span class="badge app">AppSession.cs</span>
+          <span class="badge socket">SocketSession.cs</span>
+          <span class="badge queue">SendingQueue.cs</span>
+          <span class="badge async">AsyncSocketSession.cs</span>
+        </div>
+
+        <div class="flow-explorer">
+          <details class="flow-card" id="fn-app-send" open>
+            <summary>
+              <span class="fn-title">AppSession.Send(byte[] data, int offset, int length)</span>
+              <span class="fn-meta"><span class="badge app">AppSession.cs:327</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>사용자 코드가 호출하는 대표적인 송신 API입니다. byte 배열을 <code>ArraySegment&lt;byte&gt;</code>로 감싼 뒤 내부 송신 루프로 넘깁니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public virtual void Send(byte[] data, int offset, int length)
+{
+    InternalSend(new ArraySegment&lt;byte&gt;(data, offset, length));
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-app-internal-send">
+            <summary>
+              <span class="fn-title">AppSession.InternalSend(ArraySegment&lt;byte&gt; segment)</span>
+              <span class="fn-meta"><span class="badge app">AppSession.cs:355</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>큐에 넣기 실패하면 <code>SendTimeOut</code> 정책에 따라 spin retry합니다. 성공 조건은 네트워크 전송 완료가 아니라 큐 enqueue 성공입니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">private void InternalSend(ArraySegment&lt;byte&gt; segment)
+{
+    if (!m_Connected)
+        return;
+
+    if (InternalTrySend(segment))
+        return;
+
+    var sendTimeOut = Config.SendTimeOut;
+    var timeOutTime = sendTimeOut &gt; 0 ? DateTime.Now.AddMilliseconds(sendTimeOut) : DateTime.Now;
+    var spinWait = new SpinWait();
+
+    while (m_Connected)
+    {
+        spinWait.SpinOnce();
+
+        if (InternalTrySend(segment))
+            return;
+
+        if (sendTimeOut &gt; 0 &amp;&amp; DateTime.Now &gt;= timeOutTime)
+            throw new TimeoutException("The sending attempt timed out");
+    }
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-app-internal-trysend">
+            <summary>
+              <span class="fn-title">AppSession.InternalTrySend(ArraySegment&lt;byte&gt; segment)</span>
+              <span class="fn-meta"><span class="badge app">AppSession.cs:332</span></span>
+            </summary>
+            <div class="flow-body">
+              <p><code>SocketSession.TrySend()</code>에 위임하고, 성공하면 세션 활동 시간을 갱신합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">private bool InternalTrySend(ArraySegment&lt;byte&gt; segment)
+{
+    if (!SocketSession.TrySend(segment))
+        return false;
+
+    LastActiveTime = DateTime.Now;
+    return true;
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-socket-trysend">
+            <summary>
+              <span class="fn-title">SocketSession.TrySend(ArraySegment&lt;byte&gt; segment)</span>
+              <span class="fn-meta"><span class="badge socket">SocketSession.cs:283</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>현재 enqueue 대상 큐를 가져와 trackID와 함께 넣습니다. enqueue 성공 후 <code>StartSend()</code>를 호출하지만, 이미 송신 중이면 그 호출은 곧 반환됩니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public bool TrySend(ArraySegment&lt;byte&gt; segment)
+{
+    if (IsClosed)
+        return false;
+
+    var queue = m_SendingQueue;
+
+    if (queue == null)
+        return false;
+
+    var trackID = queue.TrackID;
+
+    if (!queue.Enqueue(segment, trackID))
+        return false;
+
+    StartSend(queue, trackID, true);
+    return true;
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-queue-enqueue">
+            <summary>
+              <span class="fn-title">SendingQueue.Enqueue(ArraySegment&lt;byte&gt; item, ushort trackID)</span>
+              <span class="fn-meta"><span class="badge queue">SendingQueue.cs:89</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>큐가 read-only가 아니고 trackID가 같을 때만 enqueue합니다. CAS 충돌은 재시도하고, 용량 초과나 trackID 불일치는 실패로 처리합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public bool Enqueue(ArraySegment&lt;byte&gt; item, ushort trackID)
+{
+    if (m_ReadOnly)
+        return false;
+
+    Interlocked.Increment(ref m_UpdatingCount);
+
+    while (!m_ReadOnly)
+    {
+        bool conflict = false;
+
+        if (TryEnqueue(item, out conflict, trackID))
+        {
+            Interlocked.Decrement(ref m_UpdatingCount);
+            return true;
+        }
+
+        if (!conflict)
+            break;
+    }
+
+    Interlocked.Decrement(ref m_UpdatingCount);
+    return false;
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-socket-startsend">
+            <summary>
+              <span class="fn-title">SocketSession.StartSend(SendingQueue queue, int sendingTrackID, bool initial)</span>
+              <span class="fn-meta"><span class="badge socket">SocketSession.cs:349</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>송신권을 얻고, 새 큐를 pool에서 꺼내 현재 enqueue 대상으로 교체합니다. 기존 큐는 read-only로 닫은 뒤 실제 send 대상으로 고정합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">private void StartSend(SendingQueue queue, int sendingTrackID, bool initial)
+{
+    if (initial)
+    {
+        if (!TryAddStateFlag(SocketState.InSending))
+            return;
+
+        var currentQueue = m_SendingQueue;
+
+        if (currentQueue != queue || sendingTrackID != currentQueue.TrackID)
+        {
+            OnSendEnd();
+            return;
+        }
+    }
+
+    SendingQueue? newQueue;
+
+    if (!m_SendingQueuePool.TryGet(out newQueue))
+    {
+        OnSendEnd(CloseReason.InternalError, true);
+        return;
+    }
+
+    var oldQueue = Interlocked.CompareExchange(ref m_SendingQueue, newQueue, queue);
+
+    if (!ReferenceEquals(oldQueue, queue))
+    {
+        m_SendingQueuePool.Push(newQueue);
+        OnSendEnd(CloseReason.InternalError, true);
+        return;
+    }
+
+    newQueue!.StartEnqueue();
+    queue.StopEnqueue();
+
+    if (queue.Count == 0)
+    {
+        m_SendingQueuePool.Push(queue);
+        OnSendEnd(CloseReason.InternalError, true);
+        return;
+    }
+
+    Send(queue);
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-queue-stop-start">
+            <summary>
+              <span class="fn-title">SendingQueue.StartEnqueue() / StopEnqueue()</span>
+              <span class="fn-meta"><span class="badge queue">SendingQueue.cs:185</span></span>
+            </summary>
+            <div class="flow-body">
+              <p><code>StartEnqueue()</code>는 새 큐를 쓰기 가능하게 만들고, <code>StopEnqueue()</code>는 보낼 큐를 더 이상 변경되지 않는 스냅샷으로 만듭니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public void StopEnqueue()
+{
+    if (m_ReadOnly)
+        return;
+
+    m_ReadOnly = true;
+
+    if (m_UpdatingCount &lt;= 0)
+        return;
+
+    var spinWait = new SpinWait();
+    spinWait.SpinOnce();
+
+    while (m_UpdatingCount &gt; 0)
+    {
+        spinWait.SpinOnce();
+    }
+}
+
+public void StartEnqueue()
+{
+    m_ReadOnly = false;
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-socket-send">
+            <summary>
+              <span class="fn-title">SocketSession.Send(SendingQueue queue)</span>
+              <span class="fn-meta"><span class="badge socket">SocketSession.cs:337</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>설정값 <code>SyncSend</code>에 따라 동기 또는 비동기 송신 구현으로 분기합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">private void Send(SendingQueue queue)
+{
+    if (SyncSend)
+    {
+        SendSync(queue);
+    }
+    else
+    {
+        SendAsync(queue);
+    }
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-async-sendasync">
+            <summary>
+              <span class="fn-title">AsyncSocketSession.SendAsync(SendingQueue queue)</span>
+              <span class="fn-meta"><span class="badge async">AsyncSocketSession.cs:184</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>큐를 <code>SocketAsyncEventArgs.UserToken</code>에 저장합니다. 완료 콜백에서 어떤 큐가 완료되었는지 알기 위한 연결고리입니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">protected override void SendAsync(SendingQueue queue)
+{
+    var sae = m_SocketEventArgSend!;
+    sae.UserToken = queue;
+
+    if (queue.Count &gt; 1)
+        sae.BufferList = queue;
+    else
+    {
+        var item = queue[0];
+        sae.SetBuffer(item.Array, item.Offset, item.Count);
+    }
+
+    var client = Client;
+
+    if (client == null)
+    {
+        OnSendError(queue, CloseReason.SocketError);
+        return;
+    }
+
+    if (!client.SendAsync(sae))
+        OnSendingCompleted(client, sae);
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-async-completed">
+            <summary>
+              <span class="fn-title">AsyncSocketSession.OnSendingCompleted(object? sender, SocketAsyncEventArgs e)</span>
+              <span class="fn-meta"><span class="badge async">AsyncSocketSession.cs:89</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>부분 송신이면 <code>InternalTrim()</code> 후 같은 큐를 다시 보냅니다. 전부 보냈을 때만 base 완료 처리로 넘어갑니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
+{
+    var queue = e.UserToken as SendingQueue;
+
+    if (!ProcessCompleted(e))
+    {
+        ClearPrevSendState(e);
+        OnSendError(queue!, CloseReason.SocketError);
+        return;
+    }
+
+    var count = queue!.Sum(q =&gt; q.Count);
+
+    if (count != e.BytesTransferred)
+    {
+        queue!.InternalTrim(e.BytesTransferred);
+        ClearPrevSendState(e);
+        SendAsync(queue);
+        return;
+    }
+
+    ClearPrevSendState(e);
+    base.OnSendingCompleted(queue!);
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-queue-trim">
+            <summary>
+              <span class="fn-title">SendingQueue.InternalTrim(int offset)</span>
+              <span class="fn-meta"><span class="badge queue">SendingQueue.cs:449</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>이미 보낸 byte 수만큼 큐 앞부분을 잘라냅니다. 다음 <code>SendAsync()</code>는 남은 segment만 다시 보냅니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public void InternalTrim(int offset)
+{
+    var innerCount = m_CurrentCount - m_InnerOffset;
+    var subTotal = 0;
+
+    for (var i = m_InnerOffset; i &lt; innerCount; i++)
+    {
+        var segment = m_GlobalQueue[m_Offset + i];
+        subTotal += segment.Count;
+
+        if (subTotal &lt;= offset)
+            continue;
+
+        m_InnerOffset = i;
+
+        var rest = subTotal - offset;
+        m_GlobalQueue[m_Offset + i] =
+            new ArraySegment&lt;byte&gt;(segment.Array!, segment.Offset + segment.Count - rest, rest);
+
+        break;
+    }
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-socket-completed">
+            <summary>
+              <span class="fn-title">SocketSession.OnSendingCompleted(SendingQueue queue)</span>
+              <span class="fn-meta"><span class="badge socket">SocketSession.cs:431</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>완료된 큐를 비우고 pool에 반환한 뒤, 현재 enqueue 대상이 된 새 큐에 데이터가 쌓였는지 확인합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">protected virtual void OnSendingCompleted(SendingQueue queue)
+{
+    queue.Clear();
+    m_SendingQueuePool.Push(queue);
+
+    var newQueue = m_SendingQueue!;
+
+    if (newQueue.Count == 0)
+    {
+        OnSendEnd();
+
+        if (newQueue.Count &gt; 0)
+        {
+            StartSend(newQueue, newQueue.TrackID, true);
+        }
+    }
+    else
+    {
+        StartSend(newQueue, newQueue.TrackID, false);
+    }
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-queue-clear">
+            <summary>
+              <span class="fn-title">SendingQueue.Clear()</span>
+              <span class="fn-meta"><span class="badge queue">SendingQueue.cs:353</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>큐를 pool에 반환하기 전에 내부 배열 참조를 지우고 <code>TrackID</code>를 증가시켜 오래된 enqueue 시도를 무효화합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">public void Clear()
+{
+    if (m_TrackID &gt;= ushort.MaxValue)
+        m_TrackID = 1;
+    else
+        m_TrackID++;
+
+    for (var i = 0; i &lt; m_CurrentCount; i++)
+    {
+        m_GlobalQueue[m_Offset + i] = m_Null;
+    }
+
+    m_CurrentCount = 0;
+    m_InnerOffset = 0;
+    Position = 0;
+}</code></pre>
+            </div>
+          </details>
+
+          <details class="flow-card" id="fn-socket-sendend">
+            <summary>
+              <span class="fn-title">SocketSession.OnSendEnd(...)</span>
+              <span class="fn-meta"><span class="badge socket">SocketSession.cs:419</span></span>
+            </summary>
+            <div class="flow-body">
+              <p>송신 상태 플래그를 내리고, close가 대기 중이면 실제 close 완료 조건을 검사합니다.</p>
+              <pre><code class="language-csharp" data-linkify="true">private void OnSendEnd(CloseReason closeReason, bool forceClose)
+{
+    RemoveStateFlag(SocketState.InSending);
+    ValidateClosed(closeReason, forceClose, true);
+}</code></pre>
+            </div>
+          </details>
+        </div>
+
+        <p class="footer-note">
+          이 탐색기는 소스의 주요 경로를 학습용으로 압축한 것입니다. 정확한 전체 구현은
+          <code>SuperSocketLite/SocketBase/AppSession.cs</code>, <code>SuperSocketLite/SocketSession.cs</code>,
+          <code>SuperSocketLite/Common/SendingQueue.cs</code>, <code>SuperSocketLite/AsyncSocketSession.cs</code>를 기준으로 확인하십시오.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>
+    const functionTargets = new Map([
+      ["AppSession.Send", "fn-app-send"],
+      ["InternalSend", "fn-app-internal-send"],
+      ["InternalTrySend", "fn-app-internal-trysend"],
+      ["SocketSession.TrySend", "fn-socket-trysend"],
+      ["TrySend", "fn-socket-trysend"],
+      ["Enqueue", "fn-queue-enqueue"],
+      ["TryEnqueue", "fn-queue-enqueue"],
+      ["StartSend", "fn-socket-startsend"],
+      ["StartEnqueue", "fn-queue-stop-start"],
+      ["StopEnqueue", "fn-queue-stop-start"],
+      ["Send", "fn-socket-send"],
+      ["SendAsync", "fn-async-sendasync"],
+      ["SendSync", "fn-socket-send"],
+      ["AsyncSocketSession.SendAsync", "fn-async-sendasync"],
+      ["OnSendingCompleted", "fn-async-completed"],
+      ["InternalTrim", "fn-queue-trim"],
+      ["Clear", "fn-queue-clear"],
+      ["OnSendEnd", "fn-socket-sendend"],
+      ["OnSendError", "fn-async-sendasync"],
+      ["ClearPrevSendState", "fn-async-completed"]
+    ]);
+
+    function openFunctionCard(targetId) {
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      target.classList.add("flash");
+      window.setTimeout(() => target.classList.remove("flash"), 1400);
+    }
+
+    function linkifyCode(code) {
+      const names = [...functionTargets.keys()]
+        .sort((a, b) => b.length - a.length)
+        .map(name => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      const pattern = new RegExp("\\b(" + names.join("|") + ")\\b", "g");
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          if (!node.nodeValue || !pattern.test(node.nodeValue)) {
+            pattern.lastIndex = 0;
+            return NodeFilter.FILTER_REJECT;
+          }
+          pattern.lastIndex = 0;
+          if (node.parentElement && node.parentElement.closest(".call-link")) {
+            return NodeFilter.FILTER_REJECT;
+          }
+          return NodeFilter.FILTER_ACCEPT;
+        }
+      });
+
+      const nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+
+      for (const node of nodes) {
+        const text = node.nodeValue;
+        const frag = document.createDocumentFragment();
+        let last = 0;
+        pattern.lastIndex = 0;
+        for (const match of text.matchAll(pattern)) {
+          const name = match[0];
+          const index = match.index;
+          if (index > last) frag.appendChild(document.createTextNode(text.slice(last, index)));
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "call-link";
+          button.dataset.target = functionTargets.get(name);
+          button.textContent = name;
+          frag.appendChild(button);
+          last = index + name.length;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.hljs) {
+        document.querySelectorAll("pre code").forEach(block => hljs.highlightElement(block));
+      }
+
+      document.querySelectorAll("code[data-linkify='true']").forEach(linkifyCode);
+
+      document.addEventListener("click", event => {
+        const link = event.target.closest(".call-link");
+        if (!link) return;
+        event.preventDefault();
+        openFunctionCard(link.dataset.target);
+      });
+
+      const tocLinks = [...document.querySelectorAll(".toc a")];
+      const sections = tocLinks
+        .map(a => document.querySelector(a.getAttribute("href")))
+        .filter(Boolean);
+      const observer = new IntersectionObserver(entries => {
+        const visible = entries
+          .filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        tocLinks.forEach(a => a.classList.toggle("active", a.getAttribute("href") === "#" + visible.target.id));
+      }, { rootMargin: "-20% 0px -65% 0px", threshold: [0.1, 0.25, 0.5] });
+      sections.forEach(section => observer.observe(section));
+    });
+  </script>
+</body>
+</html>

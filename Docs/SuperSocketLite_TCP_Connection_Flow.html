@@ -1,0 +1,1445 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SuperSocketLite 2 TCP 접속 흐름 상세 문서</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #556270;
+      --paper: #ffffff;
+      --soft: #f5f7fb;
+      --soft-2: #ecfdf5;
+      --line: #d8dee9;
+      --green: #15803d;
+      --teal: #0f766e;
+      --blue: #2563eb;
+      --orange: #d97706;
+      --red: #b42318;
+      --code-bg: #0f172a;
+      --code-fg: #e5e7eb;
+      --shadow: 0 14px 34px rgba(15, 23, 42, .10);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #fbfcfe;
+      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+      line-height: 1.68;
+    }
+
+    a { color: var(--teal); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code {
+      padding: .12rem .32rem;
+      border-radius: 5px;
+      background: #eef2f7;
+      color: #111827;
+      font-family: Consolas, "SFMono-Regular", monospace;
+      font-size: .92em;
+    }
+    pre {
+      margin: .9rem 0 0;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      overflow: auto;
+      background: var(--code-bg);
+      color: var(--code-fg);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, .12);
+    }
+    pre code {
+      display: block;
+      padding: 1rem;
+      background: transparent;
+      color: inherit;
+      line-height: 1.48;
+      font-size: .88rem;
+      white-space: pre;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow: auto;
+      border-right: 1px solid var(--line);
+      background: #fff;
+      padding: 1.1rem;
+    }
+    .brand {
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;
+    }
+    .brand strong { display: block; font-size: 1.05rem; }
+    .brand span { display: block; color: var(--muted); font-size: .87rem; margin-top: .25rem; }
+    nav {
+      display: grid;
+      gap: .22rem;
+      font-size: .91rem;
+    }
+    nav a {
+      display: block;
+      color: #334155;
+      padding: .45rem .58rem;
+      border-radius: 7px;
+    }
+    nav a:hover, nav a.active {
+      background: #eaf7f3;
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    main { min-width: 0; }
+    .hero {
+      min-height: 82vh;
+      display: grid;
+      align-content: center;
+      gap: 1.1rem;
+      padding: 4rem clamp(1.2rem, 4vw, 4.5rem) 3rem;
+      background:
+        linear-gradient(110deg, rgba(255,255,255,.96), rgba(255,255,255,.80)),
+        radial-gradient(circle at 82% 18%, rgba(21,128,61,.12), transparent 28%),
+        repeating-linear-gradient(90deg, #edf2f7 0 1px, transparent 1px 62px),
+        repeating-linear-gradient(0deg, #edf2f7 0 1px, transparent 1px 62px);
+      border-bottom: 1px solid var(--line);
+    }
+    .hero h1 {
+      max-width: 980px;
+      margin: 0;
+      font-size: clamp(2.2rem, 5vw, 4.4rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+    .hero p {
+      max-width: 990px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1.06rem;
+    }
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .55rem;
+      margin-top: .35rem;
+    }
+    .badge {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      padding: .4rem .72rem;
+      color: #334155;
+      font-size: .88rem;
+    }
+
+    section {
+      padding: 3rem clamp(1.2rem, 4vw, 4.5rem);
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    section.alt { background: var(--soft); }
+    h2 {
+      margin: 0 0 1rem;
+      font-size: clamp(1.55rem, 3vw, 2.35rem);
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 2rem 0 .65rem;
+      font-size: 1.23rem;
+      letter-spacing: 0;
+    }
+    h4 {
+      margin: 1.2rem 0 .45rem;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+    .lead {
+      max-width: 1030px;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+    .grid {
+      display: grid;
+      gap: 1rem;
+      margin: 1.25rem 0;
+    }
+    .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 1rem;
+      box-shadow: 0 2px 12px rgba(15, 23, 42, .04);
+    }
+    .card h3, .card h4 { margin-top: 0; }
+    .card p { color: var(--muted); margin: .45rem 0; }
+    .card ul { margin: .45rem 0 0; padding-left: 1.2rem; }
+    .note {
+      border-left: 4px solid var(--teal);
+      background: #ecfdf5;
+      border-radius: 0 8px 8px 0;
+      padding: .9rem 1rem;
+      margin: 1rem 0;
+    }
+    .warn {
+      border-left-color: var(--orange);
+      background: #fff7ed;
+    }
+    .danger {
+      border-left-color: var(--red);
+      background: #fff1f2;
+    }
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      margin: 1rem 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 780px;
+    }
+    th, td {
+      padding: .75rem .85rem;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #eef2f7; }
+    tr:last-child td { border-bottom: 0; }
+
+    .diagram {
+      position: relative;
+      overflow: hidden;
+      margin: 1.35rem 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+    }
+    .diagram svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .dot {
+      offset-rotate: 0deg;
+      animation: travel 7s linear infinite;
+    }
+    .dot.d2 { animation-delay: 1.4s; }
+    .dot.d3 { animation-delay: 2.8s; }
+    .pulse {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .blink {
+      animation: blink 1.4s ease-in-out infinite;
+    }
+    @keyframes travel {
+      from { offset-distance: 0%; }
+      to { offset-distance: 100%; }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: .55; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.08); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: .45; }
+      50% { opacity: 1; }
+    }
+
+    .flow-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .5rem;
+      margin: 1rem 0;
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #334155;
+      padding: .48rem .72rem;
+      cursor: pointer;
+      font: inherit;
+    }
+    button:hover, button.active {
+      border-color: var(--teal);
+      background: #eaf7f3;
+      color: var(--teal);
+    }
+    .step-panel {
+      display: none;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 1rem;
+      margin: 1rem 0;
+    }
+    .step-panel.active { display: block; }
+    .timeline {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      gap: .75rem 1rem;
+      align-items: start;
+      margin: 1.2rem 0;
+    }
+    .label {
+      font-weight: 700;
+      color: var(--teal);
+    }
+    .callout-list {
+      display: grid;
+      gap: .7rem;
+    }
+    .callout {
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--blue);
+      border-radius: 8px;
+      padding: .8rem .9rem;
+      background: #fff;
+    }
+    footer {
+      padding: 2rem clamp(1.2rem, 4vw, 4.5rem);
+      color: var(--muted);
+      background: #fff;
+    }
+
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; }
+      aside {
+        position: static;
+        height: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+      nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .cols-2, .cols-3 { grid-template-columns: 1fr; }
+      .timeline { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 560px) {
+      nav { grid-template-columns: 1fr; }
+      .hero { min-height: 76vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand">
+        <strong>TCP 접속 흐름 상세</strong>
+        <span>SuperSocketLite 2 / 단일 HTML 문서</span>
+      </div>
+      <nav aria-label="문서 목차">
+        <a href="#goal">문서 목적</a>
+        <a href="#big-picture">큰 그림</a>
+        <a href="#actors">등장 객체</a>
+        <a href="#startup">Start 준비</a>
+        <a href="#listener">Listener accept</a>
+        <a href="#server">AsyncSocketServer</a>
+        <a href="#tcp-options">TCP 옵션</a>
+        <a href="#app-session">AppSession 생성</a>
+        <a href="#register">세션 등록</a>
+        <a href="#session-start">SocketSession 시작</a>
+        <a href="#failure">실패와 정리</a>
+        <a href="#active-connect">ActiveConnect</a>
+        <a href="#sequence">전체 시퀀스</a>
+        <a href="#checklist">읽기 체크리스트</a>
+      </nav>
+    </aside>
+
+    <main>
+      <section class="hero" id="goal">
+        <h1>SuperSocketLite TCP 접속 흐름 상세 분석</h1>
+        <p>
+          이 문서는 기존 <code>SuperSocketLite_Architecture.html</code>의 “5. TCP 접속 흐름”을 별도 파일로 확장한 것입니다.
+          서버가 TCP listener를 시작하고, 클라이언트 socket을 accept하고, <code>AsyncSocketSession</code>과
+          <code>AppSession</code>을 연결하고, 첫 receive를 게시하기까지의 코드를 단계별로 설명합니다.
+        </p>
+        <div class="badges">
+          <span class="badge">파일: TcpAsyncSocketListener.cs</span>
+          <span class="badge">파일: AsyncSocketServer.cs</span>
+          <span class="badge">파일: TcpSocketServerBase.cs</span>
+          <span class="badge">파일: AppServerBase.cs</span>
+          <span class="badge">파일: AppSession.cs</span>
+          <span class="badge">파일: AsyncSocketSession.cs</span>
+        </div>
+      </section>
+
+      <section id="big-picture" class="alt">
+        <h2>1. 큰 그림</h2>
+        <p class="lead">
+          TCP 접속 흐름은 “서버 시작 흐름”과 “새 클라이언트 accept 흐름”이 합쳐진 결과입니다.
+          <code>AppServer.Start()</code>는 socket server를 시작하고, socket server는 listener들을 시작합니다.
+          listener가 새 socket을 받으면 <code>AsyncSocketServer.ProcessNewClient()</code>가 세션을 만들고 등록합니다.
+        </p>
+        <div class="diagram" aria-label="TCP 접속 전체 흐름 애니메이션">
+          <svg viewBox="0 0 1220 480" role="img">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#64748b"></path>
+              </marker>
+            </defs>
+            <g font-size="14">
+              <rect x="35" y="185" width="145" height="95" rx="8" fill="#eef2ff" stroke="#93a4d8"></rect>
+              <text x="108" y="224" text-anchor="middle" font-weight="700">Client</text>
+              <text x="108" y="250" text-anchor="middle">connect()</text>
+
+              <rect x="245" y="150" width="170" height="165" rx="8" fill="#f0fdfa" stroke="#76b7a4"></rect>
+              <text x="330" y="190" text-anchor="middle" font-weight="700">TcpAsyncSocketListener</text>
+              <text x="330" y="218" text-anchor="middle">Bind / Listen</text>
+              <text x="330" y="242" text-anchor="middle">AcceptAsync</text>
+              <text x="330" y="266" text-anchor="middle">NewClientAccepted</text>
+
+              <rect x="485" y="125" width="185" height="215" rx="8" fill="#fff7ed" stroke="#f3a85c"></rect>
+              <text x="578" y="166" text-anchor="middle" font-weight="700">AsyncSocketServer</text>
+              <text x="578" y="195" text-anchor="middle">SAEA pools</text>
+              <text x="578" y="219" text-anchor="middle">ProcessNewClient</text>
+              <text x="578" y="243" text-anchor="middle">CreateSession</text>
+              <text x="578" y="267" text-anchor="middle">RegisterSession</text>
+
+              <rect x="740" y="150" width="170" height="165" rx="8" fill="#ecfeff" stroke="#65b8c2"></rect>
+              <text x="825" y="190" text-anchor="middle" font-weight="700">AsyncSocketSession</text>
+              <text x="825" y="218" text-anchor="middle">Socket state</text>
+              <text x="825" y="242" text-anchor="middle">Pipe</text>
+              <text x="825" y="266" text-anchor="middle">StartReceive</text>
+
+              <rect x="980" y="150" width="170" height="165" rx="8" fill="#f8fafc" stroke="#cbd5e1"></rect>
+              <text x="1065" y="190" text-anchor="middle" font-weight="700">AppSession</text>
+              <text x="1065" y="218" text-anchor="middle">ReceiveFilter</text>
+              <text x="1065" y="242" text-anchor="middle">SessionID</text>
+              <text x="1065" y="266" text-anchor="middle">User events</text>
+
+              <line x1="180" y1="232" x2="245" y2="232" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="415" y1="232" x2="485" y2="232" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="670" y1="232" x2="740" y2="232" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"></line>
+              <line x1="910" y1="232" x2="980" y2="232" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"></line>
+
+              <circle r="8" fill="#15803d" class="dot" style="offset-path:path('M108 232 L330 232 L578 232 L825 232 L1065 232')"></circle>
+              <circle r="8" fill="#2563eb" class="dot d2" style="offset-path:path('M108 232 L330 232 L578 232 L825 232 L1065 232')"></circle>
+              <circle r="8" fill="#d97706" class="dot d3" style="offset-path:path('M108 232 L330 232 L578 232 L825 232 L1065 232')"></circle>
+
+              <text x="610" y="404" text-anchor="middle" fill="#475569">
+                새 TCP 연결은 listener의 Socket에서 시작하지만, 애플리케이션은 AppSession 이벤트로 보게 됩니다.
+              </text>
+            </g>
+          </svg>
+        </div>
+        <div class="note">
+          이 문서에서는 크로스플랫폼 관점에서 <code>SocketAsyncEventArgs</code>, <code>AcceptAsync</code>,
+          <code>ReceiveAsync</code>, <code>System.IO.Pipelines</code>라는 .NET API 중심으로 설명합니다.
+        </div>
+      </section>
+
+      <section id="actors">
+        <h2>2. 등장 객체와 책임</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>객체</th>
+                <th>파일</th>
+                <th>TCP 접속에서 맡는 일</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>AppServerBase&lt;TAppSession,TRequestInfo&gt;</code></td>
+                <td><code>SocketBase/AppServerBase.cs</code></td>
+                <td>서버 상태를 <code>Running</code>으로 전환하고, socket server 시작과 AppSession 생성/등록 이벤트를 담당합니다.</td>
+              </tr>
+              <tr>
+                <td><code>SocketServerBase</code></td>
+                <td><code>SocketServerBase.cs</code></td>
+                <td>공통 socket server 기반입니다. 송신 큐 풀을 만들고 listener를 생성/시작합니다.</td>
+              </tr>
+              <tr>
+                <td><code>AsyncSocketServer</code></td>
+                <td><code>AsyncSocketServer.cs</code></td>
+                <td>TCP 서버 구현입니다. receive/send SAEA 풀을 관리하고 새 클라이언트 socket을 session으로 승격합니다.</td>
+              </tr>
+              <tr>
+                <td><code>TcpAsyncSocketListener</code></td>
+                <td><code>TcpAsyncSocketListener.cs</code></td>
+                <td>listen socket을 만들고 <code>AcceptAsync</code> 루프로 새 socket을 받습니다.</td>
+              </tr>
+              <tr>
+                <td><code>TcpSocketServerBase</code></td>
+                <td><code>TcpSocketServerBase.cs</code></td>
+                <td>accepted socket에 send/receive buffer, timeout, keep-alive, no-delay, linger 설정을 적용합니다.</td>
+              </tr>
+              <tr>
+                <td><code>AsyncSocketSession</code></td>
+                <td><code>AsyncSocketSession.cs</code></td>
+                <td>accepted socket의 송수신 상태와 receive/send 비동기 작업을 관리합니다.</td>
+              </tr>
+              <tr>
+                <td><code>AppSession</code></td>
+                <td><code>SocketBase/AppSession.cs</code></td>
+                <td>사용자가 다루는 세션입니다. receive filter를 보유하고 요청 처리와 송신 API를 제공합니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="startup" class="alt">
+        <h2>3. Start 단계에서 TCP 접속을 받을 준비</h2>
+        <p class="lead">
+          TCP 접속 흐름은 클라이언트가 접속하기 전에 이미 준비됩니다.
+          <code>AppServerBase.Start()</code>가 socket server를 시작하고,
+          TCP 모드의 socket server인 <code>AsyncSocketServer.Start()</code>는 SAEA 풀을 만든 뒤
+          <code>SocketServerBase.Start()</code>로 listener들을 시작합니다.
+        </p>
+
+        <h3>3.1 AppServerBase.Start()</h3>
+        <p>
+          <code>Start()</code>는 서버 상태를 <code>NotStarted</code>에서 <code>Starting</code>으로 바꾼 뒤
+          내부 socket server를 시작합니다. 성공하면 <code>StartedTime</code>을 기록하고 상태를 <code>Running</code>으로 바꿉니다.
+        </p>
+        <pre><code>public virtual bool Start()
+{
+    var origStateCode = Interlocked.CompareExchange(
+        ref m_StateCode,
+        ServerStateConst.Starting,
+        ServerStateConst.NotStarted);
+
+    if (origStateCode != ServerStateConst.NotStarted)
+    {
+        // not initialized or already running
+        return false;
+    }
+
+    s_ActiveConnectionsCounter ??=
+        s_Meter.CreateUpDownCounter&lt;int&gt;(
+            "active-connections",
+            "connections",
+            "Number of active connections");
+
+    if (!m_SocketServer.Start())
+    {
+        m_StateCode = ServerStateConst.NotStarted;
+        return false;
+    }
+
+    StartedTime = DateTime.Now;
+    m_StateCode = ServerStateConst.Running;
+    OnStarted();
+    return true;
+}</code></pre>
+
+        <h3>3.2 AsyncSocketServer.Start()</h3>
+        <p>
+          TCP 구현은 접속 수락 이후 바로 사용할 수 있도록 receive용 <code>SocketAsyncEventArgsProxy</code> 풀과
+          send용 <code>SocketAsyncEventArgs</code> 풀을 먼저 만듭니다. <code>PreAllocateSAEA</code>가 true면
+          <code>MaxConnectionNumber</code>만큼 미리 만들고, false면 <code>MinPoolSize</code>에서 시작합니다.
+        </p>
+        <pre><code>public override bool Start()
+{
+    m_ReceiveSAEAPool = new SmartPool&lt;SocketAsyncEventArgsProxy&gt;();
+    var receiveCreator = new SAEAProxyCreator();
+
+    if (AppServer.Config.PreAllocateSAEA)
+    {
+        m_ReceiveSAEAPool.Initialize(
+            AppServer.Config.MaxConnectionNumber,
+            AppServer.Config.MaxConnectionNumber,
+            receiveCreator);
+    }
+    else
+    {
+        m_ReceiveSAEAPool.Initialize(
+            AppServer.Config.MinPoolSize,
+            AppServer.Config.MaxConnectionNumber,
+            receiveCreator);
+    }
+
+    m_SendSAEAPool = new SmartPool&lt;SocketAsyncEventArgs&gt;();
+    var sendCreator = new SAEACreator();
+
+    // send pool도 receive pool과 같은 정책으로 초기화
+
+    if (!base.Start())
+        return false;
+
+    IsRunning = true;
+    return true;
+}</code></pre>
+
+        <h3>3.3 SocketServerBase.Start()</h3>
+        <p>
+          공통 기반은 <code>SendingQueue</code> 풀을 만들고, <code>ListenerInfo[]</code>를 순회하며 listener를 생성합니다.
+          TCP에서는 <code>TcpSocketServerBase.CreateListener()</code>가 <code>TcpAsyncSocketListener</code>를 반환합니다.
+        </p>
+        <pre><code>public virtual bool Start()
+{
+    IsStopped = false;
+
+    var config = AppServer.Config;
+    var sendingQueuePool = new SmartPool&lt;SendingQueue&gt;();
+    sendingQueuePool.Initialize(
+        Math.Max(config.MaxConnectionNumber / 6, 256),
+        Math.Max(config.MaxConnectionNumber * 2, 256),
+        new SendingQueueSourceCreator(config.SendingQueueSize));
+
+    SendingQueuePool = sendingQueuePool;
+
+    for (var i = 0; i &lt; ListenerInfos.Length; i++)
+    {
+        var listener = CreateListener(ListenerInfos[i]);
+        listener.Error += OnListenerError;
+        listener.Stopped += OnListenerStopped;
+        listener.NewClientAccepted += OnNewClientAccepted;
+
+        if (listener.Start(AppServer.Config))
+            Listeners.Add(listener);
+        else
+            return false;
+    }
+
+    IsRunning = true;
+    return true;
+}</code></pre>
+      </section>
+
+      <section id="listener">
+        <h2>4. TcpAsyncSocketListener: listen socket과 AcceptAsync 루프</h2>
+        <p class="lead">
+          listener는 TCP 접속의 입구입니다. <code>Start()</code>에서 listen socket을 만들고,
+          <code>Bind()</code>, <code>Listen()</code> 후 <code>AcceptLoopAsync()</code>를 fire-and-forget으로 실행합니다.
+        </p>
+
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>Start에서 하는 일</h3>
+            <ul>
+              <li>엔드포인트 address family에 맞는 TCP stream socket 생성</li>
+              <li><code>Bind(this.Info.EndPoint)</code>로 IP/Port 점유</li>
+              <li><code>Listen(m_ListenBackLog)</code>로 listen 상태 진입</li>
+              <li><code>CancellationTokenSource</code> 생성</li>
+              <li><code>AcceptLoopAsync()</code> 시작</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>AcceptLoopAsync의 특징</h3>
+            <ul>
+              <li><code>AcceptAsync(ct)</code>를 사용하므로 Stop에서 취소 가능</li>
+              <li>정상 stop 관련 예외는 조용히 루프 종료</li>
+              <li>일반 예외는 <code>OnError()</code> 후 계속 accept 시도</li>
+              <li>새 socket을 받으면 <code>OnNewClientAccepted(client, null)</code> 호출</li>
+            </ul>
+          </div>
+        </div>
+
+        <pre><code>public override bool Start(IServerConfig config)
+{
+    m_ListenSocket = new Socket(
+        this.Info.EndPoint.AddressFamily,
+        SocketType.Stream,
+        ProtocolType.Tcp);
+
+    try
+    {
+        m_ListenSocket.Bind(this.Info.EndPoint);
+        m_ListenSocket.Listen(m_ListenBackLog);
+
+        m_StopCts = new CancellationTokenSource();
+        _ = AcceptLoopAsync(m_StopCts.Token);
+
+        return true;
+    }
+    catch (Exception e)
+    {
+        OnError(e);
+        return false;
+    }
+}</code></pre>
+
+        <pre><code>private async Task AcceptLoopAsync(CancellationToken ct)
+{
+    try
+    {
+        while (true)
+        {
+            Socket client;
+
+            try
+            {
+                client = await m_ListenSocket!.AcceptAsync(ct);
+            }
+            catch (OperationCanceledException) { return; }
+            catch (ObjectDisposedException) { return; }
+            catch (SocketException se) when (IsStopError(se.ErrorCode))
+            {
+                return;
+            }
+            catch (Exception e)
+            {
+                OnError(e);
+                if (ct.IsCancellationRequested)
+                    return;
+                continue;
+            }
+
+            OnNewClientAccepted(client, null);
+        }
+    }
+    finally
+    {
+        OnStopped();
+    }
+}</code></pre>
+
+        <div class="note">
+          <code>OnNewClientAccepted</code>는 listener base class의 이벤트 발행 메서드입니다.
+          이 이벤트는 <code>SocketServerBase.Start()</code>에서 <code>AsyncSocketServer.OnNewClientAccepted</code>에 연결되어 있습니다.
+        </div>
+      </section>
+
+      <section id="server" class="alt">
+        <h2>5. AsyncSocketServer: accepted socket을 세션으로 승격</h2>
+        <p class="lead">
+          listener가 새 socket을 넘기면 <code>AsyncSocketServer</code>는 이 socket을 바로 애플리케이션에 노출하지 않습니다.
+          receive/send 비동기 인자를 풀에서 가져오고, <code>AsyncSocketSession</code>을 만들고,
+          그 위에 <code>AppSession</code>을 붙인 뒤 등록합니다.
+        </p>
+
+        <div class="flow-buttons" data-flow="process">
+          <button class="active" data-step="0">1. accept 이벤트</button>
+          <button data-step="1">2. receive SAEA 확보</button>
+          <button data-step="2">3. send SAEA 확보</button>
+          <button data-step="3">4. SocketSession 생성</button>
+          <button data-step="4">5. AppSession 생성</button>
+          <button data-step="5">6. 등록 후 시작</button>
+        </div>
+        <div class="step-panel active" data-flow-panel="process">
+          <h3>1. accept 이벤트</h3>
+          <p><code>OnNewClientAccepted()</code>는 서버가 이미 stop 중이면 무시하고, 아니면 <code>ProcessNewClient(client)</code>로 넘깁니다.</p>
+        </div>
+        <div class="step-panel" data-flow-panel="process">
+          <h3>2. receive SAEA 확보</h3>
+          <p>receive용 <code>SocketAsyncEventArgsProxy</code>를 풀에서 꺼냅니다. 실패하면 최대 연결 수에 도달한 것으로 보고 socket을 닫습니다.</p>
+        </div>
+        <div class="step-panel" data-flow-panel="process">
+          <h3>3. send SAEA 확보</h3>
+          <p>send용 <code>SocketAsyncEventArgs</code>를 풀에서 꺼냅니다. 실패하면 이미 꺼낸 receive proxy를 풀에 되돌리고 socket을 닫습니다.</p>
+        </div>
+        <div class="step-panel" data-flow-panel="process">
+          <h3>4. SocketSession 생성</h3>
+          <p><code>new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false)</code>로 소켓 엔진 세션을 만듭니다.</p>
+        </div>
+        <div class="step-panel" data-flow-panel="process">
+          <h3>5. AppSession 생성</h3>
+          <p><code>CreateSession(client, socketSession)</code>이 TCP 옵션을 적용한 뒤 <code>AppServer.CreateAppSession(session)</code>을 호출합니다.</p>
+        </div>
+        <div class="step-panel" data-flow-panel="process">
+          <h3>6. 등록 후 시작</h3>
+          <p>세션 close 이벤트를 연결하고 <code>AppServer.RegisterSession()</code>이 성공하면 <code>socketSession.Start()</code>를 비동기로 실행합니다.</p>
+        </div>
+
+        <pre><code>protected override void OnNewClientAccepted(
+    ISocketListener listener,
+    Socket client,
+    object? state)
+{
+    if (IsStopped)
+        return;
+
+    ProcessNewClient(client);
+}</code></pre>
+
+        <pre><code>private IAppSession? ProcessNewClient(Socket client)
+{
+    SocketAsyncEventArgsProxy? socketEventArgsProxy;
+    if (!m_ReceiveSAEAPool!.TryGet(out socketEventArgsProxy))
+    {
+        AppServer.AsyncRun(client.SafeClose);
+        AppServer.Logger.Error(
+            $"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
+        return null;
+    }
+
+    SocketAsyncEventArgs? sendSAEA;
+    if (!m_SendSAEAPool!.TryGet(out sendSAEA))
+    {
+        socketEventArgsProxy.Reset();
+        m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+        AppServer.AsyncRun(client.SafeClose);
+        return null;
+    }
+
+    var socketSession =
+        new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false);
+
+    var session = CreateSession(client, socketSession);
+
+    if (session == null)
+    {
+        socketEventArgsProxy.Reset();
+        m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+        m_SendSAEAPool.Push(sendSAEA);
+        AppServer.AsyncRun(client.SafeClose);
+        return null;
+    }
+
+    socketSession.Closed += SessionClosed;
+
+    if (RegisterSession(session))
+    {
+        AppServer.AsyncRun(() =&gt; socketSession.Start());
+    }
+
+    return session;
+}</code></pre>
+
+        <div class="diagram" aria-label="ProcessNewClient 세부 흐름">
+          <svg viewBox="0 0 1180 430" role="img">
+            <defs>
+              <marker id="arrow2" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#64748b"></path>
+              </marker>
+            </defs>
+            <g font-size="14">
+              <rect x="45" y="150" width="130" height="75" rx="8" fill="#eef2ff" stroke="#93a4d8"></rect>
+              <text x="110" y="183" text-anchor="middle" font-weight="700">Socket</text>
+              <text x="110" y="207" text-anchor="middle">accepted</text>
+
+              <rect x="235" y="65" width="170" height="95" rx="8" fill="#ecfdf5" stroke="#86c5a4"></rect>
+              <text x="320" y="103" text-anchor="middle" font-weight="700">Receive Pool</text>
+              <text x="320" y="130" text-anchor="middle">SAEA Proxy</text>
+
+              <rect x="235" y="225" width="170" height="95" rx="8" fill="#eff6ff" stroke="#93c5fd"></rect>
+              <text x="320" y="263" text-anchor="middle" font-weight="700">Send Pool</text>
+              <text x="320" y="290" text-anchor="middle">SAEA</text>
+
+              <rect x="475" y="132" width="170" height="110" rx="8" fill="#fff7ed" stroke="#f3a85c"></rect>
+              <text x="560" y="172" text-anchor="middle" font-weight="700">AsyncSocketSession</text>
+              <text x="560" y="198" text-anchor="middle">client + SAEA</text>
+
+              <rect x="720" y="132" width="170" height="110" rx="8" fill="#f8fafc" stroke="#cbd5e1"></rect>
+              <text x="805" y="172" text-anchor="middle" font-weight="700">AppSession</text>
+              <text x="805" y="198" text-anchor="middle">CreateSession</text>
+
+              <rect x="965" y="132" width="170" height="110" rx="8" fill="#ecfeff" stroke="#67c0c8"></rect>
+              <text x="1050" y="172" text-anchor="middle" font-weight="700">Start</text>
+              <text x="1050" y="198" text-anchor="middle">Register + receive</text>
+
+              <line x1="175" y1="187" x2="235" y2="112" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="175" y1="187" x2="235" y2="272" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="405" y1="112" x2="475" y2="172" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="405" y1="272" x2="475" y2="205" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="645" y1="187" x2="720" y2="187" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+              <line x1="890" y1="187" x2="965" y2="187" stroke="#64748b" stroke-width="2" marker-end="url(#arrow2)"></line>
+
+              <circle r="8" fill="#15803d" class="dot" style="offset-path:path('M110 187 L320 112 L560 187 L805 187 L1050 187')"></circle>
+              <circle r="8" fill="#2563eb" class="dot d2" style="offset-path:path('M110 187 L320 272 L560 205 L805 187 L1050 187')"></circle>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <section id="tcp-options">
+        <h2>6. TcpSocketServerBase.CreateSession: accepted socket 옵션 적용</h2>
+        <p class="lead">
+          <code>AsyncSocketServer.ProcessNewClient()</code> 안에서 호출되는 <code>CreateSession()</code>은
+          <code>TcpSocketServerBase</code>에 구현되어 있습니다. 여기서는 네트워크 socket 옵션을 먼저 적용하고,
+          마지막에 <code>AppServer.CreateAppSession(session)</code>으로 애플리케이션 세션 생성을 위임합니다.
+        </p>
+        <pre><code>protected IAppSession CreateSession(Socket client, ISocketSession session)
+{
+    if (m_SendTimeOut &gt; 0)
+        client.SendTimeout = m_SendTimeOut;
+
+    if (m_ReceiveBufferSize &gt; 0)
+        client.ReceiveBufferSize = m_ReceiveBufferSize;
+
+    if (m_SendBufferSize &gt; 0)
+        client.SendBufferSize = m_SendBufferSize;
+
+    if (!Platform.SupportSocketIOControlByCodeEnum)
+    {
+        client.SetSocketOption(
+            SocketOptionLevel.Socket,
+            SocketOptionName.KeepAlive,
+            m_KeepAliveOptionValues);
+    }
+    else
+    {
+#if WINDOWS
+        client.IOControl(
+            IOControlCode.KeepAliveValues,
+            m_KeepAliveOptionValues,
+            m_KeepAliveOptionOutValues);
+#endif
+    }
+
+    client.NoDelay = m_NoDelay;
+    client.LingerState = new LingerOption(enable: false, seconds: 0);
+
+    return this.AppServer.CreateAppSession(session);
+}</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>옵션</th>
+                <th>설정 출처</th>
+                <th>효과</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>SendTimeout</code></td>
+                <td><code>ServerConfig.SendTimeOut</code></td>
+                <td>동기 send 또는 socket 수준 send 작업의 제한 시간에 영향을 줍니다.</td>
+              </tr>
+              <tr>
+                <td><code>ReceiveBufferSize</code></td>
+                <td><code>ServerConfig.ReceiveBufferSize</code></td>
+                <td>운영체제 socket receive buffer 크기를 조정합니다. 라이브러리의 Pipe segment 크기에도 같은 설정이 사용됩니다.</td>
+              </tr>
+              <tr>
+                <td><code>SendBufferSize</code></td>
+                <td><code>ServerConfig.SendBufferSize</code></td>
+                <td>운영체제 socket send buffer 크기를 조정합니다.</td>
+              </tr>
+              <tr>
+                <td><code>KeepAlive</code></td>
+                <td><code>KeepAliveTime</code>, <code>KeepAliveInterval</code></td>
+                <td>장시간 idle 연결 감지를 위한 TCP keep-alive 옵션입니다. 코드에는 플랫폼별 분기가 있습니다.</td>
+              </tr>
+              <tr>
+                <td><code>NoDelay</code></td>
+                <td><code>ServerConfig.NoDelay</code></td>
+                <td>Nagle 알고리즘 사용 여부를 제어합니다. 실시간 작은 패킷에서는 true가 유리할 수 있지만 트래픽 특성에 따라 결정해야 합니다.</td>
+              </tr>
+              <tr>
+                <td><code>LingerState</code></td>
+                <td>코드에서 고정</td>
+                <td><code>enable:false</code>로 설정되어 close 시 linger를 사용하지 않습니다.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="app-session" class="alt">
+        <h2>7. AppSession 생성과 초기화</h2>
+        <p class="lead">
+          <code>AppServerBase</code>는 <code>IAppServer.CreateAppSession()</code> 명시적 인터페이스 구현으로
+          connection filter를 적용한 뒤 실제 <code>TAppSession</code> 인스턴스를 만듭니다.
+          이 단계가 끝나면 socket session과 app session은 서로를 참조합니다.
+        </p>
+        <h3>7.1 connection filter 적용</h3>
+        <pre><code>IAppSession IAppServer.CreateAppSession(ISocketSession socketSession)
+{
+    if (!ExecuteConnectionFilters(socketSession.RemoteEndPoint))
+        return NullAppSession;
+
+    var appSession = CreateAppSession(socketSession);
+
+    appSession.Initialize(this, socketSession);
+
+    return appSession;
+}</code></pre>
+        <p>
+          <code>ExecuteConnectionFilters()</code>는 설정된 <code>IConnectionFilter</code> 목록을 순서대로 호출합니다.
+          어느 하나라도 <code>false</code>를 반환하면 이 연결은 거부됩니다.
+        </p>
+
+        <h3>7.2 실제 TAppSession 생성</h3>
+        <pre><code>protected virtual TAppSession CreateAppSession(ISocketSession socketSession)
+{
+    return new TAppSession();
+}</code></pre>
+        <p>
+          기본 구현은 단순히 <code>new TAppSession()</code>입니다. 세션 생성 시 DI, 사용자 지정 factory,
+          초기 상태 주입이 필요하면 이 메서드를 override하는 방식이 자연스럽습니다.
+        </p>
+
+        <h3>7.3 AppSession.Initialize()</h3>
+        <pre><code>public virtual void Initialize(
+    IAppServer&lt;TAppSession, TRequestInfo&gt; appServer,
+    ISocketSession socketSession)
+{
+    var castedAppServer =
+        (AppServerBase&lt;TAppSession, TRequestInfo&gt;)appServer;
+
+    AppServer = castedAppServer;
+    Charset = castedAppServer.TextEncoding;
+    SocketSession = socketSession;
+    SessionID = socketSession.SessionID;
+    m_Connected = true;
+
+    m_ReceiveFilter =
+        castedAppServer.ReceiveFilterFactory.CreateFilter(
+            appServer,
+            this,
+            socketSession.RemoteEndPoint);
+
+    var filterInitializer = m_ReceiveFilter as IReceiveFilterInitializer;
+    if (filterInitializer != null)
+        filterInitializer.Initialize(castedAppServer, this);
+
+    socketSession.Initialize(this);
+
+    OnInit();
+}</code></pre>
+        <div class="note">
+          이 시점에 receive filter가 세션별로 생성됩니다. 즉, 같은 서버라도 각 연결은 독립적인 filter 상태를 가질 수 있습니다.
+          부분 패킷 누적 상태가 세션 간에 섞이지 않는 이유입니다.
+        </div>
+      </section>
+
+      <section id="register">
+        <h2>8. 세션 등록과 NewSessionConnected 이벤트</h2>
+        <p class="lead">
+          <code>AsyncSocketServer</code>는 AppSession 생성 후 바로 receive를 시작하지 않고 먼저 서버에 세션을 등록합니다.
+          등록이 성공해야 사용자 입장에서 “연결된 세션”이 됩니다.
+        </p>
+        <h3>8.1 AppServerBase.RegisterSession()</h3>
+        <pre><code>bool IAppServer.RegisterSession(IAppSession session)
+{
+    var appSession = (session as TAppSession)!;
+
+    if (!RegisterSession(appSession.SessionID, appSession))
+        return false;
+
+    appSession.SocketSession.Closed += OnSocketSessionClosed;
+
+    s_ActiveConnectionsCounter?.Add(
+        1,
+        new KeyValuePair&lt;string, object?&gt;("server", Name));
+
+    OnNewSessionConnected(appSession);
+    return true;
+}</code></pre>
+
+        <h3>8.2 AppServer&lt;TSession,TRequestInfo&gt;의 실제 저장소</h3>
+        <p>
+          <code>AppServerBase.RegisterSession()</code>은 virtual hook이고,
+          실제 세션 저장은 <code>AppServer&lt;TSession,TRequestInfo&gt;</code>의
+          <code>ConcurrentDictionary&lt;string,TAppSession&gt;</code>에서 이루어집니다.
+        </p>
+        <pre><code>private ConcurrentDictionary&lt;string, TAppSession&gt; m_SessionDict =
+    new ConcurrentDictionary&lt;string, TAppSession&gt;(
+        StringComparer.OrdinalIgnoreCase);
+
+protected override bool RegisterSession(
+    string sessionID,
+    TAppSession appSession)
+{
+    if (m_SessionDict.TryAdd(sessionID, appSession))
+        return true;
+
+    Logger.Error("The session is refused because the it's ID already exists!");
+    return false;
+}</code></pre>
+
+        <h3>8.3 NewSessionConnected는 비동기 Task로 호출</h3>
+        <pre><code>protected virtual void OnNewSessionConnected(TAppSession session)
+{
+    var handler = m_NewSessionConnected;
+    if (handler == null)
+        return;
+
+    Task.Run(() =&gt; handler(session));
+}</code></pre>
+        <div class="warn note">
+          <code>NewSessionConnected</code> 이벤트는 <code>Task.Run()</code>으로 호출됩니다.
+          이벤트 핸들러에서 오래 걸리는 작업을 하면 해당 작업은 별도 task에서 진행되지만,
+          세션의 receive 시작 자체는 <code>AsyncSocketServer.ProcessNewClient()</code>의 다음 단계에서 별도로 실행됩니다.
+        </div>
+      </section>
+
+      <section id="session-start" class="alt">
+        <h2>9. AsyncSocketSession.Start: 첫 receive 게시</h2>
+        <p class="lead">
+          등록이 성공하면 <code>AsyncSocketServer</code>는 <code>AppServer.AsyncRun(() =&gt; socketSession.Start())</code>를 호출합니다.
+          <code>AsyncSocketSession.Start()</code>는 첫 receive를 게시하고, PipeReader 소비 루프를 시작하고,
+          마지막으로 애플리케이션 세션 시작 이벤트를 호출합니다.
+        </p>
+        <pre><code>public override void Start()
+{
+    StartReceive();
+    _ = ProcessPipeAsync();   // PipeReader consumer loop - independent Task
+
+    if (!m_IsReset)
+        StartSession();
+}</code></pre>
+
+        <h3>9.1 SocketSession.Initialize()</h3>
+        <p>
+          <code>AppSession.Initialize()</code> 내부에서 <code>socketSession.Initialize(this)</code>가 호출됩니다.
+          이 단계에서 송신 큐 하나를 풀에서 가져오고, receive pipe를 준비합니다.
+        </p>
+        <pre><code>public virtual void Initialize(IAppSession appSession)
+{
+    AppSession = appSession;
+    Config = appSession.Config;
+    SyncSend = Config.SyncSend;
+
+    if (m_SendingQueuePool == null)
+        m_SendingQueuePool =
+            ((SocketServerBase)((ISocketServerAccessor)appSession.AppServer)
+                .SocketServer!).SendingQueuePool!;
+
+    SendingQueue? queue;
+    if (m_SendingQueuePool!.TryGet(out queue))
+    {
+        m_SendingQueue = queue;
+        queue.StartEnqueue();
+    }
+
+    var pipeOptions = new PipeOptions(
+        minimumSegmentSize: Config.ReceiveBufferSize,
+        useSynchronizationContext: false);
+
+    _receivePipe = new Pipe(pipeOptions);
+    _pipeWriter  = _receivePipe.Writer;
+    _pipeReader  = _receivePipe.Reader;
+}</code></pre>
+
+        <h3>9.2 AsyncSocketSession.Initialize()</h3>
+        <pre><code>public override void Initialize(IAppSession appSession)
+{
+    base.Initialize(appSession);
+
+    SocketAsyncProxy.Initialize(this);
+
+    if (!SyncSend)
+    {
+        if (m_SocketEventArgSend == null)
+            m_SocketEventArgSend = new SocketAsyncEventArgs();
+
+        m_SocketEventArgSend.Completed += OnSendingCompleted;
+    }
+}</code></pre>
+
+        <h3>9.3 StartReceive()</h3>
+        <p>
+          <code>StartReceive()</code>는 PipeWriter에서 메모리를 받아 receive용 <code>SocketAsyncEventArgs</code>의 buffer로 설정합니다.
+          그 다음 세션이 receive를 시작할 수 있는 상태인지 확인하고 <code>Client.ReceiveAsync(e)</code>를 게시합니다.
+        </p>
+        <pre><code>private void StartReceive()
+{
+    var e = SocketAsyncProxy.SocketEventArgs;
+
+    try
+    {
+        var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
+        e.SetBuffer(memory);
+
+        if (!OnReceiveStarted())
+            return;
+
+        bool willRaiseEvent = Client!.ReceiveAsync(e);
+        if (!willRaiseEvent)
+            ProcessReceive(e);
+    }
+    catch (Exception exc)
+    {
+        LogError(exc);
+        OnReceiveTerminated(CloseReason.SocketError);
+    }
+}</code></pre>
+
+        <div class="diagram" aria-label="첫 receive와 pipe 연결">
+          <svg viewBox="0 0 1120 360" role="img">
+            <defs>
+              <marker id="arrow3" markerWidth="10" markerHeight="10" refX="7" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="#64748b"></path>
+              </marker>
+            </defs>
+            <g font-size="14">
+              <rect x="45" y="125" width="150" height="90" rx="8" fill="#fff7ed" stroke="#f3a85c"></rect>
+              <text x="120" y="160" text-anchor="middle" font-weight="700">Start()</text>
+              <text x="120" y="186" text-anchor="middle">session begins</text>
+
+              <rect x="255" y="80" width="170" height="90" rx="8" fill="#ecfdf5" stroke="#86c5a4"></rect>
+              <text x="340" y="115" text-anchor="middle" font-weight="700">StartReceive</text>
+              <text x="340" y="141" text-anchor="middle">PipeWriter.GetMemory</text>
+
+              <rect x="255" y="205" width="170" height="90" rx="8" fill="#eff6ff" stroke="#93c5fd"></rect>
+              <text x="340" y="240" text-anchor="middle" font-weight="700">ProcessPipeAsync</text>
+              <text x="340" y="266" text-anchor="middle">PipeReader loop</text>
+
+              <rect x="505" y="80" width="170" height="90" rx="8" fill="#f8fafc" stroke="#cbd5e1"></rect>
+              <text x="590" y="115" text-anchor="middle" font-weight="700">ReceiveAsync</text>
+              <text x="590" y="141" text-anchor="middle">socket read</text>
+
+              <rect x="755" y="80" width="170" height="90" rx="8" fill="#ecfeff" stroke="#67c0c8"></rect>
+              <text x="840" y="115" text-anchor="middle" font-weight="700">ProcessReceive</text>
+              <text x="840" y="141" text-anchor="middle">Advance / Flush</text>
+
+              <rect x="755" y="205" width="170" height="90" rx="8" fill="#f0fdfa" stroke="#76b7a4"></rect>
+              <text x="840" y="240" text-anchor="middle" font-weight="700">AppSession</text>
+              <text x="840" y="266" text-anchor="middle">ProcessRequest</text>
+
+              <line x1="195" y1="170" x2="255" y2="125" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <line x1="195" y1="170" x2="255" y2="250" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <line x1="425" y1="125" x2="505" y2="125" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <line x1="675" y1="125" x2="755" y2="125" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <line x1="840" y1="170" x2="840" y2="205" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <line x1="755" y1="250" x2="425" y2="250" stroke="#64748b" stroke-width="2" marker-end="url(#arrow3)"></line>
+              <circle r="8" fill="#15803d" class="dot" style="offset-path:path('M120 170 L340 125 L590 125 L840 125 L840 250 L340 250')"></circle>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <section id="failure">
+        <h2>10. 실패 경로와 자원 정리</h2>
+        <p class="lead">
+          접속 흐름은 성공 경로보다 실패 경로가 더 중요할 때가 많습니다.
+          풀에서 객체를 가져온 뒤 다음 단계가 실패하면 반드시 이미 확보한 자원을 되돌려야 합니다.
+        </p>
+        <div class="callout-list">
+          <div class="callout">
+            <strong>receive SAEA를 못 가져온 경우</strong>
+            <p>새 연결 수락은 됐지만 receive용 proxy가 없으면 세션을 만들 수 없습니다. socket을 비동기로 닫고 null을 반환합니다.</p>
+          </div>
+          <div class="callout">
+            <strong>send SAEA를 못 가져온 경우</strong>
+            <p>이미 꺼낸 receive proxy를 reset 후 pool에 push하고 socket을 닫습니다.</p>
+          </div>
+          <div class="callout">
+            <strong>AppSession 생성 실패</strong>
+            <p>connection filter 거부 또는 생성 실패 시 receive proxy와 send SAEA를 둘 다 pool에 반환하고 socket을 닫습니다.</p>
+          </div>
+          <div class="callout">
+            <strong>RegisterSession 실패</strong>
+            <p>중복 SessionID 등으로 등록 실패 시 <code>appSession.SocketSession.Close(CloseReason.InternalError)</code>를 호출합니다.</p>
+          </div>
+        </div>
+
+        <h3>세션 close 후 SAEA 반환</h3>
+        <p>
+          <code>AsyncSocketServer.SessionClosed()</code>는 <code>AsyncSocketSession</code>에서 receive proxy와 send SAEA를 꺼내
+          서버가 계속 실행 중이면 pool로 돌려보냅니다. 서버가 stop 중이거나 pool이 없으면 dispose합니다.
+        </p>
+        <pre><code>void SessionClosed(ISocketSession session, CloseReason reason)
+{
+    var socketSession = session as IAsyncSocketSessionBase;
+    if (socketSession == null)
+        return;
+
+    var proxy = socketSession.SocketAsyncProxy;
+    proxy.Reset();
+    var args = proxy.SocketEventArgs;
+
+    var serverState = AppServer.State;
+    var receivePool = this.m_ReceiveSAEAPool;
+    var sendPool = this.m_SendSAEAPool;
+
+    if (receivePool == null ||
+        sendPool == null ||
+        serverState == ServerState.Stopping ||
+        serverState == ServerState.NotStarted)
+    {
+        args.Dispose();
+        socketSession.SendSAEA?.Dispose();
+        return;
+    }
+
+    if (!proxy.IsRecyclable)
+    {
+        args.Dispose();
+        socketSession.SendSAEA?.Dispose();
+        return;
+    }
+
+    args.SetBuffer(null, 0, 0);
+    receivePool.Push(proxy);
+
+    var sendSAEA = socketSession.SendSAEA;
+    if (sendSAEA != null)
+    {
+        sendSAEA.SetBuffer(null, 0, 0);
+        sendPool.Push(sendSAEA);
+    }
+}</code></pre>
+      </section>
+
+      <section id="active-connect" class="alt">
+        <h2>11. ActiveConnect도 같은 세션 생성 경로를 사용</h2>
+        <p class="lead">
+          <code>AsyncSocketServer</code>는 서버가 수동으로 accept하는 흐름뿐 아니라,
+          서버 쪽에서 원격 endpoint로 능동 접속하는 <code>IActiveConnector</code>도 구현합니다.
+          연결 성공 후에는 <code>ProcessNewClient(socket)</code>를 그대로 호출하므로 이후 세션 생성 경로는 동일합니다.
+        </p>
+        <pre><code>Task&lt;ActiveConnectResult&gt; IActiveConnector.ActiveConnect(
+    EndPoint targetEndPoint,
+    EndPoint? localEndPoint)
+{
+    var taskSource = new TaskCompletionSource&lt;ActiveConnectResult&gt;();
+    var socket = new Socket(
+        targetEndPoint.AddressFamily,
+        SocketType.Stream,
+        ProtocolType.Tcp);
+
+    if (localEndPoint != null)
+    {
+        socket.ExclusiveAddressUse = false;
+        socket.SetSocketOption(
+            SocketOptionLevel.Socket,
+            SocketOptionName.ReuseAddress,
+            true);
+        socket.Bind(localEndPoint);
+    }
+
+    socket.BeginConnect(
+        targetEndPoint,
+        OnActiveConnectCallback,
+        new ActiveConnectState(taskSource, socket));
+
+    return taskSource.Task;
+}</code></pre>
+        <pre><code>private void OnActiveConnectCallback(IAsyncResult result)
+{
+    var connectState = result.AsyncState as ActiveConnectState;
+    if (connectState == null)
+        return;
+
+    try
+    {
+        var socket = connectState.Socket;
+        socket.EndConnect(result);
+
+        var session = ProcessNewClient(socket);
+
+        if (session == null)
+            connectState.TaskSource.SetException(
+                new Exception("Failed to create session for this socket."));
+        else
+            connectState.TaskSource.SetResult(
+                new ActiveConnectResult { Result = true, Session = session });
+    }
+    catch (Exception e)
+    {
+        connectState.TaskSource.SetException(e);
+    }
+}</code></pre>
+      </section>
+
+      <section id="sequence">
+        <h2>12. 전체 시퀀스 한 번에 보기</h2>
+        <p class="lead">
+          아래 순서를 외우면 TCP 접속 흐름의 파일 이동이 명확해집니다.
+          핵심은 listener가 socket을 받고, socket server가 socket session과 app session을 조립하고,
+          등록 성공 후 socket session이 receive를 시작한다는 점입니다.
+        </p>
+        <div class="timeline">
+          <div class="label">1. 서버 시작</div>
+          <div><code>AppServerBase.Start()</code> -> <code>m_SocketServer.Start()</code></div>
+          <div class="label">2. TCP 구현 시작</div>
+          <div><code>AsyncSocketServer.Start()</code> -> receive/send SAEA pool 초기화</div>
+          <div class="label">3. Listener 시작</div>
+          <div><code>SocketServerBase.Start()</code> -> <code>CreateListener()</code> -> <code>TcpAsyncSocketListener.Start()</code></div>
+          <div class="label">4. Accept 대기</div>
+          <div><code>AcceptLoopAsync()</code> -> <code>m_ListenSocket.AcceptAsync(ct)</code></div>
+          <div class="label">5. 새 socket 수락</div>
+          <div><code>OnNewClientAccepted(client, null)</code> 이벤트 발행</div>
+          <div class="label">6. 엔진 세션 생성</div>
+          <div><code>AsyncSocketServer.ProcessNewClient()</code> -> SAEA 확보 -> <code>new AsyncSocketSession(...)</code></div>
+          <div class="label">7. TCP 옵션 적용</div>
+          <div><code>TcpSocketServerBase.CreateSession()</code> -> timeout, buffer, keep-alive, no-delay, linger 적용</div>
+          <div class="label">8. 앱 세션 생성</div>
+          <div><code>AppServer.CreateAppSession()</code> -> filter 생성 -> <code>socketSession.Initialize(this)</code></div>
+          <div class="label">9. 등록</div>
+          <div><code>AppServer.RegisterSession()</code> -> dictionary 저장 -> close event 연결 -> <code>NewSessionConnected</code></div>
+          <div class="label">10. receive 시작</div>
+          <div><code>socketSession.Start()</code> -> <code>StartReceive()</code> -> <code>ProcessPipeAsync()</code> -> <code>StartSession()</code></div>
+        </div>
+      </section>
+
+      <section id="checklist" class="alt">
+        <h2>13. 코드를 읽을 때 확인할 체크리스트</h2>
+        <div class="grid cols-2">
+          <div class="card">
+            <h3>흐름 이해 체크</h3>
+            <ul>
+              <li><code>SocketServerFactory</code>가 TCP일 때 <code>AsyncSocketServer</code>를 만드는가?</li>
+              <li><code>SocketServerBase.Start()</code>가 listener 이벤트를 어디에 연결하는가?</li>
+              <li><code>TcpAsyncSocketListener.AcceptLoopAsync()</code>가 어떤 예외에서 종료되는가?</li>
+              <li><code>ProcessNewClient()</code>에서 실패 시 어떤 pool 반환이 필요한가?</li>
+              <li><code>CreateSession()</code>이 socket 옵션 적용 후 AppSession 생성을 위임하는가?</li>
+              <li><code>AppSession.Initialize()</code>이 receive filter를 세션별로 만드는가?</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>운영/튜닝 체크</h3>
+            <ul>
+              <li><code>MaxConnectionNumber</code>가 SAEA pool 크기와 실제 동시 접속 한계에 맞는가?</li>
+              <li><code>PreAllocateSAEA</code>를 true로 둘지, 동적 증가로 둘지 결정했는가?</li>
+              <li><code>ReceiveBufferSize</code>가 프로토콜 패킷 크기와 맞는가?</li>
+              <li><code>SendBufferSize</code>, <code>NoDelay</code>, <code>KeepAliveTime</code>을 트래픽 특성에 맞췄는가?</li>
+              <li>connection filter에서 차단한 연결이 null session으로 처리될 때 호출 경로가 안전한가?</li>
+              <li>세션 close 후 SAEA가 pool로 돌아가는 경로를 로그로 관찰할 수 있는가?</li>
+            </ul>
+          </div>
+        </div>
+        <div class="danger note">
+          TCP 접속 흐름을 수정할 때는 성공 경로만 보지 말고 pool 고갈, connection filter 거부,
+          AppSession 생성 실패, RegisterSession 실패, 서버 stop 중 close 경로를 같이 확인해야 합니다.
+        </div>
+      </section>
+
+      <footer>
+        <p>
+          문서 생성일: 2026-05-31. 이 파일은 외부 리소스 없이 동작하는 단일 HTML 문서입니다.
+          TCP 접속 흐름의 기준 파일은 <code>TcpAsyncSocketListener.cs</code>, <code>AsyncSocketServer.cs</code>,
+          <code>TcpSocketServerBase.cs</code>, <code>AppServerBase.cs</code>, <code>AppSession.cs</code>,
+          <code>SocketSession.cs</code>, <code>AsyncSocketSession.cs</code>입니다.
+        </p>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    const tocLinks = Array.from(document.querySelectorAll('nav a'));
+    const sections = tocLinks
+      .map(link => document.querySelector(link.getAttribute('href')))
+      .filter(Boolean);
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const id = '#' + entry.target.id;
+        tocLinks.forEach(link => {
+          link.classList.toggle('active', link.getAttribute('href') === id);
+        });
+      });
+    }, { rootMargin: '-35% 0px -55% 0px', threshold: 0.01 });
+
+    sections.forEach(section => observer.observe(section));
+
+    document.querySelectorAll('[data-flow]').forEach(group => {
+      const name = group.getAttribute('data-flow');
+      const buttons = Array.from(group.querySelectorAll('button[data-step]'));
+      const panels = Array.from(document.querySelectorAll(`[data-flow-panel="${name}"]`));
+
+      buttons.forEach(button => {
+        button.addEventListener('click', () => {
+          const index = Number(button.getAttribute('data-step'));
+          buttons.forEach((b, i) => b.classList.toggle('active', i === index));
+          panels.forEach((panel, i) => panel.classList.toggle('active', i === index));
+        });
+      });
+    });
+  </script>
+</body>
+</html>

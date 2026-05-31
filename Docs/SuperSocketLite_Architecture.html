@@ -586,7 +586,7 @@ AppServerBase.Start()
         <h2>6. 수신 파이프라인</h2>
         <p class="lead">
           현재 TCP 수신 경로는 <code>SocketAsyncEventArgs</code>와 <code>System.IO.Pipelines</code>를 결합합니다.
-          IOCP 완료 스레드는 받은 바이트를 PipeWriter에 넣고, 별도 소비 루프가 PipeReader에서 읽어 <code>AppSession.ProcessRequest()</code>로 전달합니다.
+          비동기 receive 완료 경로는 받은 바이트를 PipeWriter에 넣고, 별도 소비 루프가 PipeReader에서 읽어 <code>AppSession.ProcessRequest()</code>로 전달합니다.
         </p>
         <div class="grid cols-2">
           <div class="card">
@@ -643,7 +643,7 @@ AppServerBase.Start()
           </svg>
         </div>
         <div class="note warn">
-          이 구조는 IOCP 완료 처리와 프로토콜 파싱을 분리합니다. 완료 콜백은 가능한 짧게 끝내고,
+          이 구조는 비동기 소켓 완료 처리와 프로토콜 파싱을 분리합니다. 완료 콜백은 가능한 짧게 끝내고,
           파싱과 핸들러 호출은 PipeReader 소비 루프에서 진행됩니다.
         </div>
       </section>

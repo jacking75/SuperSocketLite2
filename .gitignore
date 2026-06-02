@@ -21,6 +21,7 @@ TestResults/
 GeneratedFiles/
 
 # Runtime logs and diagnostics
+logs/
 *.log
 *.tlog
 *.binlog

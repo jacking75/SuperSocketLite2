@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\SuperSocketLite.LoadTest.Shared\SuperSocketLite.LoadTest.Shared.csproj" />
+    <ProjectReference Include="..\SuperSocketLite.LoadTest.Client\SuperSocketLite.LoadTest.Client.csproj" />
+    <ProjectReference Include="..\SuperSocketLite.LoadTest.ServerProbe\SuperSocketLite.LoadTest.ServerProbe.csproj" />
+    <ProjectReference Include="..\SuperSocketLite.LoadTest.Server\SuperSocketLite.LoadTest.Server.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>

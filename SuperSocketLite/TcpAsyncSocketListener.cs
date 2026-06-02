@@ -33,20 +33,23 @@ class TcpAsyncSocketListener : SocketListenerBase
     /// <returns></returns>
     public override bool Start(IServerConfig config)
     {
-        m_ListenSocket = new Socket(this.Info.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        var listenSocket = new Socket(this.Info.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        m_ListenSocket = listenSocket;
 
         try
         {
-            m_ListenSocket.Bind(this.Info.EndPoint);
-            m_ListenSocket.Listen(m_ListenBackLog);
+            listenSocket.Bind(this.Info.EndPoint);
+            listenSocket.Listen(m_ListenBackLog);
 
             m_StopCts = new CancellationTokenSource();
-            _ = AcceptLoopAsync(m_StopCts.Token);
+            _ = AcceptLoopAsync(listenSocket, m_StopCts.Token);
 
             return true;
         }
         catch (Exception e)
         {
+            listenSocket.Dispose();
+            m_ListenSocket = null;
             OnError(e);
             return false;
         }
@@ -57,7 +60,7 @@ class TcpAsyncSocketListener : SocketListenerBase
     /// or the listen socket is closed.  Runs as a fire-and-forget background Task so
     /// that Start() returns immediately, matching the original SAEA-based behaviour.
     /// </summary>
-    private async Task AcceptLoopAsync(CancellationToken ct)
+    private async Task AcceptLoopAsync(Socket listenSocket, CancellationToken ct)
     {
         try
         {
@@ -68,7 +71,7 @@ class TcpAsyncSocketListener : SocketListenerBase
                 try
                 {
                     // .NET 5+ ValueTask<Socket> overload — cancellable natively.
-                    client = await m_ListenSocket!.AcceptAsync(ct);
+                    client = await listenSocket.AcceptAsync(ct);
                 }
                 catch (OperationCanceledException)
                 {

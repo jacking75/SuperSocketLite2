@@ -22,17 +22,9 @@ abstract class SocketServerBase : ISocketServer, IDisposable
 
     protected bool IsStopped { get; set; }
 
-    /// <summary>
-    /// Gets the sending queue manager.
-    /// </summary>
-    /// <value>
-    /// The sending queue manager.
-    /// </value>
-    internal ISmartPool<SendingQueue>? SendingQueuePool { get; private set; }
-
     IPoolInfo? ISocketServer.SendingQueuePool
     {
-        get { return this.SendingQueuePool; }
+        get { return null; }
     }
 
     public SocketServerBase(IAppServer appServer, ListenerInfo[] listeners)
@@ -50,13 +42,6 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         ILog log = AppServer.Logger;
 
         var config = AppServer.Config;
-
-        var sendingQueuePool = new SmartPool<SendingQueue>();
-        sendingQueuePool.Initialize(Math.Max(config.MaxConnectionNumber / 6, 256),
-                Math.Max(config.MaxConnectionNumber * 2, 256),
-                new SendingQueueSourceCreator(config.SendingQueueSize));
-
-        SendingQueuePool = sendingQueuePool;
 
         for (var i = 0; i < ListenerInfos.Length; i++)
         {
@@ -131,8 +116,6 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         }
 
         Listeners.Clear();
-
-        SendingQueuePool = null;
 
         IsRunning = false;
     }

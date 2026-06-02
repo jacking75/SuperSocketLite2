@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using SuperSocketLite.Common;
@@ -49,13 +50,17 @@ class UdpSocketListener : SocketListenerBase
             m_ReceiveSAE = eventArgs;
 
             eventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
-            eventArgs.RemoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            eventArgs.RemoteEndPoint = CreateAnyEndPoint();
 
             int receiveBufferSize = config.ReceiveBufferSize <= 0 ? 2048 : config.ReceiveBufferSize;
-            var buffer = new byte[receiveBufferSize];
+            var buffer = ArrayPool<byte>.Shared.Rent(receiveBufferSize);
             eventArgs.SetBuffer(buffer, 0, buffer.Length);
+            eventArgs.UserToken = receiveBufferSize;
 
-            m_ListenSocket.ReceiveFromAsync(eventArgs);
+            if (!m_ListenSocket.ReceiveFromAsync(eventArgs))
+            {
+                eventArgs_Completed(m_ListenSocket, eventArgs);
+            }
 
             return true;
         }
@@ -77,13 +82,22 @@ class UdpSocketListener : SocketListenerBase
                 return;
 
             OnError(new SocketException(errorCode));
+            return;
         }
 
         if (e.LastOperation == SocketAsyncOperation.ReceiveFrom)
         {
             try
             {
-                OnNewClientAcceptedAsync(m_ListenSocket!, new object[] { e.Buffer!.CloneRange(e.Offset, e.BytesTransferred), e.RemoteEndPoint!.Serialize() });
+                var receiveBufferSize = (int)e.UserToken!;
+                var packet = new UdpReceivePacket();
+                packet.Initialize(e.Buffer!, e.Offset, e.BytesTransferred, (IPEndPoint)e.RemoteEndPoint!);
+
+                var nextBuffer = ArrayPool<byte>.Shared.Rent(receiveBufferSize);
+                e.SetBuffer(nextBuffer, 0, nextBuffer.Length);
+                e.RemoteEndPoint = CreateAnyEndPoint();
+
+                OnNewClientAcceptedAsync(m_ListenSocket!, packet);
             }
             catch (Exception exc)
             {
@@ -92,7 +106,12 @@ class UdpSocketListener : SocketListenerBase
 
             try
             {
-                m_ListenSocket!.ReceiveFromAsync(e);
+                var listenSocket = m_ListenSocket;
+
+                if (listenSocket != null && !listenSocket.ReceiveFromAsync(e))
+                {
+                    eventArgs_Completed(listenSocket, e);
+                }
             }
             catch (Exception exc)
             {
@@ -111,30 +130,50 @@ class UdpSocketListener : SocketListenerBase
             if (m_ListenSocket == null)
                 return;
 
-            m_ReceiveSAE!.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
-            m_ReceiveSAE.Dispose();
-            m_ReceiveSAE = null;
+            var listenSocket = m_ListenSocket;
+            var receiveSAE = m_ReceiveSAE;
 
             if(!Platform.IsMono)
             {
                 try
                 {
-                    m_ListenSocket.Shutdown(SocketShutdown.Both);
+                    listenSocket.Shutdown(SocketShutdown.Both);
                 }
                 catch { }
             }
 
             try
             {
-                m_ListenSocket.Close();
+                listenSocket.Close();
             }
             catch { }
             finally
             {
                 m_ListenSocket = null;
             }
+
+            if (receiveSAE != null)
+            {
+                receiveSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
+
+                if (receiveSAE.Buffer != null)
+                {
+                    ArrayPool<byte>.Shared.Return(receiveSAE.Buffer);
+                    receiveSAE.SetBuffer(null, 0, 0);
+                }
+
+                receiveSAE.Dispose();
+                m_ReceiveSAE = null;
+            }
         }
 
         OnStopped();
+    }
+
+    private EndPoint CreateAnyEndPoint()
+    {
+        return this.EndPoint.AddressFamily == AddressFamily.InterNetworkV6
+            ? new IPEndPoint(IPAddress.IPv6Any, 0)
+            : new IPEndPoint(IPAddress.Any, 0);
     }
 }

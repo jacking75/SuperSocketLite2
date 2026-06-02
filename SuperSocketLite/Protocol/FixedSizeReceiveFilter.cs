@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 
@@ -8,7 +9,7 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 /// FixedSizeReceiveFilter
 /// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
+public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFilter<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
 {
     private int m_ParsedLength;
@@ -42,6 +43,14 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
     {
         m_OrigOffset = session.SocketSession.OrigReceiveOffset;
+        OnInitialized(appServer, session);
+    }
+
+    /// <summary>
+    /// Called after the filter is initialized for a session.
+    /// </summary>
+    protected virtual void OnInitialized(IAppServer appServer, IAppSession session)
+    {
     }
 
     /// <summary>
@@ -109,6 +118,32 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     }
 
     /// <summary>
+    /// Filters received data directly from the Pipelines sequence path.
+    /// Incomplete data is left unconsumed in the PipeReader.
+    /// </summary>
+    public virtual TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    {
+        consumed = buffer.Start;
+        examined = buffer.End;
+
+        if (buffer.Length < m_Size)
+        {
+            m_ParsedLength = ToInt32BufferSize(buffer.Length);
+            m_OffsetDelta = 0;
+            return NullRequestInfo;
+        }
+
+        var matched = buffer.Slice(0, m_Size);
+        var requestInfo = matched.IsSingleSegment
+            ? ProcessMatchedRequest(matched.First.Span, false)
+            : ProcessMatchedRequest(matched.ToArray(), 0, m_Size, false);
+        consumed = buffer.GetPosition(m_Size);
+        examined = consumed;
+        InternalReset();
+        return requestInfo;
+    }
+
+    /// <summary>
     /// Filters the buffer after the server receive the enough size of data.
     /// </summary>
     /// <param name="buffer">The buffer.</param>
@@ -137,7 +172,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     /// <value>
     /// The size of the rest buffer.
     /// </value>
-    public int LeftBufferSize
+    public virtual int LeftBufferSize
     {
         get { return m_ParsedLength; }
     }
@@ -181,5 +216,11 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TReq
     public virtual void Reset()
     {
         InternalReset();
+        State = FilterState.Normal;
+    }
+
+    private static int ToInt32BufferSize(long length)
+    {
+        return length > int.MaxValue ? int.MaxValue : (int)length;
     }
 }

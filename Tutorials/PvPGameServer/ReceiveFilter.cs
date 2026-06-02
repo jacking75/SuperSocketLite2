@@ -1,12 +1,10 @@
-﻿using System;
-
-using SuperSocketLite.Common;
+using System;
+using System.Buffers;
+using System.Buffers.Binary;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
-
 namespace PvPGameServer;
-
 
 /// <summary>
 /// 메모리 팩으로 직렬화된 이진 요청 정보를 나타내는 클래스입니다.
@@ -33,10 +31,6 @@ public class MemoryPackBinaryRequestInfo : BinaryRequestInfo
     /// </summary>
     public const int HeaderSize = 5 + PacketHeaderMemorypackStartPos;
 
-    /// <summary>
-    /// MemoryPackBinaryRequestInfo 클래스의 새 인스턴스를 초기화합니다.
-    /// </summary>
-    /// <param name="packetData">패킷 데이터</param>
     public MemoryPackBinaryRequestInfo(byte[] packetData)
         : base(null, packetData)
     {
@@ -45,72 +39,38 @@ public class MemoryPackBinaryRequestInfo : BinaryRequestInfo
 }
 
 /// <summary>
-/// MemoryPackBinaryRequestInfo를 사용하는 고정 헤더 수신 필터 클래스입니다.
+/// MemoryPackBinaryRequestInfo를 사용하는 sequence 기반 고정 헤더 수신 필터입니다.
 /// </summary>
-public class ReceiveFilter : FixedHeaderReceiveFilter<MemoryPackBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<MemoryPackBinaryRequestInfo>
 {
-    /// <summary>
-    /// ReceiveFilter 클래스의 새 인스턴스를 초기화합니다.
-    /// </summary>
-    public ReceiveFilter() : base(MemoryPackBinaryRequestInfo.HeaderSize)
+    public ReceiveFilter()
+        : base(MemoryPackBinaryRequestInfo.HeaderSize)
     {
     }
 
-    /// <summary>
-    /// 헤더에서 바디 길이를 가져옵니다.
-    /// </summary>
-    /// <param name="header">헤더 데이터</param>
-    /// <param name="offset">오프셋</param>
-    /// <param name="length">길이</param>
-    /// <returns>바디 길이</returns>
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(header, offset, 2);
-        }
+        Span<byte> headerBuffer = stackalloc byte[MemoryPackBinaryRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        var totalSize = BitConverter.ToUInt16(header, offset + MemoryPackBinaryRequestInfo.PacketHeaderMemorypackStartPos);
+        var totalSize = BinaryPrimitives.ReadUInt16LittleEndian(
+            headerBuffer.Slice(MemoryPackBinaryRequestInfo.PacketHeaderMemorypackStartPos, 2));
+
         return totalSize - MemoryPackBinaryRequestInfo.HeaderSize;
     }
 
-    /// <summary>
-    /// 요청 정보를 해결하여 MemoryPackBinaryRequestInfo 인스턴스를 반환합니다.
-    /// </summary>
-    /// <param name="header">헤더 데이터 세그먼트</param>
-    /// <param name="readBuffer">읽기 버퍼</param>
-    /// <param name="offset">오프셋</param>
-    /// <param name="length">길이</param>
-    /// <returns>MemoryPackBinaryRequestInfo 인스턴스</returns>
-    protected override MemoryPackBinaryRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] readBuffer, int offset, int length)
+    protected override MemoryPackBinaryRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
+        var packetSize = checked((int)(header.Length + body.Length));
+        var packetData = new byte[packetSize];
+
+        header.CopyTo(packetData);
+
+        if (!body.IsEmpty)
         {
-            Array.Reverse(header.Array, 0, MemoryPackBinaryRequestInfo.HeaderSize);
+            body.CopyTo(packetData.AsSpan((int)header.Length));
         }
 
-        // body 데이터가 있는 경우
-        if (length > 0)
-        {
-            if (offset >= MemoryPackBinaryRequestInfo.HeaderSize)
-            {
-                var packetStartPos = offset - MemoryPackBinaryRequestInfo.HeaderSize;
-                var packetSize = length + MemoryPackBinaryRequestInfo.HeaderSize;
-
-                return new MemoryPackBinaryRequestInfo(readBuffer.CloneRange(packetStartPos, packetSize));
-            }
-            else
-            {
-                // offset 이 헤더 크기보다 작으므로 헤더와 보디를 직접 합쳐야 한다.
-                var packetData = new Byte[length + MemoryPackBinaryRequestInfo.HeaderSize];
-                header.CopyTo(packetData, 0);
-                Array.Copy(readBuffer, offset, packetData, MemoryPackBinaryRequestInfo.HeaderSize, length);
-
-                return new MemoryPackBinaryRequestInfo(packetData);
-            }
-        }
-
-        // body 데이터가 없는 경우
-        return new MemoryPackBinaryRequestInfo(header.CloneRange(header.Offset, header.Count));
+        return new MemoryPackBinaryRequestInfo(packetData);
     }
 }

@@ -96,19 +96,33 @@ class MyUdpProtocol : IReceiveFilterFactory<MyUdpRequestInfo>
 
 
 
-class MyReceiveFilter : IReceiveFilter<MyUdpRequestInfo>
+sealed class MyReceiveFilter : IReceiveFilter<MyUdpRequestInfo>
 {
+    private const int KeyLength = 4;
+    private const int SessionIdLength = 36;
+    private const int HeaderLength = KeyLength + SessionIdLength;
+
     public MyUdpRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    {
+        return Parse(new ReadOnlySpan<byte>(readBuffer, offset, length), out rest);
+    }
+
+    public MyUdpRequestInfo Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
+    {
+        return Parse(buffer, out rest);
+    }
+
+    private static MyUdpRequestInfo Parse(ReadOnlySpan<byte> buffer, out int rest)
     {
         rest = 0;
 
-        if (length <= 40)
+        if (buffer.Length <= HeaderLength)
             return null;
 
-        var key = Encoding.ASCII.GetString(readBuffer, offset, 4);
-        var sessionID = Encoding.ASCII.GetString(readBuffer, offset + 4, 36);
+        var key = Encoding.ASCII.GetString(buffer.Slice(0, KeyLength));
+        var sessionID = Encoding.ASCII.GetString(buffer.Slice(KeyLength, SessionIdLength));
 
-        var data = Encoding.UTF8.GetString(readBuffer, offset + 40, length - 40);
+        var data = Encoding.UTF8.GetString(buffer.Slice(HeaderLength));
 
         return new MyUdpRequestInfo(key, sessionID) { Value = data };
     }
@@ -120,7 +134,7 @@ class MyReceiveFilter : IReceiveFilter<MyUdpRequestInfo>
 
     public IReceiveFilter<MyUdpRequestInfo> NextReceiveFilter
     {
-        get { return this; }
+        get { return null; }
     }
 
     /// <summary>

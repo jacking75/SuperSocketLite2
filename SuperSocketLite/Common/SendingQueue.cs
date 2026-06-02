@@ -16,6 +16,8 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
 
     private static ArraySegment<byte> m_Null = default(ArraySegment<byte>);
 
+    private readonly object m_SyncRoot = new object();
+
     private int m_UpdatingCount;
 
     // volatile: StopEnqueue() writes true on one thread; Enqueue()/TryEnqueue() read it
@@ -55,27 +57,22 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
     {
         conflict = false;
 
-        var oldCount = m_CurrentCount;
-
-        if (oldCount >= Capacity)
-            return false;
-
-        if (m_ReadOnly)
-            return false;
-
-        if (trackID != m_TrackID)
-            return false;
-
-        int compareCount = Interlocked.CompareExchange(ref m_CurrentCount, oldCount + 1, oldCount);
-
-        //conflicts
-        if (compareCount != oldCount)
+        lock (m_SyncRoot)
         {
-            conflict = true;
-            return false;
-        }
+            var oldCount = m_CurrentCount;
 
-        m_GlobalQueue[m_Offset + oldCount] = item;
+            if (oldCount >= Capacity)
+                return false;
+
+            if (m_ReadOnly)
+                return false;
+
+            if (trackID != m_TrackID)
+                return false;
+
+            m_GlobalQueue[m_Offset + oldCount] = item;
+            Volatile.Write(ref m_CurrentCount, oldCount + 1);
+        }
 
         return true;
     }
@@ -147,33 +144,30 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
     {
         conflict = false;
 
-        var oldCount = m_CurrentCount;
-
-        int newItemCount = items.Count;
-        int expectedCount = oldCount + newItemCount;
-
-        if (expectedCount > Capacity)
-            return false;
-
-        if (m_ReadOnly)
-            return false;
-
-        if (m_TrackID != trackID)
-            return false;
-
-        int compareCount = Interlocked.CompareExchange(ref m_CurrentCount, expectedCount, oldCount);
-
-        if (compareCount != oldCount)
+        lock (m_SyncRoot)
         {
-            conflict = true;
-            return false;
-        }
+            var oldCount = m_CurrentCount;
 
-        var queue = m_GlobalQueue;
+            int newItemCount = items.Count;
+            int expectedCount = oldCount + newItemCount;
 
-        for (var i = 0; i < items.Count; i++)
-        {
-            queue[m_Offset + oldCount + i] = items[i];
+            if (expectedCount > Capacity)
+                return false;
+
+            if (m_ReadOnly)
+                return false;
+
+            if (m_TrackID != trackID)
+                return false;
+
+            var queue = m_GlobalQueue;
+
+            for (var i = 0; i < items.Count; i++)
+            {
+                queue[m_Offset + oldCount + i] = items[i];
+            }
+
+            Volatile.Write(ref m_CurrentCount, expectedCount);
         }
 
         return true;
@@ -451,21 +445,29 @@ public sealed class SendingQueue : IList<ArraySegment<byte>>
         var innerCount = m_CurrentCount - m_InnerOffset;
         var subTotal = 0;
 
-        for (var i = m_InnerOffset; i < innerCount; i++)
+        for (var i = m_InnerOffset; i < m_CurrentCount; i++)
         {
             var segment = m_GlobalQueue[m_Offset + i];
             subTotal += segment.Count;
 
-            if (subTotal <= offset)
+            if (subTotal < offset)
                 continue;
+
+            if (subTotal == offset)
+            {
+                m_InnerOffset = i + 1;
+                return;
+            }
 
             m_InnerOffset = i;
 
             var rest = subTotal - offset;
             m_GlobalQueue[m_Offset + i] = new ArraySegment<byte>(segment.Array!, segment.Offset + segment.Count - rest, rest);
 
-            break;
+            return;
         }
+
+        m_InnerOffset = m_CurrentCount;
     }
 }
 

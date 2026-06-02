@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using SuperSocketLite.Common;
+using System;
+using System.Buffers;
+using System.Buffers.Binary;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
@@ -12,46 +8,44 @@ namespace ChatServer;
 
 public class EFBinaryRequestInfo : BinaryRequestInfo
 {
-    public Int16 Size { get; private set; }
-    public Int16 PacketID { get; private set; }
-    public SByte Type { get; private set; }
+    public short Size { get; private set; }
+    public short PacketID { get; private set; }
+    public sbyte Type { get; private set; }
 
-
-    public EFBinaryRequestInfo(Int16 size, Int16 packetID,  SByte type, byte[] body)
+    public EFBinaryRequestInfo(short size, short packetID, sbyte type, byte[] body)
         : base(null, body)
     {
-        this.Size = size;
-        this.PacketID = packetID;
-        this.Type = type;
+        Size = size;
+        PacketID = packetID;
+        Type = type;
     }
 }
 
-public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<EFBinaryRequestInfo>
 {
-    public ReceiveFilter() : base(CSBaseLib.PacketDef.HeaderSize)
+    public ReceiveFilter()
+        : base(CSBaseLib.PacketDef.HeaderSize)
     {
     }
 
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(header, offset, CSBaseLib.PacketDef.HeaderSize);
-        }
+        Span<byte> headerBuffer = stackalloc byte[CSBaseLib.PacketDef.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        var packetSize = BitConverter.ToInt16(header, offset);
-        var bodySize = packetSize - CSBaseLib.PacketDef.HeaderSize;
-        return bodySize;
+        var packetSize = BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2));
+        return packetSize - CSBaseLib.PacketDef.HeaderSize;
     }
 
-    protected override EFBinaryRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] buffer, int offset, int length)
+    protected override EFBinaryRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header.Array, 0, CSBaseLib.PacketDef.HeaderSize);
+        Span<byte> headerBuffer = stackalloc byte[CSBaseLib.PacketDef.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        return new EFBinaryRequestInfo(BitConverter.ToInt16(header.Array, 0),
-                                       BitConverter.ToInt16(header.Array,  2),
-                                       (SByte)header.Array[4],
-                                       buffer.CloneRange(offset, length));
+        return new EFBinaryRequestInfo(
+            BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2)),
+            BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(2, 2)),
+            (sbyte)headerBuffer[4],
+            body.ToArray());
     }
 }

@@ -250,7 +250,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
                     if (sendData.Count > 0)
                     {
-                        session.Send(sendData);
+                        var snapshot = new byte[sendData.Count];
+                        Buffer.BlockCopy(sendData.Array!, sendData.Offset, snapshot, 0, snapshot.Length);
+                        session.Send(snapshot, 0, snapshot.Length);
                     }
 
                     session.CommitCollectSend(sendDataLength);
@@ -307,9 +309,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                             var message = string.Format("The session will be closed for {0} timeout, the session start time: {1}, last active time: {2}!", now.Subtract(s.LastActiveTime).TotalSeconds, s.StartTime, s.LastActiveTime);
                             string info = string.Format(m_SessionInfoTemplate, s.SessionID, s.RemoteEndPoint) + Environment.NewLine + message;
                             Logger.Info(info);
-
-                            s.Close(CloseReason.TimeOut);                                
                         }
+
+                        s.Close(CloseReason.TimeOut);
                     });
             }
             catch (Exception e)
@@ -412,29 +414,23 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
             m_ClearIdleSessionTimer = null;
         }
 
+        if (m_CollectSendSessionTimer != null)
+        {
+            m_CollectSendSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            m_CollectSendSessionTimer.Dispose();
+            m_CollectSendSessionTimer = null;
+        }
+
         m_SessionsSnapshot = null;
 
         var sessions = m_SessionDict.ToArray();
 
         if (sessions.Length > 0)
         {
-            var tasks = new Task[sessions.Length];
-
-            for (var i = 0; i < tasks.Length; i++)
+            for (var i = 0; i < sessions.Length; i++)
             {
-                tasks[i] = Task.Factory.StartNew((s) =>
-                {
-                    var session = s as TAppSession;
-
-                    if (session != null)
-                    {
-                        session.Close(CloseReason.ServerShutdown);
-                    }
-
-                }, sessions[i].Value);
+                sessions[i].Value.Close(CloseReason.ServerShutdown);
             }
-
-            Task.WaitAll(tasks);
         }
     }
 

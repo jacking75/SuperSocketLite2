@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Logging;
@@ -63,7 +65,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     public override void Start()
     {
         StartReceive();
-        _ = ProcessPipeAsync();   // PipeReader consumer loop — independent Task
+        StartReceiveProcessingTask();
 
         if (!m_IsReset)
             StartSession();
@@ -88,12 +90,18 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     void OnSendingCompleted(object? sender, SocketAsyncEventArgs e)
     {
-        var queue = e.UserToken as SendingQueue;
+        var queue = e.UserToken as IList<ArraySegment<byte>>;
+
+        if (queue == null)
+        {
+            ClearPrevSendState(e);
+            return;
+        }
 
         if (!ProcessCompleted(e))
         {
             ClearPrevSendState(e);
-            OnSendError(queue!, CloseReason.SocketError);
+            OnSendError(queue, CloseReason.SocketError);
             return;
         }
 
@@ -101,7 +109,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         if (count != e.BytesTransferred)
         {
-            queue!.InternalTrim(e.BytesTransferred);
+            queue = TrimSegments(queue, e.BytesTransferred);
             AppSession.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {queue.Sum(q => q.Count)} bytes right now.");
             ClearPrevSendState(e);
             SendAsync(queue);
@@ -109,7 +117,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
 
         ClearPrevSendState(e);
-        base.OnSendingCompleted(queue!);
+        base.OnSendingCompleted(queue);
     }
 
     private void ClearPrevSendState(SocketAsyncEventArgs e)
@@ -129,7 +137,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     /// <summary>
     /// Asks the PipeWriter for a Memory&lt;byte&gt; segment, assigns it to the SAEA, and posts a ReceiveAsync.
-    /// No buffer offset tracking needed — the Pipe manages unconsumed data automatically.
+    /// No buffer offset tracking needed ??the Pipe manages unconsumed data automatically.
     /// </summary>
     private void StartReceive()
     {
@@ -154,7 +162,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
     }
 
-    protected override void SendSync(SendingQueue queue)
+    protected override void SendSync(IList<ArraySegment<byte>> queue)
     {
         try
         {
@@ -167,7 +175,22 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 if (client == null)
                     return;
 
-                client.Send(item.Array!, item.Offset, item.Count, SocketFlags.None);
+                var sentTotal = 0;
+
+                while (sentTotal < item.Count)
+                {
+                    var sent = client.Send(item.Array!, item.Offset + sentTotal, item.Count - sentTotal, SocketFlags.None);
+
+                    if (sent <= 0)
+                        throw new SocketException((int)SocketError.ConnectionReset);
+
+                    sentTotal += sent;
+
+                    client = Client;
+
+                    if (client == null)
+                        return;
+                }
             }
 
             OnSendingCompleted(queue);
@@ -181,7 +204,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         }
     }
 
-    protected override void SendAsync(SendingQueue queue)
+    protected override void SendAsync(IList<ArraySegment<byte>> queue)
     {
         try
         {
@@ -218,9 +241,37 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     public SocketAsyncEventArgsProxy SocketAsyncProxy { get; private set; }
 
+    private static IList<ArraySegment<byte>> TrimSegments(IList<ArraySegment<byte>> segments, int offset)
+    {
+        var result = new List<ArraySegment<byte>>(segments.Count);
+        var remainingOffset = offset;
+
+        for (var i = 0; i < segments.Count; i++)
+        {
+            var segment = segments[i];
+
+            if (remainingOffset >= segment.Count)
+            {
+                remainingOffset -= segment.Count;
+                continue;
+            }
+
+            if (remainingOffset > 0)
+            {
+                result.Add(new ArraySegment<byte>(segment.Array!, segment.Offset + remainingOffset, segment.Count - remainingOffset));
+                remainingOffset = 0;
+                continue;
+            }
+
+            result.Add(segment);
+        }
+
+        return result;
+    }
+
 /// <summary>
     /// Called by the IOCP completion thread when a ReceiveAsync completes.
-    /// Advances the PipeWriter and schedules the next receive — no AppSession call here.
+    /// Advances the PipeWriter and schedules the next receive ??no AppSession call here.
     /// </summary>
     public void ProcessReceive(SocketAsyncEventArgs e)
     {
@@ -241,23 +292,45 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         _pipeWriter!.Advance(e.BytesTransferred);
         var flushTask = _pipeWriter.FlushAsync();
 
-        if (flushTask.IsCompleted)
+        if (flushTask.IsCompletedSuccessfully)
         {
-            // Fast path: no backpressure
-            StartReceive();
+            if (ShouldContinueReceive(flushTask.GetAwaiter().GetResult()))
+                StartReceive();
         }
         else
         {
-            // Slow path: wait for PipeReader to catch up, then restart receive
-            _ = flushTask.AsTask().ContinueWith(
-                _ => StartReceive(),
-                System.Threading.Tasks.TaskContinuationOptions.ExecuteSynchronously);
+            _ = FlushPipeAndStartReceiveAsync(flushTask);
         }
 }
 
+    private async Task FlushPipeAndStartReceiveAsync(ValueTask<FlushResult> flushTask)
+    {
+        try
+        {
+            var result = await flushTask.ConfigureAwait(false);
+
+            if (ShouldContinueReceive(result))
+                StartReceive();
+        }
+        catch (Exception exc)
+        {
+            LogError(exc);
+            OnReceiveTerminated(CloseReason.SocketError);
+        }
+    }
+
+    private bool ShouldContinueReceive(FlushResult result)
+    {
+        if (!result.IsCanceled && !result.IsCompleted)
+            return true;
+
+        OnReceiveTerminated(CloseReason.ClientClosing);
+        return false;
+    }
+
     protected override void OnClosed(CloseReason reason)
     {
-        _pipeWriter?.Complete();
+        CompleteReceivePipeWriter();
 
         var sae = m_SocketEventArgSend;
 

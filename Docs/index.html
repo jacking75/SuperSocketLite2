@@ -3,285 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SuperSocketLite 2 문서 인덱스</title>
+  <title>SuperSocketLite 2 문서</title>
   <style>
     :root {
-      --ink: #172033;
-      --muted: #5b6677;
-      --line: #d8deea;
-      --paper: #ffffff;
-      --soft: #f5f7fb;
-      --teal: #0f766e;
-      --blue: #2563eb;
-      --amber: #b45309;
-      --rose: #be123c;
-      --shadow: 0 14px 34px rgba(23, 32, 51, .09);
+      color-scheme: light;
+      --bg: #f7f9fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --line: #d8e0ea;
+      --accent: #156f6b;
     }
-
     * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      color: var(--ink);
-      background:
-        linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,255,255,.82)),
-        repeating-linear-gradient(90deg, #edf1f7 0 1px, transparent 1px 72px),
-        repeating-linear-gradient(0deg, #edf1f7 0 1px, transparent 1px 72px);
       font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
-      line-height: 1.65;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
     }
-
-    a {
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    h1 { margin: 0 0 12px; font-size: 34px; letter-spacing: 0; }
+    p { margin: 0; }
+    .lead { color: var(--muted); max-width: 820px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    a.card {
+      display: block;
+      min-height: 210px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
       color: inherit;
       text-decoration: none;
     }
-
-    .page {
-      width: min(1120px, calc(100% - 2rem));
-      margin: 0 auto;
-      padding: clamp(2rem, 5vw, 4rem) 0;
-    }
-
-    header {
-      display: grid;
-      gap: .85rem;
-      margin-bottom: 2rem;
-    }
-
-    .eyebrow {
-      width: fit-content;
-      border: 1px solid #9bd6ce;
-      border-radius: 999px;
-      background: #e8f7f3;
-      color: var(--teal);
-      padding: .28rem .68rem;
-      font-size: .84rem;
+    a.card:hover { border-color: var(--accent); }
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      background: #e7f5f2;
+      color: var(--accent);
       font-weight: 700;
     }
-
-    h1 {
-      margin: 0;
-      max-width: 900px;
-      font-size: clamp(2rem, 5vw, 4.25rem);
-      line-height: 1.08;
-      letter-spacing: 0;
-    }
-
-    .lead {
-      max-width: 820px;
-      margin: 0;
-      color: var(--muted);
-      font-size: 1.04rem;
-    }
-
-    .doc-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 1rem;
-      margin-top: 1.5rem;
-    }
-
-    .doc-card {
-      display: grid;
-      min-height: 220px;
+    h2 { margin: 0 0 10px; font-size: 20px; letter-spacing: 0; }
+    .file { margin-top: 16px; color: var(--accent); font-family: Consolas, monospace; font-size: 13px; }
+    .note {
+      margin-top: 28px;
+      padding: 16px 18px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: var(--paper);
-      padding: 1.15rem;
-      box-shadow: var(--shadow);
-      transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
-    }
-
-    .doc-card:hover,
-    .doc-card:focus-visible {
-      transform: translateY(-2px);
-      border-color: #9ab4ef;
-      box-shadow: 0 18px 42px rgba(23, 32, 51, .13);
-      outline: none;
-    }
-
-    .doc-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 1rem;
-      margin-bottom: .8rem;
-    }
-
-    .num {
-      display: inline-grid;
-      place-items: center;
-      width: 2.4rem;
-      height: 2.4rem;
-      border-radius: 8px;
-      background: var(--soft);
-      color: var(--blue);
-      font-weight: 800;
-    }
-
-    .tag {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: .22rem .58rem;
-      color: #334155;
       background: #fff;
-      font-size: .8rem;
-      white-space: nowrap;
-    }
-
-    .doc-card h2 {
-      margin: 0;
-      font-size: 1.28rem;
-      line-height: 1.3;
-      letter-spacing: 0;
-    }
-
-    .doc-card p {
-      margin: .65rem 0 1rem;
       color: var(--muted);
     }
-
-    .file {
-      align-self: end;
-      display: flex;
-      flex-wrap: wrap;
-      gap: .45rem;
-      align-items: center;
-      color: #334155;
-      font-family: Consolas, "Cascadia Code", monospace;
-      font-size: .86rem;
-    }
-
-    .file span {
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-      background: #f8fafc;
-      padding: .24rem .46rem;
-      overflow-wrap: anywhere;
-    }
-
-    .sequence {
-      margin-top: 1.5rem;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: rgba(255,255,255,.86);
-      padding: 1rem;
-    }
-
-    .sequence h2 {
-      margin: 0 0 .7rem;
-      font-size: 1.05rem;
-    }
-
-    .sequence ol {
-      margin: 0;
-      padding-left: 1.3rem;
-      color: var(--muted);
-    }
-
-    .sequence li + li {
-      margin-top: .35rem;
-    }
-
-    footer {
-      margin-top: 2rem;
-      color: var(--muted);
-      font-size: .92rem;
-    }
-
-    @media (max-width: 780px) {
-      .doc-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .doc-card {
-        min-height: 0;
-      }
-    }
+    code { font-family: Consolas, monospace; }
   </style>
 </head>
 <body>
-  <main class="page">
-    <header>
-      <div class="eyebrow">Docs</div>
-      <h1>SuperSocketLite 2 문서 인덱스</h1>
-      <p class="lead">
-        라이브러리 구조와 핵심 실행 흐름을 HTML 문서로 모아둔 시작 페이지입니다.
-        전체 구조를 먼저 본 뒤, TCP 접속, 수신 처리, 송신 처리 순서로 읽으면 코드 흐름을 따라가기 쉽습니다.
-      </p>
-    </header>
+  <main>
+    <h1>SuperSocketLite 2 문서</h1>
+    <p class="lead">
+      이 문서 묶음은 현재 코드 기준으로 TCP 연결, 수신 파이프라인, 송신 파이프라인,
+      UDP 처리, 설정과 운영 포인트를 설명합니다. 최근 변경 사항인
+      <code>ProcessReceiveResult</code>, sequence receive filter, pooled UDP packet,
+      Channel 기반 송신 큐를 반영했습니다.
+    </p>
 
-    <section class="doc-grid" aria-label="문서 목록">
-      <a class="doc-card" href="SuperSocketLite_Architecture.html">
-        <div>
-          <div class="doc-top">
-            <span class="num">1</span>
-            <span class="tag">전체 구조</span>
-          </div>
-          <h2>SuperSocketLite 2 아키텍처와 실행 흐름</h2>
-          <p>
-            AppServer, AppSession, SocketSession, 수신/송신 파이프라인, 설정값과 확장 지점을 한 번에 훑는 기본 문서입니다.
-          </p>
-        </div>
-        <div class="file"><span>SuperSocketLite_Architecture.html</span></div>
+    <div class="grid">
+      <a class="card" href="SuperSocketLite_Architecture.html">
+        <span class="num">1</span>
+        <h2>전체 아키텍처</h2>
+        <p>AppServer, SocketServer, SocketSession, AppSession, ReceiveFilter가 TCP/UDP 경로에서 어떻게 연결되는지 정리합니다.</p>
+        <div class="file">SuperSocketLite_Architecture.html</div>
       </a>
 
-      <a class="doc-card" href="SuperSocketLite_TCP_Connection_Flow.html">
-        <div>
-          <div class="doc-top">
-            <span class="num">2</span>
-            <span class="tag">TCP 접속</span>
-          </div>
-          <h2>SuperSocketLite TCP 접속 흐름 상세 분석</h2>
-          <p>
-            서버 시작, 리스너, accept, SocketSession/AppSession 생성, 세션 시작까지 TCP 연결 생명주기를 설명합니다.
-          </p>
-        </div>
-        <div class="file"><span>SuperSocketLite_TCP_Connection_Flow.html</span></div>
+      <a class="card" href="SuperSocketLite_TCP_Connection_Flow.html">
+        <span class="num">2</span>
+        <h2>TCP 연결 흐름</h2>
+        <p>서버 시작, accept loop, 세션 생성, receive pipe 시작, close 경로를 TCP 연결 관점에서 추적합니다.</p>
+        <div class="file">SuperSocketLite_TCP_Connection_Flow.html</div>
       </a>
 
-      <a class="doc-card" href="SuperSocketLite_ReceivePipeline_ReceiveFilter.html">
-        <div>
-          <div class="doc-top">
-            <span class="num">3</span>
-            <span class="tag">수신 처리</span>
-          </div>
-          <h2>수신 파이프라인과 ReceiveFilter 상세 분석</h2>
-          <p>
-            SocketAsyncEventArgs, PipeReader/PipeWriter, ReceiveFilter, 요청 객체 생성과 핸들러 호출 흐름을 코드 중심으로 다룹니다.
-          </p>
-        </div>
-        <div class="file"><span>SuperSocketLite_ReceivePipeline_ReceiveFilter.html</span></div>
+      <a class="card" href="SuperSocketLite_ReceivePipeline_ReceiveFilter.html">
+        <span class="num">3</span>
+        <h2>수신 파이프라인과 ReceiveFilter</h2>
+        <p><code>PipeReader</code>, <code>IReceiveFilter</code>, <code>ISequenceReceiveFilter</code>, fixed-size/header 필터의 동작을 설명합니다.</p>
+        <div class="file">SuperSocketLite_ReceivePipeline_ReceiveFilter.html</div>
       </a>
 
-      <a class="doc-card" href="SuperSocketLite_SendPipeline_Detail.html">
-        <div>
-          <div class="doc-top">
-            <span class="num">4</span>
-            <span class="tag">송신 처리</span>
-          </div>
-          <h2>송신 파이프라인과 SendingQueue 상세 해설</h2>
-          <p>
-            AppSession.Send(), SocketSession.TrySend(), SendingQueue 큐 스왑, 부분 송신, 완료 콜백과 인터랙티브 호출 흐름을 설명합니다.
-          </p>
-        </div>
-        <div class="file"><span>SuperSocketLite_SendPipeline_Detail.html</span></div>
+      <a class="card" href="SuperSocketLite_SendPipeline_Detail.html">
+        <span class="num">4</span>
+        <h2>송신 파이프라인과 ChannelSendingQueue</h2>
+        <p><code>AppSession.Send()</code>에서 <code>Socket.SendAsync()</code>까지 Channel 기반 queue, batch drain, partial send 처리를 다룹니다.</p>
+        <div class="file">SuperSocketLite_SendPipeline_Detail.html</div>
       </a>
-    </section>
+    </div>
 
-    <section class="sequence" aria-label="추천 읽기 순서">
-      <h2>추천 읽기 순서</h2>
-      <ol>
-        <li>전체 아키텍처 문서로 서버 구성 요소와 큰 흐름을 먼저 확인합니다.</li>
-        <li>TCP 접속 흐름에서 세션이 만들어지는 과정을 따라갑니다.</li>
-        <li>수신 파이프라인 문서로 요청이 핸들러까지 도달하는 과정을 봅니다.</li>
-        <li>송신 파이프라인 문서로 응답이 큐를 거쳐 socket send까지 내려가는 과정을 확인합니다.</li>
-      </ol>
-    </section>
-
-    <footer>
-      이 페이지는 Docs 디렉토리의 정적 HTML 문서를 연결하는 로컬 인덱스입니다.
-    </footer>
+    <div class="note">
+      참고: <code>SuperSocketLite.Common.SendingQueue</code> 타입은 호환성과 회귀 테스트 목적으로 남아 있지만
+      현재 활성 송신 경로는 세션별 <code>ChannelSendingQueue</code>를 사용합니다.
+    </div>
   </main>
 </body>
 </html>

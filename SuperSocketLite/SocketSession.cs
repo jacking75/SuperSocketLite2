@@ -48,6 +48,8 @@ abstract partial class SocketSession : ISocketSession
     protected Pipe? _receivePipe;
     protected PipeWriter? _pipeWriter;
     protected PipeReader? _pipeReader;
+    private Task? m_ReceiveProcessingTask;
+    private int m_ReceiveProcessingTaskObserved;
 
     private void AddStateFlag(int stateValue)
     {
@@ -115,7 +117,7 @@ abstract partial class SocketSession : ISocketSession
 
     protected bool SyncSend { get; private set; }
 
-    private ISmartPool<SendingQueue> m_SendingQueuePool = null!;
+    private ChannelSendingQueue m_SendQueue = null!;
 
     
     public SocketSession(Socket client)
@@ -140,15 +142,7 @@ abstract partial class SocketSession : ISocketSession
         Config = appSession.Config;
         SyncSend = Config.SyncSend;
 
-        if (m_SendingQueuePool == null)
-            m_SendingQueuePool = ((SocketServerBase)((ISocketServerAccessor)appSession.AppServer).SocketServer!).SendingQueuePool!;
-
-        SendingQueue? queue;
-        if (m_SendingQueuePool!.TryGet(out queue))
-        {
-            m_SendingQueue = queue;
-            queue.StartEnqueue();
-        }
+        m_SendQueue = new ChannelSendingQueue(Math.Max(Config.SendingQueueSize, 1));
 
         if (Config.CollectSendIntervalMillSec > 0)
         {
@@ -203,22 +197,7 @@ abstract partial class SocketSession : ISocketSession
         if (!TryAddStateFlag(SocketState.Closed))
             return;
 
-        //Before changing m_SendingQueue, must check m_IsClosed
-        while (true)
-        {
-            var sendingQueue = m_SendingQueue;
-
-            if (sendingQueue == null)
-                break;
-
-            //There is no sending was started after the m_Closed ws set to 'true'
-            if (Interlocked.CompareExchange(ref m_SendingQueue, null, sendingQueue) == sendingQueue)
-            {
-                sendingQueue.Clear();
-                m_SendingQueuePool.Push(sendingQueue);
-                break;
-            }
-        }
+        m_SendQueue?.Complete();
 
         var closedHandler = Closed;
         if (closedHandler != null)
@@ -231,9 +210,6 @@ abstract partial class SocketSession : ISocketSession
     /// Occurs when [closed].
     /// </summary>
     public Action<ISocketSession, CloseReason>? Closed { get; set; }
-
-    private SendingQueue? m_SendingQueue;
-
 
     public bool CollectSend(byte[] source, int pos, int count)
     {
@@ -261,17 +237,10 @@ abstract partial class SocketSession : ISocketSession
         if (IsClosed)
             return false;
 
-        var queue = m_SendingQueue;
-
-        if (queue == null)
+        if (!m_SendQueue.TryEnqueue(segments))
             return false;
 
-        var trackID = queue.TrackID;
-
-        if (!queue.Enqueue(segments, trackID))
-            return false;
-
-        StartSend(queue, trackID, true);
+        StartSend(true);
         return true;
     }
 
@@ -285,17 +254,10 @@ abstract partial class SocketSession : ISocketSession
         if (IsClosed)
             return false;
 
-        var queue = m_SendingQueue;
-
-        if (queue == null)
+        if (!m_SendQueue.TryEnqueue(segment))
             return false;
 
-        var trackID = queue.TrackID;
-
-        if (!queue.Enqueue(segment, trackID))
-            return false;
-
-        StartSend(queue, trackID, true);
+        StartSend(true);
         return true;
     }
 
@@ -325,28 +287,28 @@ abstract partial class SocketSession : ISocketSession
     /// <summary>
     /// Sends in async mode.
     /// </summary>
-    /// <param name="queue">The queue.</param>
-    protected abstract void SendAsync(SendingQueue queue);
+    /// <param name="items">The items.</param>
+    protected abstract void SendAsync(IList<ArraySegment<byte>> items);
 
     /// <summary>
     /// Sends in sync mode.
     /// </summary>
-    /// <param name="queue">The queue.</param>
-    protected abstract void SendSync(SendingQueue queue);
+    /// <param name="items">The items.</param>
+    protected abstract void SendSync(IList<ArraySegment<byte>> items);
 
-    private void Send(SendingQueue queue)
+    private void Send(IList<ArraySegment<byte>> items)
     {
         if (SyncSend)
         {
-            SendSync(queue);
+            SendSync(items);
         }
         else
         {
-            SendAsync(queue);
+            SendAsync(items);
         }
     }
 
-    private void StartSend(SendingQueue queue, int sendingTrackID, bool initial)
+    private void StartSend(bool initial)
     {
         if (initial)
         {
@@ -355,14 +317,6 @@ abstract partial class SocketSession : ISocketSession
                 return;
             }
 
-            var currentQueue = m_SendingQueue;
-
-            if (currentQueue != queue || sendingTrackID != currentQueue.TrackID)
-            {
-                //Has been sent
-                OnSendEnd();
-                return;
-            }
         }
 
         Socket? client;
@@ -373,48 +327,15 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        SendingQueue? newQueue;
+        var items = m_SendQueue.DrainAvailable();
 
-        if (!m_SendingQueuePool.TryGet(out newQueue))
-        {
-            OnSendEnd(CloseReason.InternalError, true);
-            AppSession.Logger.Error("There is no enougth sending queue can be used.");
-            return;
-        }
-
-        var oldQueue = Interlocked.CompareExchange(ref m_SendingQueue, newQueue, queue);
-
-        if (!ReferenceEquals(oldQueue, queue))
-        {
-            if (newQueue != null)
-                m_SendingQueuePool.Push(newQueue);
-
-            if (IsInClosingOrClosed)
-            {
-                OnSendEnd();
-            }
-            else
-            {
-                OnSendEnd(CloseReason.InternalError, true);
-                AppSession.Logger.Error("Failed to switch the sending queue.");
-            }
-
-            return;
-        }
-
-        //Start to allow enqueue
-        newQueue!.StartEnqueue();
-        queue.StopEnqueue();
-
-        if (queue.Count == 0)
+        if (items.Count == 0)
         {                
-            m_SendingQueuePool.Push(queue);
-            OnSendEnd(CloseReason.InternalError, true);
-            AppSession.Logger.Error("There is no data to be sent in the queue.");
+            OnSendEnd();
             return;
         }
 
-        Send(queue);
+        Send(items);
     }
 
     private void OnSendEnd()
@@ -428,21 +349,16 @@ abstract partial class SocketSession : ISocketSession
         ValidateClosed(closeReason, forceClose, true);
     }
 
-    protected virtual void OnSendingCompleted(SendingQueue queue)
+    protected virtual void OnSendingCompleted(IList<ArraySegment<byte>> sentItems)
     {
-        queue.Clear();
-        m_SendingQueuePool.Push(queue);
-
-        var newQueue = m_SendingQueue!;
-
         if (IsInClosingOrClosed)
         {
             Socket? client;
 
             //has data is being sent and the socket isn't closed
-            if (newQueue.Count > 0 && !TryValidateClosedBySocket(out client))
+            if (m_SendQueue.Count > 0 && !TryValidateClosedBySocket(out client))
             {
-                StartSend(newQueue, newQueue.TrackID, false);
+                StartSend(false);
                 return;
             }
 
@@ -450,18 +366,18 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        if (newQueue.Count == 0)
+        if (m_SendQueue.Count == 0)
         {
             OnSendEnd();
 
-            if (newQueue.Count > 0)
+            if (m_SendQueue.Count > 0)
             {
-                StartSend(newQueue, newQueue.TrackID, true);
+                StartSend(true);
             }
         }
         else
         {
-StartSend(newQueue, newQueue.TrackID, false);
+            StartSend(false);
         }
     }
 
@@ -547,10 +463,8 @@ StartSend(newQueue, newQueue.TrackID, false);
         }
     }
 
-    protected void OnSendError(SendingQueue queue, CloseReason closeReason)
+    protected void OnSendError(IList<ArraySegment<byte>> sentItems, CloseReason closeReason)
     {
-        queue.Clear();
-        m_SendingQueuePool.Push(queue);
         OnSendEnd(closeReason, true);
     }
 
@@ -639,9 +553,7 @@ StartSend(newQueue, newQueue.TrackID, false);
 
                     if (!TryValidateClosedBySocket(out client))
                     {
-                        var sendingQueue = m_SendingQueue;
-                        // No data to be sent
-                        if (forceClose || (sendingQueue != null && sendingQueue.Count == 0))
+                        if (forceClose || m_SendQueue.Count == 0)
                         {
                             if (client != null)// the socket instance is not closed yet, do it now
                                 InternalClose(client, GetCloseReasonFromState(), false);
@@ -670,59 +582,96 @@ StartSend(newQueue, newQueue.TrackID, false);
     [Obsolete("OrigReceiveOffset is not used in the Pipelines receive path and always returns 0.")]
     public virtual int OrigReceiveOffset => 0;
 
+    protected void StartReceiveProcessingTask()
+    {
+        Volatile.Write(ref m_ReceiveProcessingTaskObserved, 0);
+        m_ReceiveProcessingTask = ProcessPipeAsync();
+    }
+
+    protected void CompleteReceivePipeWriter(Exception? exception = null)
+    {
+        try
+        {
+            _pipeWriter?.Complete(exception);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        var task = m_ReceiveProcessingTask;
+        if (task != null && Interlocked.Exchange(ref m_ReceiveProcessingTaskObserved, 1) == 0)
+            _ = ObserveReceiveProcessingTaskAsync(task);
+    }
+
+    private async Task ObserveReceiveProcessingTaskAsync(Task task)
+    {
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (Exception exc)
+        {
+            LogError("Receive pipe processing task faulted", exc);
+        }
+    }
+
     /// <summary>
     /// Continuously reads from the PipeReader and dispatches complete requests to the AppSession.
     /// Runs as an independent Task, decoupled from the IOCP completion thread.
     /// </summary>
     protected async Task ProcessPipeAsync()
     {
-        while (true)
+        try
         {
-            ReadResult result;
-
-            try
+            while (true)
             {
-                result = await _pipeReader!.ReadAsync();
-            }
-            catch
-            {
-                break;
-            }
+                ReadResult result;
 
-            var buffer = result.Buffer;
+                try
+                {
+                    result = await _pipeReader!.ReadAsync();
+                }
+                catch
+                {
+                    break;
+                }
 
-            if (buffer.IsEmpty && (result.IsCompleted || result.IsCanceled))
-                break;
+                var buffer = result.Buffer;
 
-            SequencePosition consumed = buffer.Start;
+                if (buffer.IsEmpty && (result.IsCompleted || result.IsCanceled))
+                    break;
 
-            try
-            {
-                consumed = AppSession.ProcessRequest(buffer);
+                var processResult = new ProcessReceiveResult(buffer.Start, buffer.End);
+
+                try
+                {
+                    processResult = AppSession.ProcessRequest(buffer);
+                }
+                catch (Exception exc)
+                {
+                    LogError("Protocol error", exc);
+                    Close(CloseReason.ProtocolError);
+                    break;
+                }
+                finally
+                {
+                    _pipeReader!.AdvanceTo(processResult.Consumed, processResult.Examined);
+                }
+
+                if (result.IsCompleted || result.IsCanceled)
+                    break;
             }
-            catch (Exception exc)
-            {
-                LogError("Protocol error", exc);
-                Close(CloseReason.ProtocolError);
-                break;
-            }
-            finally
-            {
-                // consumed is always buffer.End; examined = buffer.End signals PipeReader it can reclaim memory.
-                _pipeReader.AdvanceTo(consumed, buffer.End);
-            }
-
-            if (result.IsCompleted || result.IsCanceled)
-                break;
         }
+        finally
+        {
+            _pipeReader!.Complete();
 
-        _pipeReader!.Complete();
-
-        // Return the per-session filter carry buffer AFTER the pipe loop has fully exited,
-        // so no code can access it after ArrayPool.Return() is called.
-        // This is the only place where the buffer is returned to the pool; OnSessionClosed()
-        // only nulls the reference as a safety fallback.
-        AppSession?.CompleteReceivePipe();
+            // Return the per-session filter carry buffer AFTER the pipe loop has fully exited,
+            // so no code can access it after ArrayPool.Return() is called.
+            // This is the only place where the buffer is returned to the pool; OnSessionClosed()
+            // only nulls the reference as a safety fallback.
+            AppSession?.CompleteReceivePipe();
+        }
     }
 
     protected virtual bool IsIgnorableSocketError(int socketErrorCode)

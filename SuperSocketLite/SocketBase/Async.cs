@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 
@@ -54,7 +55,7 @@ public static class Async
     /// <returns></returns>
     public static Task AsyncRun(this ILoggerProvider logProvider, Action task, TaskCreationOptions taskOption, Action<Exception>? exceptionHandler)
     {
-        return Task.Factory.StartNew(task, taskOption).ContinueWith(t =>
+        return Task.Factory.StartNew(task, CancellationToken.None, taskOption, TaskScheduler.Default).ContinueWith(t =>
             {
                 if (exceptionHandler != null)
                     exceptionHandler(t.Exception!);
@@ -68,7 +69,7 @@ public static class Async
                         }
                     }
                 }
-            }, TaskContinuationOptions.OnlyOnFaulted);
+            }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
 
     /// <summary>
@@ -120,7 +121,7 @@ public static class Async
     /// <returns></returns>
     public static Task AsyncRun(this ILoggerProvider logProvider, Action<object?> task, object state, TaskCreationOptions taskOption, Action<Exception>? exceptionHandler)
     {
-        return Task.Factory.StartNew(task, state, taskOption).ContinueWith(t =>
+        return Task.Factory.StartNew(task, state, CancellationToken.None, taskOption, TaskScheduler.Default).ContinueWith(t =>
         {
             if (exceptionHandler != null)
                 exceptionHandler(t.Exception!);
@@ -134,7 +135,6 @@ public static class Async
                     }
                 }
             }
-        }, TaskContinuationOptions.OnlyOnFaulted);
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
 }
-

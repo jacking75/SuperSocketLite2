@@ -741,6 +741,11 @@ return LogFactory.GetLog(loggerName);
         return handler((TAppSession)session, buffer, offset, length);
     }
 
+    internal bool HasRawDataReceivedHandler
+    {
+        get { return m_RawDataReceivedHandler != null; }
+    }
+
     private RequestHandler<TAppSession, TRequestInfo>? m_RequestHandler;
 
     /// <summary>

@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Buffers;
 using System.Text;
 using SuperSocketLite.Common;
+using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
@@ -20,6 +22,10 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
 
     private int m_BodyLength;
 
+    private int m_MaxRequestLength = int.MaxValue;
+
+    private int m_SequenceLeftBufferSize;
+
     private ArraySegmentList m_BodyBuffer = null!;
 
     /// <summary>
@@ -30,6 +36,31 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         : base(headerSize)
     {
 
+    }
+
+    /// <summary>
+    /// Gets the buffered request size including a parsed header and any accumulated body bytes.
+    /// </summary>
+    public override int LeftBufferSize
+    {
+        get
+        {
+            if (m_SequenceLeftBufferSize > 0)
+                return m_SequenceLeftBufferSize;
+
+            if (!m_FoundHeader)
+                return base.LeftBufferSize;
+
+            return Size + (m_BodyBuffer?.Count ?? 0);
+        }
+    }
+
+    /// <summary>
+    /// Called after the filter is initialized for a session.
+    /// </summary>
+    protected override void OnInitialized(IAppServer appServer, IAppSession session)
+    {
+        m_MaxRequestLength = session.Config.MaxRequestLength;
     }
 
     /// <summary>
@@ -169,6 +200,52 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     }
 
     /// <summary>
+    /// Filters a fixed-header request directly from the Pipelines sequence path.
+    /// Incomplete requests are left unconsumed in the PipeReader.
+    /// </summary>
+    public override TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    {
+        consumed = buffer.Start;
+        examined = buffer.End;
+
+        if (buffer.Length < Size)
+        {
+            m_SequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            return NullRequestInfo;
+        }
+
+        var header = buffer.Slice(0, Size);
+        var bodyLength = GetBodyLengthFromHeader(header.IsSingleSegment ? header.First.Span : header.ToArray());
+
+        if (!ValidateBodyLength(bodyLength))
+        {
+            State = FilterState.Error;
+            m_SequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            return NullRequestInfo;
+        }
+
+        var requestLength = Size + bodyLength;
+
+        if (buffer.Length < requestLength)
+        {
+            m_SequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            return NullRequestInfo;
+        }
+
+        consumed = buffer.GetPosition(requestLength);
+        examined = consumed;
+        m_SequenceLeftBufferSize = 0;
+
+        var headerSegment = new ArraySegment<byte>(header.ToArray());
+
+        if (bodyLength == 0)
+            return ResolveRequestInfo(headerSegment, null, 0, 0);
+
+        var body = buffer.Slice(Size, bodyLength).ToArray();
+        return ResolveRequestInfo(headerSegment, body, 0, body.Length);
+    }
+
+    /// <summary>
     /// Processes the fix size request.
     /// </summary>
     /// <param name="buffer">The buffer.</param>
@@ -181,6 +258,13 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         m_FoundHeader = true;
 
         m_BodyLength = GetBodyLengthFromHeader(buffer, offset, Size);
+
+        if (!ValidateBodyLength(m_BodyLength))
+        {
+            State = FilterState.Error;
+            m_FoundHeader = false;
+            return NullRequestInfo;
+        }
 
         if (toBeCopied)
             m_Header = new ArraySegment<byte>(buffer.CloneRange(offset, Size));
@@ -205,6 +289,13 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         m_FoundHeader = true;
 
         m_BodyLength = GetBodyLengthFromHeader(buffer);
+
+        if (!ValidateBodyLength(m_BodyLength))
+        {
+            State = FilterState.Error;
+            m_FoundHeader = false;
+            return NullRequestInfo;
+        }
 
         if (toBeCopied)
             m_Header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
@@ -244,6 +335,17 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     }
 
     /// <summary>
+    /// Validates the body length before body bytes are accumulated.
+    /// </summary>
+    protected virtual bool ValidateBodyLength(int bodyLength)
+    {
+        if (bodyLength < 0)
+            return false;
+
+        return m_MaxRequestLength <= 0 || Size + bodyLength < m_MaxRequestLength;
+    }
+
+    /// <summary>
     /// Resolves the request data.
     /// </summary>
     /// <param name="header">The header.</param>
@@ -261,5 +363,12 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         base.Reset();
         m_FoundHeader = false;
         m_BodyLength = 0;
+        m_SequenceLeftBufferSize = 0;
+        m_BodyBuffer?.ClearSegements();
+    }
+
+    private static int ToInt32BufferSize(long length)
+    {
+        return length > int.MaxValue ? int.MaxValue : (int)length;
     }
 }

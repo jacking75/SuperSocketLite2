@@ -40,6 +40,7 @@ public class ReuseLockBaseBuffer
             }
 
             Buffer.BlockCopy(source, pos, mBuffer, WritePos, count);
+            WritePos += count;
         }
 
         return true;

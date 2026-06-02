@@ -112,8 +112,8 @@ public interface IAppSession : ISessionBase
     /// Processes the request data from the Pipelines receive path.
     /// </summary>
     /// <param name="buffer">The read-only sequence buffer from PipeReader.</param>
-    /// <returns>The consumed position (always buffer.End; partial data is managed internally).</returns>
-    SequencePosition ProcessRequest(ReadOnlySequence<byte> buffer);
+    /// <returns>The consumed and examined positions to advance the PipeReader.</returns>
+    ProcessReceiveResult ProcessRequest(ReadOnlySequence<byte> buffer);
 
     /// <summary>
     /// Releases the receive filter carry buffer back to ArrayPool.

@@ -21,7 +21,7 @@ public class CommonHandler
 {
     public void RequestEcho(NetworkSession session, EFBinaryRequestInfo requestInfo)
     {
-        var totalSize = (Int16)(requestInfo.Body.Length + EFBinaryRequestInfo.HEADERE_SIZE);
+        var totalSize = (Int16)(requestInfo.Body.Length + EFBinaryRequestInfo.HeaderSize);
 
         List<byte> dataSource = new List<byte>();
         dataSource.AddRange(BitConverter.GetBytes(totalSize));

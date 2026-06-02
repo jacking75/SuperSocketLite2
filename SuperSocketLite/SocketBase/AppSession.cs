@@ -628,15 +628,39 @@ public string? CurrentCommand { get; set; }
     /// work correctly without modification: partial data is preserved at offset 0 of the
     /// carry buffer, and new bytes are appended at the filter's current OffsetDelta position.
     /// </summary>
-    SequencePosition IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
+    ProcessReceiveResult IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
     {
+        if (!AppServer.HasRawDataReceivedHandler && m_ReceiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
+        {
+            return ProcessSequenceRequest(sequence, sequenceReceiveFilter);
+        }
+
         // Determine where in the carry buffer the filter expects new bytes.
         // IOffsetAdapter.OffsetDelta == m_ParsedLength of the current filter (bytes already accumulated).
         var filterOffsetAdapter = m_ReceiveFilter as IOffsetAdapter;
         int writeOffset = filterOffsetAdapter?.OffsetDelta ?? 0;
 
+        if (sequence.Length > int.MaxValue)
+        {
+            Close(CloseReason.ProtocolError);
+            return new ProcessReceiveResult(sequence.End, sequence.End);
+        }
+
         int newLength = (int)sequence.Length;
         int neededSize = writeOffset + newLength;
+        var maxRequestLength = GetMaxRequestLength();
+
+        if (maxRequestLength > 0 && neededSize >= maxRequestLength)
+        {
+            if (Logger.IsErrorEnabled)
+            {
+                var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, neededSize);
+                Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+            }
+
+            Close(CloseReason.ProtocolError);
+            return new ProcessReceiveResult(sequence.End, sequence.End);
+        }
 
         // Lazily allocate or grow the carry buffer.
         if (_filterBuffer == null || _filterBuffer.Length < neededSize)
@@ -689,7 +713,69 @@ public string? CurrentCommand { get; set; }
 
         // Always tell the PipeReader that all bytes have been consumed.
         // Partial-packet state is stored in _filterBuffer + filter's m_ParsedLength/m_OffsetDelta.
-        return sequence.End;
+        return new ProcessReceiveResult(sequence.End, sequence.End);
+    }
+
+    private ProcessReceiveResult ProcessSequenceRequest(ReadOnlySequence<byte> sequence, ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
+    {
+        var maxRequestLength = GetMaxRequestLength();
+
+        if (maxRequestLength > 0 && sequence.Length >= maxRequestLength)
+        {
+            if (Logger.IsErrorEnabled)
+            {
+                var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, sequence.Length);
+                Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+            }
+
+            Close(CloseReason.ProtocolError);
+            return new ProcessReceiveResult(sequence.End, sequence.End);
+        }
+
+        var current = sequence;
+        var consumedPosition = sequence.Start;
+
+        while (current.Length > 0)
+        {
+            var requestInfo = sequenceReceiveFilter.Filter(current, out var consumed, out var examined);
+
+            if (m_ReceiveFilter.State == FilterState.Error)
+            {
+                Close(CloseReason.ProtocolError);
+                return new ProcessReceiveResult(sequence.End, sequence.End);
+            }
+
+            if (requestInfo != null)
+            {
+                consumedPosition = consumed;
+
+                try
+                {
+                    AppServer.ExecuteCommand(this, requestInfo);
+                }
+                catch (Exception e)
+                {
+                    HandleException(e);
+                }
+
+                if (m_ReceiveFilter.NextReceiveFilter != null)
+                {
+                    m_ReceiveFilter = m_ReceiveFilter.NextReceiveFilter;
+
+                    if (m_ReceiveFilter is not ISequenceReceiveFilter<TRequestInfo> nextSequenceReceiveFilter)
+                        return new ProcessReceiveResult(consumedPosition, consumedPosition);
+
+                    sequenceReceiveFilter = nextSequenceReceiveFilter;
+                }
+
+                current = sequence.Slice(consumedPosition);
+                continue;
+            }
+
+            return new ProcessReceiveResult(consumed, examined);
+        }
+
+        return new ProcessReceiveResult(consumedPosition, consumedPosition);
     }
 
 }

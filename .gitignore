@@ -1,0 +1,46 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / Rider / VS Code local state
+.vs/
+.idea/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# .NET generated files
+project.lock.json
+project.assets.json
+*.nuget.props
+*.nuget.targets
+artifacts/
+TestResults/
+GeneratedFiles/
+
+# Runtime logs and diagnostics
+*.log
+*.tlog
+*.binlog
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+# Package output
+*.nupkg
+*.snupkg
+
+# Tutorial/runtime output folders
+Tutorials/00_server_bins/
+
+# Local assistant/tool state
+.claude/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

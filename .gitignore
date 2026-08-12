@@ -38,7 +38,9 @@ coverage/
 Tutorials/00_server_bins/
 
 # Local assistant/tool state
-.claude/
+# .claude/ 의 프로젝트 문서(architecture/cautions/conventions/tasks)는 저장소에 포함한다.
+# 개발자별 로컬 설정만 제외한다.
+.claude/settings.local.json
 
 # OS files
 Thumbs.db

@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
+using System.Threading;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
@@ -15,6 +16,8 @@ var tests = new (string Name, Action Test)[]
     ("SendingQueue.InternalTrim trims across remaining segments after a partial trim", SendingQueueInternalTrimTrimsAcrossRemainingSegments),
     ("UDP receive packet exposes pooled payload without cloning and snapshots endpoint", UdpReceivePacketExposesPooledPayloadAndEndpoint),
     ("Channel send queue drains batches in FIFO order with bounded capacity", ChannelSendQueueDrainsBatchesInFifoOrder),
+    ("Channel send queue counts a multi-segment send as one slot and copies the caller's list", ChannelSendQueueCountsAMultiSegmentSendAsOneSlot),
+    ("Channel send queue keeps every item under concurrent lock-free enqueue", ChannelSendQueueKeepsEveryItemUnderConcurrentEnqueue),
     ("FixedHeaderSequenceReceiveFilter parses multi-segment requests without carry buffer copies", FixedHeaderSequenceReceiveFilterParsesMultiSegmentRequest),
     ("FixedHeaderSequenceReceiveFilter preserves fragmented byte-array requests", FixedHeaderSequenceReceiveFilterPreservesFragmentedByteArrayRequest),
     ("AppSession pipe parser exposes consumed and examined positions", AppSessionPipeParserExposesConsumedAndExaminedPositions),
@@ -23,7 +26,10 @@ var tests = new (string Name, Action Test)[]
     ("TCP keep-alive options are applied to accepted sockets", LiveServerTests.KeepAliveOptionsAreAppliedToAcceptedSockets),
     ("UDP listener starts without the Windows-only SIO_UDP_CONNRESET ioctl", LiveServerTests.UdpListenerStartsOnEveryPlatform),
     ("SendSync releases InSending when the socket was dropped by another thread", LiveServerTests.SendSyncClearsInSendingWhenSocketIsAlreadyGone),
-    ("Loopback echo survives a synchronous-completion burst without recursing", LiveServerTests.LoopbackEchoSurvivesSynchronousCompletionBurst)
+    ("Loopback echo survives a synchronous-completion burst without recursing", LiveServerTests.LoopbackEchoSurvivesSynchronousCompletionBurst),
+    ("Echo still works with IOCP-thread receive inlining disabled", LiveServerTests.EchoWorksWithIocpInliningDisabled),
+    ("Idle sessions are closed by the tick-based ClearIdleSession timer", LiveServerTests.IdleSessionsAreClosedByTheClearIdleSessionTimer),
+    ("LastActiveTime round-trips through the monotonic tick stamp", LiveServerTests.LastActiveTimeRoundTripsThroughTheTickStamp)
 };
 
 var failures = 0;
@@ -132,31 +138,109 @@ static void UdpReceivePacketExposesPooledPayloadAndEndpoint()
 
 static void ChannelSendQueueDrainsBatchesInFifoOrder()
 {
-    var queueType = Type.GetType("SuperSocketLite.Common.ChannelSendingQueue, SuperSocketLite", throwOnError: true)!;
-    var queue = Activator.CreateInstance(queueType, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, binder: null, args: new object[] { 2 }, culture: null)!;
+    var queue = SendingQueueAccessor.Create(2);
 
     var first = new ArraySegment<byte>(new byte[] { 1 });
     var second = new ArraySegment<byte>(new byte[] { 2 });
     var third = new ArraySegment<byte>(new byte[] { 3 });
 
-    AssertTrue((bool)queueType.GetMethod("TryEnqueue", new[] { typeof(ArraySegment<byte>) })!.Invoke(queue, new object[] { first })!, "first enqueue should fit");
-    AssertTrue((bool)queueType.GetMethod("TryEnqueue", new[] { typeof(ArraySegment<byte>) })!.Invoke(queue, new object[] { second })!, "second enqueue should fit");
-    AssertTrue(!(bool)queueType.GetMethod("TryEnqueue", new[] { typeof(ArraySegment<byte>) })!.Invoke(queue, new object[] { third })!, "bounded queue should reject when full");
+    AssertTrue(queue.TryEnqueue(first), "first enqueue should fit");
+    AssertTrue(queue.TryEnqueue(second), "second enqueue should fit");
+    AssertTrue(!queue.TryEnqueue(third), "bounded queue should reject when full");
 
-    var batch = (IList<ArraySegment<byte>>)queueType.GetMethod("DrainAvailable")!.Invoke(queue, Array.Empty<object>())!;
+    var batch = new List<ArraySegment<byte>>();
+    queue.DrainAvailable(batch);
     AssertEqual(2, batch.Count, "drain should return all available queued segments");
     AssertSequence(new byte[] { 1 }, batch[0]);
     AssertSequence(new byte[] { 2 }, batch[1]);
+    AssertEqual(0, queue.Count, "drain should empty the queue");
 
-    AssertTrue((bool)queueType.GetMethod("TryEnqueue", new[] { typeof(IList<ArraySegment<byte>>) })!.Invoke(queue, new object[] { new[] { third } })!, "enqueue list should fit after drain");
-    batch = (IList<ArraySegment<byte>>)queueType.GetMethod("DrainAvailable")!.Invoke(queue, Array.Empty<object>())!;
-    AssertEqual(1, batch.Count, "second drain should return newly queued segment");
+    AssertTrue(queue.TryEnqueue(new[] { third }), "enqueue list should fit after drain");
+    queue.DrainAvailable(batch);
+    AssertEqual(1, batch.Count, "second drain should return newly queued segment and clear the previous batch");
     AssertSequence(new byte[] { 3 }, batch[0]);
 
-    queueType.GetMethod("Complete")!.Invoke(queue, Array.Empty<object>());
-    AssertTrue(!(bool)queueType.GetMethod("TryEnqueue", new[] { typeof(IList<ArraySegment<byte>>) })!.Invoke(queue, new object[] { new[] { first, second } })!, "completed queue should reject list enqueue");
-    batch = (IList<ArraySegment<byte>>)queueType.GetMethod("DrainAvailable")!.Invoke(queue, Array.Empty<object>())!;
+    queue.Complete();
+    AssertTrue(!queue.TryEnqueue(new[] { first, second }), "completed queue should reject list enqueue");
+    queue.DrainAvailable(batch);
     AssertEqual(0, batch.Count, "completed queue should not publish rejected list items");
+}
+
+static void ChannelSendQueueCountsAMultiSegmentSendAsOneSlot()
+{
+    var queue = SendingQueueAccessor.Create(2);
+
+    var listA = new List<ArraySegment<byte>>
+    {
+        new ArraySegment<byte>(new byte[] { 1 }),
+        new ArraySegment<byte>(new byte[] { 2 }),
+        new ArraySegment<byte>(new byte[] { 3 })
+    };
+
+    AssertTrue(queue.TryEnqueue(listA), "a multi-segment send should occupy a single slot");
+
+    // The queue must not keep a reference to the caller's list: reusing it right after the enqueue
+    // is allowed and must not change what gets drained.
+    listA.Clear();
+    listA.Add(new ArraySegment<byte>(new byte[] { 9 }));
+
+    AssertTrue(queue.TryEnqueue(listA), "second multi-segment send should fit into the second slot");
+    AssertTrue(!queue.TryEnqueue(new ArraySegment<byte>(new byte[] { 4 })), "a third send must be rejected when both slots are taken");
+
+    var batch = new List<ArraySegment<byte>>();
+    queue.DrainAvailable(batch);
+
+    AssertEqual(4, batch.Count, "drain should flatten every queued segment");
+    AssertSequence(new byte[] { 1 }, batch[0]);
+    AssertSequence(new byte[] { 2 }, batch[1]);
+    AssertSequence(new byte[] { 3 }, batch[2]);
+    AssertSequence(new byte[] { 9 }, batch[3]);
+}
+
+static void ChannelSendQueueKeepsEveryItemUnderConcurrentEnqueue()
+{
+    const int threadCount = 8;
+    const int itemsPerThread = 500;
+    const int total = threadCount * itemsPerThread;
+
+    var queue = SendingQueueAccessor.Create(total);
+    var start = new ManualResetEventSlim(false);
+    var accepted = 0;
+    var threads = new Thread[threadCount];
+
+    for (var t = 0; t < threadCount; t++)
+    {
+        var threadIndex = t;
+
+        threads[t] = new Thread(() =>
+        {
+            start.Wait();
+
+            for (var i = 0; i < itemsPerThread; i++)
+            {
+                var payload = new byte[] { (byte)threadIndex, (byte)(i & 0xFF) };
+
+                if (queue.TryEnqueue(new ArraySegment<byte>(payload)))
+                    Interlocked.Increment(ref accepted);
+            }
+        });
+
+        threads[t].Start();
+    }
+
+    start.Set();
+
+    foreach (var thread in threads)
+        thread.Join();
+
+    AssertEqual(total, accepted, "a queue sized for every item must accept them all");
+    AssertEqual(total, queue.Count, "the advisory count should settle on the enqueued item count");
+
+    var batch = new List<ArraySegment<byte>>();
+    queue.DrainAvailable(batch);
+
+    AssertEqual(total, batch.Count, "drain must not lose items enqueued concurrently");
+    AssertEqual(0, queue.Count, "the count should be back to zero after a full drain");
 }
 
 static void FixedHeaderSequenceReceiveFilterParsesMultiSegmentRequest()
@@ -303,6 +387,48 @@ static ReadOnlySequence<byte> CreateSequence(byte[][] segments)
     }
 
     return new ReadOnlySequence<byte>(first!, 0, last!, last!.Memory.Length);
+}
+
+/// <summary>
+/// Reflection wrapper over the internal <c>ChannelSendingQueue</c>.
+/// </summary>
+sealed class SendingQueueAccessor
+{
+    private static readonly Type s_QueueType = Type.GetType("SuperSocketLite.Common.ChannelSendingQueue, SuperSocketLite", throwOnError: true)!;
+    private static readonly MethodInfo s_TryEnqueueSegment = s_QueueType.GetMethod("TryEnqueue", new[] { typeof(ArraySegment<byte>) })!;
+    private static readonly MethodInfo s_TryEnqueueList = s_QueueType.GetMethod("TryEnqueue", new[] { typeof(IList<ArraySegment<byte>>) })!;
+    private static readonly MethodInfo s_DrainAvailable = s_QueueType.GetMethod("DrainAvailable", new[] { typeof(List<ArraySegment<byte>>) })!;
+    private static readonly MethodInfo s_Complete = s_QueueType.GetMethod("Complete", Type.EmptyTypes)!;
+    private static readonly PropertyInfo s_CountProperty = s_QueueType.GetProperty("Count")!;
+
+    private readonly object m_Queue;
+
+    private SendingQueueAccessor(object queue)
+    {
+        m_Queue = queue;
+    }
+
+    public static SendingQueueAccessor Create(int capacity)
+    {
+        var queue = Activator.CreateInstance(
+            s_QueueType,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+            binder: null,
+            args: new object[] { capacity },
+            culture: null)!;
+
+        return new SendingQueueAccessor(queue);
+    }
+
+    public int Count => (int)s_CountProperty.GetValue(m_Queue)!;
+
+    public bool TryEnqueue(ArraySegment<byte> segment) => (bool)s_TryEnqueueSegment.Invoke(m_Queue, new object[] { segment })!;
+
+    public bool TryEnqueue(IList<ArraySegment<byte>> segments) => (bool)s_TryEnqueueList.Invoke(m_Queue, new object[] { segments })!;
+
+    public void DrainAvailable(List<ArraySegment<byte>> into) => s_DrainAvailable.Invoke(m_Queue, new object[] { into });
+
+    public void Complete() => s_Complete.Invoke(m_Queue, Array.Empty<object>());
 }
 
 sealed class OneByteLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>

@@ -335,4 +335,18 @@ public partial class ServerConfig : IServerConfig
     /// Gets or sets the minimum pool size for SAEA objects when PreAllocateSAEA is false.
     /// </summary>
     public int MinPoolSize { get; set; } = 100;
+
+    /// <summary>
+    /// Gets or sets whether a completed receive is processed directly on the IOCP completion
+    /// thread (default) instead of being dispatched to the thread pool.
+    /// </summary>
+    /// <remarks>
+    /// Receive completion only advances the receive pipe and posts the next receive; the
+    /// application's request handlers run on the separate pipe-reader task. Running it inline
+    /// therefore saves a thread hop plus one closure and two Task allocations per received packet.
+    /// Set to false only to restore the old dispatching behaviour.
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>,
+    /// so custom <see cref="IServerConfig"/> implementations always get the inline behaviour.
+    /// </remarks>
+    public bool ReceiveInlineOnIocpThread { get; set; } = true;
 }

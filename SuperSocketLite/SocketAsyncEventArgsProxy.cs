@@ -36,15 +36,53 @@ class SocketAsyncEventArgsProxy
         if (socketSession == null)
             return;
 
-        if (e.LastOperation == SocketAsyncOperation.Receive)
+        if (e.LastOperation != SocketAsyncOperation.Receive)
+        {
+            //Never throw from an IOCP completion callback - an unhandled exception here takes the
+            //whole process down.
+            LogError(socketSession, $"The last operation completed on the socket was not a receive but {e.LastOperation}", null);
+            return;
+        }
+
+        if (!socketSession.ReceiveInlineOnIocpThread)
         {
             socketSession.AsyncRun(() => socketSession.ProcessReceive(e));
+            return;
         }
-        else
+
+        //ProcessReceive only advances the receive pipe and posts the next receive; the application
+        //handlers run on the pipe-reader task. Running it inline saves a thread hop plus one
+        //closure and two Task allocations on every received packet.
+        try
         {
-            throw new ArgumentException("The last operation completed on the socket was not a receive");
+            socketSession.ProcessReceive(e);
         }
-    } 
+        catch (Exception exc)
+        {
+            LogError(socketSession, "Failed to process the completed receive", exc);
+        }
+    }
+
+    static void LogError(IAsyncSocketSession socketSession, string message, Exception? exception)
+    {
+        try
+        {
+            var logger = socketSession.Logger;
+
+            if (logger == null || !logger.IsErrorEnabled)
+                return;
+
+            if (exception == null)
+                logger.Error(message);
+            else
+                logger.Error(message, exception);
+        }
+        catch
+        {
+            //The session may already be torn down (no AppSession yet / logger disposed). A logging
+            //failure must never escape the IOCP completion thread.
+        }
+    }
 
     public void Initialize(IAsyncSocketSession socketSession)
     {

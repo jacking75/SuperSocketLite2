@@ -296,17 +296,19 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                 if (sessionSource == null)
                     return;
 
-                DateTime now = DateTime.Now;
-                DateTime timeOut = now.AddSeconds(0 - Config.IdleSessionTimeOut);
+                // Idle detection runs off the monotonic tick stamp, so it is immune to wall-clock
+                // adjustments (DST, NTP) and costs nothing compared to DateTime.Now.
+                var nowTicks = Environment.TickCount64;
+                var idleTimeOutMillSec = (long)Config.IdleSessionTimeOut * 1000;
 
-                var timeOutSessions = sessionSource.Where(s => s.Value.LastActiveTime <= timeOut).Select(s => s.Value);
+                var timeOutSessions = sessionSource.Where(s => nowTicks - s.Value.LastActiveTimeTicks >= idleTimeOutMillSec).Select(s => s.Value);
 
                 System.Threading.Tasks.Parallel.ForEach(timeOutSessions, s =>
                     {
                         if (Logger.IsInfoEnabled)
                         {
-                            //Logger.Info(s, string.Format("The session will be closed for {0} timeout, the session start time: {1}, last active time: {2}!", now.Subtract(s.LastActiveTime).TotalSeconds, s.StartTime, s.LastActiveTime));
-                            var message = string.Format("The session will be closed for {0} timeout, the session start time: {1}, last active time: {2}!", now.Subtract(s.LastActiveTime).TotalSeconds, s.StartTime, s.LastActiveTime);
+                            var idleSeconds = (nowTicks - s.LastActiveTimeTicks) / 1000.0;
+                            var message = string.Format("The session will be closed for {0} timeout, the session start time: {1}, last active time: {2}!", idleSeconds, s.StartTime, s.LastActiveTime);
                             string info = string.Format(m_SessionInfoTemplate, s.SessionID, s.RemoteEndPoint) + Environment.NewLine + message;
                             Logger.Info(info);
                         }

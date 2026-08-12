@@ -120,7 +120,7 @@ private ListenerInfo[]? m_Listeners;
     }
 
     /// <summary>
-    /// Gets the started time of this server instance.
+    /// Gets the started time of this server instance, in UTC.
     /// </summary>
     /// <value>
     /// The started time.
@@ -627,7 +627,7 @@ return LogFactory.GetLog(loggerName);
             return false;
         }
 
-        StartedTime = DateTime.Now;
+        StartedTime = DateTime.UtcNow;
         m_StateCode = ServerStateConst.Running;
                     
         try
@@ -781,7 +781,7 @@ return LogFactory.GetLog(loggerName);
         }
 
         session.PrevCommand = requestInfo.Key;
-        session.LastActiveTime = DateTime.Now;
+        session.MarkActive();
 
 if (Config.LogCommand && Logger.IsInfoEnabled)
         {

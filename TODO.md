@@ -175,7 +175,9 @@ while (true)
 
 # P1 — 핫패스 성능
 
-## TODO-04: 수신 완료마다 발생하는 Task 2개 + 클로저 할당 제거 (최대 성능 항목)
+## TODO-04: 수신 완료마다 발생하는 Task 2개 + 클로저 할당 제거 (최대 성능 항목) — ✅ 완료 (2026-08-12)
+
+`ServerConfig.ReceiveInlineOnIocpThread`(기본 true) 옵션까지 구현. `IAsyncSocketSession`에 같은 이름의 프로퍼티를 추가해 프록시의 static 핸들러가 세션별 설정을 읽는다. else 분기의 throw는 로그로 대체.
 
 **문제**
 
@@ -224,7 +226,12 @@ socketSession.AsyncRun(() => socketSession.ProcessReceive(e));
 
 ---
 
-## TODO-05: `ChannelSendingQueue` 락 제거 + Drain 리스트 재사용
+## TODO-05: `ChannelSendingQueue` 락 제거 + Drain 리스트 재사용 — ✅ 완료 (2026-08-12)
+
+**동작 변경 2건 (사용자 영향)**
+
+1. `SendingQueueSize`가 이제 **세그먼트 수가 아니라 대기 중인 "전송 요청" 수**를 센다. 다중 세그먼트 `Send(IList<ArraySegment<byte>>)`는 슬롯 1개만 차지한다 (원자적 enqueue를 락 없이 보장하기 위함).
+2. `SendItem`은 호출자의 `IList`를 **복사해서** 보관한다. TODO 원안(리스트 참조 보관)대로 하면 enqueue 직후 호출자가 리스트를 재사용할 때 데이터가 깨지므로, 세그먼트 배열 1개를 복사하는 쪽을 택했다 (다중 세그먼트 송신은 핫패스가 아님). byte[] 자체는 여전히 공유 — 기존 zero-copy 주의사항 그대로.
 
 **문제** (`Common/ChannelSendingQueue.cs`)
 
@@ -267,7 +274,7 @@ socketSession.AsyncRun(() => socketSession.ProcessReceive(e));
 
 ---
 
-## TODO-06: 송신 완료 경로의 LINQ 제거
+## TODO-06: 송신 완료 경로의 LINQ 제거 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -289,7 +296,13 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-07: `DateTime.Now` → `DateTime.UtcNow` / `Environment.TickCount64`
+## TODO-07: `DateTime.Now` → `DateTime.UtcNow` / `Environment.TickCount64` — ✅ 완료 (2026-08-12)
+
+**동작 변경 (사용자 영향)**
+
+- `AppSession.StartTime`, `AppSession.LastActiveTime`, `AppServerBase.StartedTime`이 **로컬 시간에서 UTC로** 바뀌었다. 이 값을 화면/로그에 그대로 찍는 앱 코드는 `.ToLocalTime()`을 붙여야 한다.
+- `LastActiveTime`은 내부 tick 스탬프(`Environment.TickCount64`)에서 역산하므로 수 ms 오차가 있다. 유휴 판정(`ClearIdleSession`)은 프로퍼티를 거치지 않고 `LastActiveTimeTicks`를 직접 비교하므로 벽시계 조정(DST/NTP)의 영향을 받지 않는다.
+- 핫패스(Send 성공, `ExecuteCommand`)는 `internal AppSession.MarkActive()`만 호출한다. 라이브러리 내 `DateTime.Now` 사용처는 0건.
 
 **문제**
 

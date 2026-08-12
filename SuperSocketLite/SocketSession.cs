@@ -119,6 +119,12 @@ abstract partial class SocketSession : ISocketSession
 
     private ChannelSendingQueue m_SendQueue = null!;
 
+    // Reused by every StartSend to avoid allocating a List (plus its backing array) per send cycle.
+    // Safe because sending is single-flight per session: StartSend only proceeds after it owns the
+    // InSending flag, and the previous batch is detached from the SocketAsyncEventArgs
+    // (ClearPrevSendState) before OnSendingCompleted can trigger the next drain.
+    private readonly List<ArraySegment<byte>> m_SendBatch = new List<ArraySegment<byte>>();
+
     
     public SocketSession(Socket client)
         : this(Guid.NewGuid().ToString())
@@ -327,15 +333,15 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        var items = m_SendQueue.DrainAvailable();
+        m_SendQueue.DrainAvailable(m_SendBatch);
 
-        if (items.Count == 0)
-        {                
+        if (m_SendBatch.Count == 0)
+        {
             OnSendEnd();
             return;
         }
 
-        Send(items);
+        Send(m_SendBatch);
     }
 
     private void OnSendEnd()

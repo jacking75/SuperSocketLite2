@@ -118,16 +118,44 @@ public string? CurrentCommand { get; set; }
         get { return AppServer.Logger; }
     }
 
+    // The authoritative "last activity" stamp, in Environment.TickCount64 milliseconds.
+    // Reading the monotonic tick counter is far cheaper than DateTime.Now (which additionally does
+    // a time zone conversion) and this is touched on every successful send and every request.
+    private long m_LastActiveTimeTicks;
+
     /// <summary>
-    /// Gets or sets the last active time of the session.
+    /// Gets or sets the last active time of the session, in UTC.
     /// </summary>
     /// <value>
     /// The last active time.
     /// </value>
-    public DateTime LastActiveTime { get; set; }
+    /// <remarks>
+    /// The value is derived from a monotonic tick stamp, so it is accurate to a few milliseconds
+    /// rather than exact. Idle-session detection uses the tick stamp directly and never goes
+    /// through this property.
+    /// </remarks>
+    public DateTime LastActiveTime
+    {
+        get { return DateTime.UtcNow.AddMilliseconds(m_LastActiveTimeTicks - Environment.TickCount64); }
+        set { m_LastActiveTimeTicks = Environment.TickCount64 - (long)(DateTime.UtcNow - value.ToUniversalTime()).TotalMilliseconds; }
+    }
 
     /// <summary>
-    /// Gets the start time of the session.
+    /// Gets the tick stamp (<see cref="Environment.TickCount64"/>) of the last activity on this session.
+    /// </summary>
+    internal long LastActiveTimeTicks => Volatile.Read(ref m_LastActiveTimeTicks);
+
+    /// <summary>
+    /// Stamps the session as active right now. This is the hot-path form of
+    /// setting <see cref="LastActiveTime"/>.
+    /// </summary>
+    internal void MarkActive()
+    {
+        Volatile.Write(ref m_LastActiveTimeTicks, Environment.TickCount64);
+    }
+
+    /// <summary>
+    /// Gets the start time of the session, in UTC.
     /// </summary>
     public DateTime StartTime { get; private set; }
 
@@ -160,8 +188,8 @@ public string? CurrentCommand { get; set; }
     /// </summary>
     public AppSession()
     {
-        this.StartTime = DateTime.Now;
-        this.LastActiveTime = this.StartTime;
+        this.StartTime = DateTime.UtcNow;
+        MarkActive();
     }
 
 
@@ -334,7 +362,7 @@ public string? CurrentCommand { get; set; }
         if (!SocketSession.TrySend(segment))
             return false;
 
-        LastActiveTime = DateTime.Now;
+        MarkActive();
         return true;
     }
 
@@ -368,7 +396,7 @@ public string? CurrentCommand { get; set; }
             throw new TimeoutException("The sending attempt timed out");
         }
 
-        var timeOutTime = sendTimeOut > 0 ? DateTime.Now.AddMilliseconds(sendTimeOut) : DateTime.Now;
+        var deadline = Environment.TickCount64 + sendTimeOut;
 
         var spinWait = new SpinWait();
 
@@ -380,7 +408,7 @@ public string? CurrentCommand { get; set; }
                 return;
 
             //If sendTimeOut = 0, don't have timeout check
-            if (sendTimeOut > 0 && DateTime.Now >= timeOutTime)
+            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
             {
                 throw new TimeoutException("The sending attempt timed out");
             }
@@ -401,7 +429,7 @@ public string? CurrentCommand { get; set; }
         if (!SocketSession.TrySend(segments))
             return false;
 
-        LastActiveTime = DateTime.Now;
+        MarkActive();
         return true;
     }
 
@@ -434,7 +462,7 @@ public string? CurrentCommand { get; set; }
             throw new TimeoutException("The sending attempt timed out");
         }
 
-        var timeOutTime = sendTimeOut > 0 ? DateTime.Now.AddMilliseconds(sendTimeOut) : DateTime.Now;
+        var deadline = Environment.TickCount64 + sendTimeOut;
 
         var spinWait = new SpinWait();
 
@@ -446,7 +474,7 @@ public string? CurrentCommand { get; set; }
                 return;
 
             //If sendTimeOut = 0, don't have timeout check
-            if (sendTimeOut > 0 && DateTime.Now >= timeOutTime)
+            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
             {
                 throw new TimeoutException("The sending attempt timed out");
             }

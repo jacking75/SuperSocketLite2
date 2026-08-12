@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO.Pipelines;
-using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
 
 namespace SuperSocketLite.SocketEngine;
@@ -16,6 +16,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     private bool m_IsReset;
     private bool m_SendSAEAFromPool;
     private SocketAsyncEventArgs? m_SocketEventArgSend;
+    private bool m_ReceiveInlineOnIocpThread = true;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy)
         : this(client, socketAsyncProxy, null, false)
@@ -45,9 +46,13 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     public SocketAsyncEventArgs? SendSAEA => m_SocketEventArgSend;
 
+    public bool ReceiveInlineOnIocpThread => m_ReceiveInlineOnIocpThread;
+
     public override void Initialize(IAppSession appSession)
     {
         base.Initialize(appSession);
+
+        m_ReceiveInlineOnIocpThread = (Config as ServerConfig)?.ReceiveInlineOnIocpThread ?? true;
 
         //Initialize SocketAsyncProxy for receiving
         SocketAsyncProxy.Initialize(this);
@@ -105,12 +110,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             return;
         }
 
-        var count = queue!.Sum(q => q.Count);
+        AppSession?.AppServer.RecordBytesSent(e.BytesTransferred);
+
+        var count = SumSegments(queue);
 
         if (count != e.BytesTransferred)
         {
             queue = TrimSegments(queue, e.BytesTransferred);
-            AppSession.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {queue.Sum(q => q.Count)} bytes right now.");
+            AppSession?.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {SumSegments(queue)} bytes right now.");
             ClearPrevSendState(e);
             SendAsync(queue);
             return;
@@ -118,6 +125,20 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         ClearPrevSendState(e);
         base.OnSendingCompleted(queue);
+    }
+
+    /// <summary>
+    /// Sums the segment lengths without allocating a delegate or an enumerator; this runs on every
+    /// asynchronous send completion.
+    /// </summary>
+    private static int SumSegments(IList<ArraySegment<byte>> segments)
+    {
+        var total = 0;
+
+        for (var i = 0; i < segments.Count; i++)
+            total += segments[i].Count;
+
+        return total;
     }
 
     private void ClearPrevSendState(SocketAsyncEventArgs e)
@@ -210,6 +231,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                         throw new SocketException((int)SocketError.ConnectionReset);
 
                     sentTotal += sent;
+                    AppSession?.AppServer.RecordBytesSent(sent);
 
                     client = Client;
 

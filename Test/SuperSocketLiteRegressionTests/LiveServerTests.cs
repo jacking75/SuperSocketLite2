@@ -155,7 +155,114 @@ static class LiveServerTests
             }
 
             writer.GetAwaiter().GetResult();
+
+            // TODO-06: sent bytes used to be recorded nowhere at all.
+            var expectedBytes = (long)packetCount * (LiveEchoReceiveFilter.PacketHeaderSize + bodySize);
+
+            WaitFor(
+                () => server.TotalBytesSent >= expectedBytes,
+                $"the server should report {expectedBytes} sent bytes, reported {server.TotalBytesSent}");
+
+            Assert.Equal(expectedBytes, server.TotalBytesSent, "sent-byte metric should count each echoed packet exactly once");
+            Assert.Equal(expectedBytes, server.TotalBytesReceived, "received-byte metric should count each request exactly once");
         });
+    }
+
+    /// <summary>
+    /// TODO-04: receives are now processed inline on the IOCP completion thread. The opt-out
+    /// (ServerConfig.ReceiveInlineOnIocpThread = false) must keep working.
+    /// </summary>
+    public static void EchoWorksWithIocpInliningDisabled()
+    {
+        const int packetCount = 200;
+        const int bodySize = 64;
+
+        var config = CreateConfig("inline-off-test");
+        config.ReceiveInlineOnIocpThread = false;
+        config.MaxRequestLength = 1024 * 1024;
+
+        Assert.True(new ServerConfig().ReceiveInlineOnIocpThread, "inlining should be the default");
+
+        RunWithServer(config, (server, port) =>
+        {
+            using var client = new TcpClient();
+            client.NoDelay = true;
+            client.Connect(IPAddress.Loopback, port);
+
+            var stream = client.GetStream();
+            stream.ReadTimeout = 30000;
+            stream.WriteTimeout = 30000;
+
+            var header = new byte[LiveEchoReceiveFilter.PacketHeaderSize];
+            var body = new byte[bodySize];
+
+            for (var i = 0; i < packetCount; i++)
+            {
+                stream.Write(BuildPacket(i, bodySize));
+                ReadExactly(stream, header, header.Length);
+                ReadExactly(stream, body, bodySize);
+
+                Assert.Equal(i, BinaryPrimitives.ReadInt32LittleEndian(body), $"echoed packet {i} should keep its order");
+            }
+        });
+    }
+
+    /// <summary>
+    /// TODO-07: idle detection moved from DateTime.Now comparisons to Environment.TickCount64.
+    /// </summary>
+    public static void IdleSessionsAreClosedByTheClearIdleSessionTimer()
+    {
+        var config = CreateConfig("idle-timeout-test");
+        config.ClearIdleSession = true;
+        config.ClearIdleSessionInterval = 1;
+        config.IdleSessionTimeOut = 1;
+
+        RunWithServer(config, (server, port) =>
+        {
+            using var client = new TcpClient();
+            client.Connect(IPAddress.Loopback, port);
+
+            var session = WaitForSession(server);
+
+            // The session never sends or receives anything, so the timer must reap it.
+            WaitFor(
+                () => !session.Connected,
+                "an idle session should be closed by the ClearIdleSession timer",
+                timeoutMs: 15000);
+        });
+    }
+
+    /// <summary>
+    /// TODO-07: LastActiveTime is now derived from a monotonic tick stamp; it must still behave
+    /// like a UTC timestamp for both reads and writes.
+    /// </summary>
+    public static void LastActiveTimeRoundTripsThroughTheTickStamp()
+    {
+        var session = new LiveEchoSession();
+
+        // MarkActive is internal to the library; it is the hot-path stamp used by Send and
+        // ExecuteCommand, so drive it directly.
+        var markActive = typeof(LiveEchoSession).GetMethod("MarkActive", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.True(markActive != null, "AppSession should expose an internal MarkActive hot-path stamp");
+
+        var beforeMark = DateTime.UtcNow;
+        markActive!.Invoke(session, Array.Empty<object>());
+        var afterMark = DateTime.UtcNow;
+
+        var lastActive = session.LastActiveTime;
+
+        Assert.Equal(DateTimeKind.Utc, lastActive.Kind, "LastActiveTime should be expressed in UTC");
+        Assert.True(
+            lastActive >= beforeMark.AddMilliseconds(-50) && lastActive <= afterMark.AddMilliseconds(50),
+            $"MarkActive should stamp the current time, got {lastActive:O} outside [{beforeMark:O}, {afterMark:O}]");
+
+        var target = DateTime.UtcNow.AddSeconds(-30);
+        session.LastActiveTime = target;
+
+        var delta = Math.Abs((session.LastActiveTime - target).TotalMilliseconds);
+        Assert.True(delta <= 50, $"an assigned LastActiveTime should round-trip within 50ms, drifted {delta}ms");
+
+        Assert.True(session.StartTime.Kind == DateTimeKind.Utc, "StartTime should be expressed in UTC");
     }
 
     /// <summary>
@@ -229,6 +336,22 @@ static class LiveServerTests
         {
             server.Stop();
         }
+    }
+
+    private static void WaitFor(Func<bool> condition, string message, int timeoutMs = 5000)
+    {
+        var timer = Stopwatch.StartNew();
+
+        while (timer.ElapsedMilliseconds < timeoutMs)
+        {
+            if (condition())
+                return;
+
+            Thread.Sleep(10);
+        }
+
+        if (!condition())
+            throw new InvalidOperationException(message);
     }
 
     private static LiveEchoSession WaitForSession(LiveEchoServer server)

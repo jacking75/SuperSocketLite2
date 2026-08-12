@@ -19,7 +19,11 @@ var tests = new (string Name, Action Test)[]
     ("FixedHeaderSequenceReceiveFilter preserves fragmented byte-array requests", FixedHeaderSequenceReceiveFilterPreservesFragmentedByteArrayRequest),
     ("AppSession pipe parser exposes consumed and examined positions", AppSessionPipeParserExposesConsumedAndExaminedPositions),
     ("Legacy fixed-size and fixed-header filters opt in to sequence receive path", LegacyFiltersOptInToSequenceReceivePath),
-    ("SocketSession stores receive processing task for lifecycle observation", SocketSessionStoresReceiveProcessingTask)
+    ("SocketSession stores receive processing task for lifecycle observation", SocketSessionStoresReceiveProcessingTask),
+    ("TCP keep-alive options are applied to accepted sockets", LiveServerTests.KeepAliveOptionsAreAppliedToAcceptedSockets),
+    ("UDP listener starts without the Windows-only SIO_UDP_CONNRESET ioctl", LiveServerTests.UdpListenerStartsOnEveryPlatform),
+    ("SendSync releases InSending when the socket was dropped by another thread", LiveServerTests.SendSyncClearsInSendingWhenSocketIsAlreadyGone),
+    ("Loopback echo survives a synchronous-completion burst without recursing", LiveServerTests.LoopbackEchoSurvivesSynchronousCompletionBurst)
 };
 
 var failures = 0;

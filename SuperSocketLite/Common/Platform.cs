@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net.Sockets;
 
 
 namespace SuperSocketLite.Common;
@@ -11,26 +10,11 @@ public static class Platform
 {
     static Platform()
     {
-        try
-        {
-            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-#if WINDOWS
-            socket.IOControl(IOControlCode.KeepAliveValues, null, null);
-#endif
-            SupportSocketIOControlByCodeEnum = true;
-        }
-        catch (NotSupportedException)
-        {
-            SupportSocketIOControlByCodeEnum = false;
-        }
-        catch (NotImplementedException)
-        {
-            SupportSocketIOControlByCodeEnum = false;
-        }
-        catch (Exception)
-        {
-            SupportSocketIOControlByCodeEnum = true;
-        }
+#pragma warning disable CS0618 // the property is kept for binary compatibility only
+        //IOControlCode based probing is Windows-only; on every other platform the raw ioctl
+        //throws at call time rather than here.
+        SupportSocketIOControlByCodeEnum = OperatingSystem.IsWindows();
+#pragma warning restore CS0618
 
         Type? t = Type.GetType("Mono.Runtime");
         IsMono = t != null;
@@ -42,6 +26,7 @@ public static class Platform
     /// <value>
     /// 	<c>true</c> if [support socket IO control by code enum]; otherwise, <c>false</c>.
     /// </value>
+    [Obsolete("The library no longer uses IOControl for socket configuration. Use OperatingSystem.IsWindows() if a Windows-only ioctl is needed.")]
     public static bool SupportSocketIOControlByCodeEnum { get; private set; }
 
     /// <summary>

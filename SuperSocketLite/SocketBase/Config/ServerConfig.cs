@@ -75,6 +75,12 @@ public partial class ServerConfig : IServerConfig
 
 
     /// <summary>
+    /// The default keep alive retry count
+    /// </summary>
+    public const int DefaultKeepAliveRetryCount = 5;
+
+
+    /// <summary>
     /// The default listen backlog
     /// </summary>
     public const int DefaultListenBacklog = 100;
@@ -254,6 +260,17 @@ public partial class ServerConfig : IServerConfig
     /// Gets/sets the keep alive interval, in seconds.
     /// </summary>
     public int KeepAliveInterval { get; set; }
+
+    /// <summary>
+    /// Gets/sets how many unacknowledged keep-alive probes are sent before the connection is
+    /// considered dead. 0 or less leaves the OS default in place.
+    /// </summary>
+    /// <remarks>
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>,
+    /// so custom <see cref="IServerConfig"/> implementations fall back to
+    /// <see cref="DefaultKeepAliveRetryCount"/>.
+    /// </remarks>
+    public int KeepAliveRetryCount { get; set; } = DefaultKeepAliveRetryCount;
 
     /// <summary>
     /// Gets the backlog size of socket listening.

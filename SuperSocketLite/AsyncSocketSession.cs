@@ -139,21 +139,40 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     /// Asks the PipeWriter for a Memory&lt;byte&gt; segment, assigns it to the SAEA, and posts a ReceiveAsync.
     /// No buffer offset tracking needed ??the Pipe manages unconsumed data automatically.
     /// </summary>
+    /// <remarks>
+    /// Synchronous completions are drained in a loop rather than by calling back into
+    /// <see cref="ProcessReceive"/>. A socket whose receive buffer is always ready (typically a
+    /// loopback connection under load) would otherwise build an unbounded StartReceive /
+    /// ProcessReceive recursion and overflow the stack.
+    /// </remarks>
     private void StartReceive()
     {
         var e = SocketAsyncProxy.SocketEventArgs;
 
         try
         {
-            var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
-            e.SetBuffer(memory);   // .NET 5+ Memory<byte> overload
+            while (true)
+            {
+                var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
+                e.SetBuffer(memory);   // .NET 5+ Memory<byte> overload
 
-            if (!OnReceiveStarted())
-                return;
+                if (!OnReceiveStarted())
+                    return;
 
-            bool willRaiseEvent = Client!.ReceiveAsync(e);
-            if (!willRaiseEvent)
-                ProcessReceive(e);
+                var client = Client;
+
+                if (client == null)
+                {
+                    OnReceiveTerminated(CloseReason.SocketError);
+                    return;
+                }
+
+                if (client.ReceiveAsync(e))
+                    return;   // completing asynchronously, the Completed event calls ProcessReceive
+
+                if (!ProcessReceiveCore(e))
+                    return;   // terminated, or the pending flush will restart receiving
+            }
         }
         catch (Exception exc)
         {
@@ -172,8 +191,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
                 var client = Client;
 
+                //Another thread closed the socket underneath us. Bailing out without ending the
+                //send would leave the InSending flag set forever, which blocks the Closed event
+                //and leaks the session's pooled SocketAsyncEventArgs.
                 if (client == null)
+                {
+                    OnSendError(queue, CloseReason.SocketError);
                     return;
+                }
 
                 var sentTotal = 0;
 
@@ -189,7 +214,10 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                     client = Client;
 
                     if (client == null)
+                    {
+                        OnSendError(queue, CloseReason.SocketError);
                         return;
+                    }
                 }
             }
 
@@ -269,11 +297,26 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         return result;
     }
 
-/// <summary>
+    /// <summary>
     /// Called by the IOCP completion thread when a ReceiveAsync completes.
     /// Advances the PipeWriter and schedules the next receive ??no AppSession call here.
+    /// This entry point always runs on a fresh stack, so restarting the receive here cannot recurse.
     /// </summary>
     public void ProcessReceive(SocketAsyncEventArgs e)
+    {
+        if (ProcessReceiveCore(e))
+            StartReceive();
+    }
+
+    /// <summary>
+    /// Handles one completed receive without posting the next one.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> when the caller should post the next receive; <c>false</c> when receiving has
+    /// been terminated or when a pending flush will restart it through
+    /// <see cref="FlushPipeAndStartReceiveAsync"/>.
+    /// </returns>
+    private bool ProcessReceiveCore(SocketAsyncEventArgs e)
     {
         if (!ProcessCompleted(e))
         {
@@ -281,7 +324,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             OnReceiveTerminated(e.SocketError == SocketError.Success
                 ? CloseReason.ClientClosing
                 : CloseReason.SocketError);
-            return;
+            return false;
         }
 
         OnReceiveEnded();
@@ -293,15 +336,11 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         var flushTask = _pipeWriter.FlushAsync();
 
         if (flushTask.IsCompletedSuccessfully)
-        {
-            if (ShouldContinueReceive(flushTask.GetAwaiter().GetResult()))
-                StartReceive();
-        }
-        else
-        {
-            _ = FlushPipeAndStartReceiveAsync(flushTask);
-        }
-}
+            return ShouldContinueReceive(flushTask.GetAwaiter().GetResult());
+
+        _ = FlushPipeAndStartReceiveAsync(flushTask);
+        return false;
+    }
 
     private async Task FlushPipeAndStartReceiveAsync(ValueTask<FlushResult> flushTask)
     {

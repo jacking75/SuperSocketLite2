@@ -1,35 +1,37 @@
 ﻿using System;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using SuperSocketLite.Common;
+using System.Threading;
 using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Config;
 
 
 namespace SuperSocketLite.SocketEngine;
 
 abstract class TcpSocketServerBase : SocketServerBase
 {
-    private readonly byte[] m_KeepAliveOptionValues;
-    private readonly byte[] m_KeepAliveOptionOutValues;
     private readonly int m_SendTimeOut;
     private readonly int m_ReceiveBufferSize;
     private readonly int m_SendBufferSize;
     private readonly bool m_NoDelay;
+    private readonly int m_KeepAliveTime;
+    private readonly int m_KeepAliveInterval;
+    private readonly int m_KeepAliveRetryCount;
+
+    //Bit i is set once the i-th keep-alive option has failed, so an unsupported option is logged
+    //once per server instead of once per accepted connection.
+    private int m_LoggedKeepAliveFailures;
 
     public TcpSocketServerBase(IAppServer appServer, ListenerInfo[] listeners)
         : base(appServer, listeners)
     {
         var config = appServer.Config;
 
-        uint dummy = 0;
-        m_KeepAliveOptionValues = new byte[Marshal.SizeOf(dummy) * 3];
-        m_KeepAliveOptionOutValues = new byte[m_KeepAliveOptionValues.Length];
-        //whether enable KeepAlive
-        BitConverter.GetBytes((uint)1).CopyTo(m_KeepAliveOptionValues, 0);
-        //how long will start first keep alive
-        BitConverter.GetBytes((uint)(config.KeepAliveTime * 1000)).CopyTo(m_KeepAliveOptionValues, Marshal.SizeOf(dummy));
-        //keep alive interval
-        BitConverter.GetBytes((uint)(config.KeepAliveInterval * 1000)).CopyTo(m_KeepAliveOptionValues, Marshal.SizeOf(dummy) * 2);
+        m_KeepAliveTime = config.KeepAliveTime;
+        m_KeepAliveInterval = config.KeepAliveInterval;
+
+        //KeepAliveRetryCount only exists on ServerConfig (IServerConfig is kept unchanged for
+        //backward compatibility), so custom config implementations get the default.
+        m_KeepAliveRetryCount = (config as ServerConfig)?.KeepAliveRetryCount ?? ServerConfig.DefaultKeepAliveRetryCount;
 
         m_SendTimeOut = config.SendTimeOut;
         m_ReceiveBufferSize = config.ReceiveBufferSize;
@@ -49,22 +51,67 @@ abstract class TcpSocketServerBase : SocketServerBase
         if (m_SendBufferSize > 0)
             client.SendBufferSize = m_SendBufferSize;
 
-        if (!Platform.SupportSocketIOControlByCodeEnum)
-        {
-            client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, m_KeepAliveOptionValues);
-        }
-        else
-        {
-#if WINDOWS
-            client.IOControl(IOControlCode.KeepAliveValues, m_KeepAliveOptionValues, m_KeepAliveOptionOutValues);
-#endif
-        }
+        ApplyKeepAlive(client);
 
         client.NoDelay = m_NoDelay;
         client.LingerState = new LingerOption(enable:false, seconds:0); // socket 종료하면 즉시 제거한다.
         //client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true); //닷넷코어에서 사용 불가
 
         return this.AppServer.CreateAppSession(session);
+    }
+
+    /// <summary>
+    /// Enables TCP keep-alive with the configured timings using the cross platform socket options
+    /// available since .NET Core 3.0. Every option is applied independently: a platform that
+    /// doesn't support one of them must not prevent the session from being created.
+    /// </summary>
+    private void ApplyKeepAlive(Socket client)
+    {
+        TrySetSocketOption(client, SocketOptionLevel.Socket, SocketOptionName.KeepAlive, 1, 0);
+
+        //The TCP level options are expressed in seconds, same unit as the config values.
+        if (m_KeepAliveTime > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, m_KeepAliveTime, 1);
+
+        if (m_KeepAliveInterval > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, m_KeepAliveInterval, 2);
+
+        if (m_KeepAliveRetryCount > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, m_KeepAliveRetryCount, 3);
+    }
+
+    private void TrySetSocketOption(Socket client, SocketOptionLevel level, SocketOptionName name, int value, int failureLogBit)
+    {
+        try
+        {
+            client.SetSocketOption(level, name, value);
+        }
+        catch (Exception e)
+        {
+            if (!TryMarkKeepAliveFailureLogged(failureLogBit))
+                return;
+
+            var logger = AppServer.Logger;
+
+            if (logger != null && logger.IsWarnEnabled)
+                logger.Warn($"Failed to apply the socket option {name}, keep-alive detection may not work as configured: {e.Message}");
+        }
+    }
+
+    private bool TryMarkKeepAliveFailureLogged(int failureLogBit)
+    {
+        var mask = 1 << failureLogBit;
+
+        while (true)
+        {
+            var oldValue = m_LoggedKeepAliveFailures;
+
+            if ((oldValue & mask) == mask)
+                return false;
+
+            if (Interlocked.CompareExchange(ref m_LoggedKeepAliveFailures, oldValue | mask, oldValue) == oldValue)
+                return true;
+        }
     }
 
     protected override ISocketListener CreateListener(ListenerInfo listenerInfo)

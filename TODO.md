@@ -25,7 +25,7 @@
 
 # P0 — 버그 수정 (안정성, 최우선)
 
-## TODO-01: TCP KeepAlive가 어떤 플랫폼에서도 적용되지 않는 문제 수정
+## TODO-01: TCP KeepAlive가 어떤 플랫폼에서도 적용되지 않는 문제 수정 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -56,9 +56,13 @@
 - Windows에서 서버 기동 → 클라이언트 접속 후 `netsh interface tcp` 또는 Wireshark로 keep-alive 프로브 확인. 간단하게는 회귀 테스트에 "접속된 Socket의 `GetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime)` 값 확인" 테스트 추가.
 - (가능하면) WSL/Linux에서 UDP 서버(`Tutorials` 또는 LoadTest UDP 시나리오) Start 성공 확인.
 
+**부수 수정 (UDP 테스트 작성 중 발견)**
+
+`UdpSocketListener.Stop()`이 소켓 Close 직후 `receiveSAE.SetBuffer(null, 0, 0)`를 호출하는데, 중단된 ReceiveFrom 완료 통지가 아직 도착하지 않았으면 `InvalidOperationException`이 Stop() 밖으로 던져진다. 게다가 기존 코드는 `SetBuffer`보다 **먼저** `ArrayPool.Return`을 호출해서, 커널이 아직 쓰고 있을 수 있는 버퍼를 풀에 돌려주는 위험이 있었다. → 순서를 뒤집고(detach 성공 시에만 반환) try/catch로 감쌌다.
+
 ---
 
-## TODO-02: `SendSync`의 client == null 경로에서 InSending 플래그 누수 → 세션 좀비화
+## TODO-02: `SendSync`의 client == null 경로에서 InSending 플래그 누수 → 세션 좀비화 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -81,7 +85,7 @@
 
 ---
 
-## TODO-03: 동기 완료(synchronous completion) 재귀로 인한 스택 오버플로 위험 제거
+## TODO-03: 동기 완료(synchronous completion) 재귀로 인한 스택 오버플로 위험 제거 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -146,6 +150,26 @@ while (true)
 
 - LoadTest의 EchoBinary 시나리오를 localhost(동기 완료가 가장 잘 발생하는 환경)에서 고부하로 실행하여 StackOverflow 없이 완주 확인.
 - 기존 회귀 테스트 전체 통과.
+
+---
+
+## TODO-19: sequence 수신 경로의 `MaxRequestLength` 오판정 (TODO-03 검증 중 발견, 미수정)
+
+**문제**
+
+`AppSession.ProcessSequenceRequest`(`AppSession.cs:719-729`)가 `sequence.Length >= maxRequestLength`로 검사한다. 여기서 `sequence`는 **PipeReader가 넘겨준 미소비 버퍼 전체**이지 현재 파싱 중인 부분 요청이 아니다.
+
+클라이언트가 요청을 파이프라이닝해서 서버의 소비 속도보다 빠르게 보내면 Pipe에 데이터가 쌓이다가 pauseWriterThreshold(기본 64KB)에 도달하고, 개별 요청은 전부 정상 크기인데도 `Close(CloseReason.ProtocolError)`로 접속이 끊긴다.
+
+재현: `Test/SuperSocketLiteRegressionTests`의 "Loopback echo survives a synchronous-completion burst" 테스트에서 `MaxRequestLength = 4096`, 244바이트 패킷 4000개를 연속 전송하면 서버 로그에 `Max request length: 4096, current processed length: 65582`가 찍히고 RST. (HEAD 기준으로도 동일하게 재현 — TODO-03 변경과 무관한 기존 버그)
+
+현재 회귀 테스트는 이 제한에 걸리지 않도록 `MaxRequestLength`를 1MB로 올려 두었다. 수정 후에는 4096으로 되돌려 검증할 것.
+
+**구현 방향**
+
+- 검사 대상을 "현재 미완성 요청의 누적 길이"로 바꾼다. sequence 필터가 불완전 반환 시 `consumed == buffer.Start`이므로, `AdvanceTo` 이후 남는 길이(= 다음 호출의 `sequence.Length` 중 아직 파싱 못한 부분)를 필터의 `LeftBufferSize`로 관리하고 그 값으로 판정.
+- 또는 필터 루프를 돌린 뒤 남은(미소비) 길이로 판정하도록 검사 위치를 파싱 **후**로 옮긴다.
+- TODO-11(나머지 필터의 sequence 구현), TODO-13(pauseWriterThreshold 노출)과 함께 설계하는 것이 좋다.
 
 ---
 

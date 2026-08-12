@@ -54,8 +54,11 @@ abstract class TcpSocketServerBase : SocketServerBase
         ApplyKeepAlive(client);
 
         client.NoDelay = m_NoDelay;
-        client.LingerState = new LingerOption(enable:false, seconds:0); // socket 종료하면 즉시 제거한다.
-        //client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontLinger, true); //닷넷코어에서 사용 불가
+        // enable:false = SO_LINGER off, i.e. the default graceful close: Close() returns immediately
+        // and the OS keeps draining the send buffer in the background. (An abortive RST close would
+        // be LingerOption(enable:true, seconds:0) - deliberately NOT used, it would discard data
+        // still queued for the client.)
+        client.LingerState = new LingerOption(enable: false, seconds: 0);
 
         return this.AppServer.CreateAppSession(session);
     }

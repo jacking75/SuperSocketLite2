@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
@@ -29,7 +30,19 @@ var tests = new (string Name, Action Test)[]
     ("Loopback echo survives a synchronous-completion burst without recursing", LiveServerTests.LoopbackEchoSurvivesSynchronousCompletionBurst),
     ("Echo still works with IOCP-thread receive inlining disabled", LiveServerTests.EchoWorksWithIocpInliningDisabled),
     ("Idle sessions are closed by the tick-based ClearIdleSession timer", LiveServerTests.IdleSessionsAreClosedByTheClearIdleSessionTimer),
-    ("LastActiveTime round-trips through the monotonic tick stamp", LiveServerTests.LastActiveTimeRoundTripsThroughTheTickStamp)
+    ("LastActiveTime round-trips through the monotonic tick stamp", LiveServerTests.LastActiveTimeRoundTripsThroughTheTickStamp),
+    ("Copy-on-send is unaffected by immediate caller buffer reuse", LiveServerTests.CopyOnSendIsUnaffectedByCallerBufferReuse),
+    ("Awaitable SendAsync delivers every packet through a size-1 queue", LiveServerTests.AwaitableSendDeliversEveryPacket),
+    ("StopAsync drains the queued sends before closing the sessions", LiveServerTests.StopAsyncDrainsQueuedSends),
+    ("A single request larger than MaxRequestLength is still rejected", LiveServerTests.OversizedSingleRequestIsStillRejected),
+    ("SyncSessionConnectedEvent orders the connected handler before the first request", LiveServerTests.SyncSessionConnectedEventOrdersBeforeFirstRequest),
+    ("Connections refused by the connection limit are counted", LiveServerTests.RejectedSessionsAreCounted),
+    ("TerminatorReceiveFilter parses a multi-segment sequence", FilterAndQueueTests.TerminatorFilterParsesMultiSegmentSequence),
+    ("BeginEndMarkReceiveFilter parses a multi-segment sequence", FilterAndQueueTests.BeginEndMarkFilterParsesMultiSegmentSequence),
+    ("CountSpliterReceiveFilter parses a multi-segment sequence", FilterAndQueueTests.CountSpliterFilterParsesMultiSegmentSequence),
+    ("Send queue EnqueueAsync waits for space and resumes after a drain", FilterAndQueueTests.SendQueueEnqueueAsyncWaitsForSpace),
+    ("Send queue EnqueueAsync unblocks on Complete and on cancellation", FilterAndQueueTests.SendQueueEnqueueAsyncUnblocksOnCompleteAndCancel),
+    ("ReuseLockBaseBuffer handles commit boundaries", FilterAndQueueTests.ReuseLockBaseBufferHandlesCommitBoundaries)
 };
 
 var failures = 0;
@@ -397,7 +410,7 @@ sealed class SendingQueueAccessor
     private static readonly Type s_QueueType = Type.GetType("SuperSocketLite.Common.ChannelSendingQueue, SuperSocketLite", throwOnError: true)!;
     private static readonly MethodInfo s_TryEnqueueSegment = s_QueueType.GetMethod("TryEnqueue", new[] { typeof(ArraySegment<byte>) })!;
     private static readonly MethodInfo s_TryEnqueueList = s_QueueType.GetMethod("TryEnqueue", new[] { typeof(IList<ArraySegment<byte>>) })!;
-    private static readonly MethodInfo s_DrainAvailable = s_QueueType.GetMethod("DrainAvailable", new[] { typeof(List<ArraySegment<byte>>) })!;
+    private static readonly MethodInfo s_DrainAvailable = s_QueueType.GetMethod("DrainAvailable", new[] { typeof(List<ArraySegment<byte>>), typeof(List<byte[]>) })!;
     private static readonly MethodInfo s_Complete = s_QueueType.GetMethod("Complete", Type.EmptyTypes)!;
     private static readonly PropertyInfo s_CountProperty = s_QueueType.GetProperty("Count")!;
 
@@ -426,9 +439,24 @@ sealed class SendingQueueAccessor
 
     public bool TryEnqueue(IList<ArraySegment<byte>> segments) => (bool)s_TryEnqueueList.Invoke(m_Queue, new object[] { segments })!;
 
-    public void DrainAvailable(List<ArraySegment<byte>> into) => s_DrainAvailable.Invoke(m_Queue, new object[] { into });
+    /// <summary>Pooled backing arrays reported by the last drain.</summary>
+    public List<byte[]> PooledBuffers { get; } = new List<byte[]>();
+
+    public void DrainAvailable(List<ArraySegment<byte>> into) => s_DrainAvailable.Invoke(m_Queue, new object[] { into, PooledBuffers });
 
     public void Complete() => s_Complete.Invoke(m_Queue, Array.Empty<object>());
+
+    /// <summary>Calls the internal <c>EnqueueAsync(SendItem, CancellationToken)</c>.</summary>
+    public Task<bool> EnqueueAsync(ArraySegment<byte> segment, CancellationToken cancellationToken)
+    {
+        var sendItemType = Type.GetType("SuperSocketLite.Common.SendItem, SuperSocketLite", throwOnError: true)!;
+        var item = Activator.CreateInstance(sendItemType, new object[] { segment })!;
+
+        var method = s_QueueType.GetMethod("EnqueueAsync", new[] { sendItemType, typeof(CancellationToken) })!;
+        var valueTask = method.Invoke(m_Queue, new object[] { item, cancellationToken })!;
+
+        return (Task<bool>)valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, Array.Empty<object>())!;
+    }
 }
 
 sealed class OneByteLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>

@@ -104,7 +104,10 @@ abstract class SocketServerBase : ISocketServer, IDisposable
 
     protected abstract ISocketListener CreateListener(ListenerInfo listenerInfo);
 
-    public virtual void Stop()
+    /// <summary>
+    /// Stops accepting new connections while leaving the existing sessions running.
+    /// </summary>
+    internal void StopListeners()
     {
         IsStopped = true;
 
@@ -116,6 +119,11 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         }
 
         Listeners.Clear();
+    }
+
+    public virtual void Stop()
+    {
+        StopListeners();
 
         IsRunning = false;
     }

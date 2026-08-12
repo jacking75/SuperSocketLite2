@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase.Protocol;
 
@@ -8,7 +9,7 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 /// ReceiveFilter for the protocol that each request has bengin and end mark
 /// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>
+public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
     private readonly SearchMarkState<byte> m_BeginSearchState;
@@ -162,6 +163,63 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     {
         byte[] tempBuffer = buffer.ToArray();
         return Filter(tempBuffer, 0, tempBuffer.Length, toBeCopied, out rest);
+    }
+
+    /// <summary>
+    /// Zero-copy parse straight from the receive pipe.
+    /// </summary>
+    /// <param name="buffer">The received data available from PipeReader.</param>
+    /// <param name="consumed">The position up to which data was consumed.</param>
+    /// <param name="examined">The position up to which data was examined.</param>
+    /// <returns>The parsed request, or null when the request is not complete yet.</returns>
+    /// <remarks>
+    /// As in the byte[] overload the matched request includes both the begin and the end mark, and
+    /// data that does not start with the begin mark puts the filter into
+    /// <see cref="FilterState.Error"/>. This path is only used when the server has no
+    /// RawDataReceived handler registered.
+    /// </remarks>
+    TRequestInfo? ISequenceReceiveFilter<TRequestInfo>.Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    {
+        consumed = buffer.Start;
+        examined = buffer.End;
+
+        var beginMark = m_BeginSearchState.Mark;
+        var comparableLength = (int)Math.Min(buffer.Length, beginMark.Length);
+
+        //The begin mark must sit at the very start of the request; a mismatch is fatal even when
+        //only part of it has arrived.
+        if (!SequenceFilterHelper.StartsWith(buffer, beginMark, comparableLength))
+        {
+            State = FilterState.Error;
+            return NullRequestInfo;
+        }
+
+        if (buffer.Length < beginMark.Length)
+            return NullRequestInfo;
+
+        var reader = new SequenceReader<byte>(buffer);
+        reader.Advance(beginMark.Length);
+
+        var endMark = m_EndSearchState.Mark;
+
+        //ProcessMatchedRequest may reject a match (an end mark that appears inside the body), in
+        //which case the byte[] overload keeps looking for the next one - mirror that here.
+        while (reader.TryReadTo(out ReadOnlySequence<byte> _, endMark, advancePastDelimiter: true))
+        {
+            var requestEnd = reader.Position;
+            var data = SequenceFilterHelper.AsArraySegment(buffer.Slice(buffer.Start, requestEnd));
+            var requestInfo = ProcessMatchedRequest(data.Array!, data.Offset, data.Count);
+
+            if (!ReferenceEquals(requestInfo, NullRequestInfo))
+            {
+                consumed = requestEnd;
+                examined = requestEnd;
+                Reset();
+                return requestInfo;
+            }
+        }
+
+        return NullRequestInfo;
     }
 
     /// <summary>

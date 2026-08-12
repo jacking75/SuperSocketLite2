@@ -1,6 +1,18 @@
 # TODO — 성능·안정성 개선 작업 목록
 
-작성일: 2026-08-12. 이 문서는 다음 세션에서 구현 작업의 기준 문서로 사용한다.
+작성일: 2026-08-12.
+
+> **상태: TODO-01 ~ TODO-19 전부 완료 (2026-08-12).** 아래 본문은 각 항목의 문제 분석과 구현
+> 방침을 남겨 둔 이력 문서다. 완료 항목의 제목에 ✅ 표시가 있고, 사용자에게 영향이 가는 동작
+> 변경은 해당 절에 별도로 적어 두었다.
+>
+> 회귀 테스트는 10개 → 31개로 늘었다: `dotnet run --project Test/SuperSocketLiteRegressionTests -c Release`
+>
+> 남은 것 (필요해지면 신규 TODO로):
+> - `HttpReceiveFilterBase`의 `ISequenceReceiveFilter` 구현 (사용 빈도가 낮아 보류)
+> - LoadTest 기반 before/after 성능 수치 측정 (RPS, p99, Gen0)
+> - `ReuseLockBaseBuffer.Commit`의 압축 조건(`MinumBufferSize < 남은 공간`)이 의도와 반대로
+>   보인다 — 여유가 적을 때가 아니라 많을 때 압축한다. 동작상 손상은 없어 그대로 두었다.
 
 ## 공통 규칙
 
@@ -153,7 +165,7 @@ while (true)
 
 ---
 
-## TODO-19: sequence 수신 경로의 `MaxRequestLength` 오판정 (TODO-03 검증 중 발견, 미수정)
+## TODO-19: sequence 수신 경로의 `MaxRequestLength` 오판정 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -327,7 +339,17 @@ for (var i = 0; i < queue.Count; i++)
 
 # P2 — 기능 추가
 
-## TODO-08: 풀 기반 송신 (copy-on-send) — 송신 버퍼 수명 문제 해결 + 할당 제거
+## TODO-08: 풀 기반 송신 (copy-on-send) — 송신 버퍼 수명 문제 해결 + 할당 제거 — ✅ 완료 (2026-08-12)
+
+**추가 API**: `AppSession.TrySendCopied(ReadOnlySpan<byte>)` / `AppSession.SendCopied(ReadOnlySpan<byte>)`,
+`ISocketSession.TrySendCopied` (default 구현으로 추가 → 인터페이스 하위 호환 유지).
+기존 `TrySend(ReadOnlySpan<byte>)`와 `TrySend(ReadOnlyMemory<byte>)`의 non-array 폴백이 내부적으로
+풀 경로를 타므로 `ToArray()` 할당이 사라졌다.
+
+**풀 반환 시점**: 배치 종료 지점(`OnSendingCompleted(sentItems)` / `OnSendError`)에서만 반환한다.
+세션이 송신 도중 죽으면 그 배치의 배열은 풀에 돌아가지 않고 GC에 맡긴다 — 커널이 아직 읽고 있을 수
+있는 배열을 풀에 돌려주는 것보다 안전하기 때문. 부분 전송 재전송(`TrimSegments`)은 같은 배열의 다른
+구간을 가리킬 뿐이므로 배치 종료 시점 반환이 정확히 안전하다.
 
 **문제**
 
@@ -367,7 +389,7 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-09: `ValueTask` 기반 비동기 송신 API + 백프레셔 (TASK-03 후속)
+## TODO-09: `ValueTask` 기반 비동기 송신 API + 백프레셔 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -413,7 +435,7 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-10: Graceful Shutdown — `StopAsync(TimeSpan drainTimeout)`
+## TODO-10: Graceful Shutdown — `StopAsync(TimeSpan drainTimeout)` — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -444,7 +466,7 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-11: 나머지 ReceiveFilter의 `ISequenceReceiveFilter` 구현 (zero-copy 수신 확대)
+## TODO-11: 나머지 ReceiveFilter의 `ISequenceReceiveFilter` 구현 — ✅ 완료 (2026-08-12, Http 제외)
 
 **문제**
 
@@ -468,7 +490,7 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-12: 메트릭 확장 (구 TASK-06 마무리)
+## TODO-12: 메트릭 확장 (구 TASK-06 마무리) — ✅ 완료 (2026-08-12)
 
 **현재**: total-requests, total-bytes-received/sent(수신만 실동작, TODO-06 참고), active-connections.
 
@@ -492,7 +514,7 @@ for (var i = 0; i < queue.Count; i++)
 
 ---
 
-## TODO-13: 수신 Pipe 백프레셔 임계값 설정 노출
+## TODO-13: 수신 Pipe 백프레셔 임계값 설정 노출 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -518,7 +540,7 @@ for (var i = 0; i < queue.Count; i++)
 
 # P3 — UDP·정리·테스트
 
-## TODO-14: UDP 송신 SAEA 재사용
+## TODO-14: UDP 송신 SAEA 재사용 — ✅ 완료 (2026-08-12)
 
 **문제** (`UdpSocketSession.cs:47-113`)
 
@@ -532,7 +554,13 @@ for (var i = 0; i < queue.Count; i++)
 
 **검증**: LoadTest UdpEcho 시나리오 before/after GC 카운트 비교.
 
-## TODO-15: UDP 수신 경로 개선
+## TODO-15: UDP 수신 경로 개선 — ✅ 완료 (2026-08-12)
+
+**동작 변경**: sessionID 파싱용 필터가 **수신 스레드당 1개 재사용**된다(`Reset()` 후 재사용).
+`UdpRequestInfo` 필터는 데이터그램 간 상태를 갖지 않아야 하고 `CreateFilter`에 넘어온 remote
+endpoint를 캡처해서는 안 된다 — 이 규약을 `cautions.md`에 명시했다.
+outstanding ReceiveFrom은 `min(ProcessorCount, 8)`개로 늘렸고, 데이터그램 처리는
+`Task.Run` 대신 인라인 호출로 바꿔 패킷당 Task+클로저 할당을 없앴다.
 
 **문제**
 
@@ -548,7 +576,7 @@ for (var i = 0; i < queue.Count; i++)
 
 **검증**: LoadTest UdpEcho 처리량 비교. 순서 민감 로직이 없는지 확인 (UDP는 원래 무순서).
 
-## TODO-16: 세션 이벤트 순서 보장 옵션
+## TODO-16: 세션 이벤트 순서 보장 옵션 — ✅ 완료 (2026-08-12)
 
 **문제**
 
@@ -563,7 +591,7 @@ for (var i = 0; i < queue.Count; i++)
 
 **검증**: 회귀 테스트 — 접속 즉시 패킷을 보내는 클라이언트로 이벤트 호출 순서 기록·검증 (옵션 on/off 각각).
 
-## TODO-17: 회귀 테스트 확충
+## TODO-17: 회귀 테스트 확충 — ✅ 완료 (2026-08-12, 10개 → 31개)
 
 현재 10개 테스트(`Test/SuperSocketLiteRegressionTests/Program.cs`)에 추가할 것:
 
@@ -575,7 +603,7 @@ for (var i = 0; i < queue.Count; i++)
 
 장기적으로는 xUnit 프로젝트로 전환을 검토하되, 당장은 기존 커스텀 러너 형식 유지 (일관성).
 
-## TODO-18: 소소한 정리 (한 커밋으로 묶어도 됨)
+## TODO-18: 소소한 정리 — ✅ 완료 (2026-08-12)
 
 1. **`lock (this)` 제거**: `SocketSession.ValidateClosed`(`SocketSession.cs:541`)가 `lock (this)`를 사용 — 이미 존재하는 `SyncRoot` 필드로 교체 (외부 코드가 세션 객체를 lock하면 데드락 가능한 안티패턴).
 2. **CollectSend 스냅샷 ArrayPool화**: `AppServer.CollectSendSession`(`AppServer.cs:253-255`)의 `new byte[]` 스냅샷을 `ArrayPool<byte>.Shared` rent/return으로. TODO-08의 pooled send(`TrySendCopied`)가 생기면 그걸 직접 호출하는 것이 최선 (복사 1회 제거).

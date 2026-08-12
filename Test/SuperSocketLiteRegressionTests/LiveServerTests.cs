@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -111,11 +112,10 @@ static class LiveServerTests
         var config = CreateConfig("echo-burst-test");
         config.SendingQueueSize = 200;
 
-        // The sequence receive path compares MaxRequestLength against the whole pending pipe
-        // buffer, not against the current partial request, so a pipelining client trips it once
-        // the pipe reaches its 64KB pause threshold. Keep the limit above that so this test stays
-        // focused on the receive loop.
-        config.MaxRequestLength = 1024 * 1024;
+        // Deliberately far below the pipe's back-pressure threshold: a pipelining client fills the
+        // receive pipe with many complete requests, and MaxRequestLength must only be measured
+        // against the incomplete tail (TODO-19), never against the whole buffer.
+        config.MaxRequestLength = 1024;
 
         RunWithServer(config, (server, port) =>
         {
@@ -284,9 +284,13 @@ static class LiveServerTests
         var sendSync = sessionType.GetMethod("SendSync", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.True(sendSync != null, "AsyncSocketSession should implement SendSync");
 
-        // Build the session without running any constructor: the test only drives the state machine,
-        // and the null-socket path must not touch the pipe / send queue at all.
-        var session = RuntimeHelpers.GetUninitializedObject(sessionType);
+        // Construct a real session (so field initializers run) but skip Initialize: the null-socket
+        // path must not touch the receive pipe or the send queue at all.
+        var proxyType = Type.GetType("SuperSocketLite.SocketEngine.SocketAsyncEventArgsProxy, SuperSocketLite", throwOnError: true)!;
+        using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        using var saea = new SocketAsyncEventArgs();
+        var proxy = Activator.CreateInstance(proxyType, new object[] { saea })!;
+        var session = Activator.CreateInstance(sessionType, new object[] { probeSocket, proxy })!;
 
         const int inSending = 1;
         const int inClosing = 16;
@@ -305,6 +309,264 @@ static class LiveServerTests
         Assert.Equal(inClosing, state & inClosing, "SendSync should push the session into the closing procedure");
     }
 
+    /// <summary>
+    /// TODO-08: the pooled copy-on-send path must own its data - the caller's buffer is overwritten
+    /// the instant the send call returns.
+    /// </summary>
+    public static void CopyOnSendIsUnaffectedByCallerBufferReuse()
+    {
+        RunEchoRoundTrip("copy-on-send-test", EchoSendMode.SendCopied, packetCount: 500, bodySize: 120);
+    }
+
+    /// <summary>
+    /// TODO-09: the awaitable send path must deliver the same bytes, including when it has to wait
+    /// for queue space.
+    /// </summary>
+    public static void AwaitableSendDeliversEveryPacket()
+    {
+        RunEchoRoundTrip("send-async-test", EchoSendMode.SendAsync, packetCount: 500, bodySize: 120, sendingQueueSize: 1);
+    }
+
+    private static void RunEchoRoundTrip(string name, EchoSendMode sendMode, int packetCount, int bodySize, int sendingQueueSize = 16)
+    {
+        var config = CreateConfig(name);
+        config.SendingQueueSize = sendingQueueSize;
+        config.MaxRequestLength = 4096;
+
+        RunWithServer(config, (server, port) =>
+        {
+            using var client = new TcpClient();
+            client.NoDelay = true;
+            client.Connect(IPAddress.Loopback, port);
+
+            var stream = client.GetStream();
+            stream.ReadTimeout = 30000;
+            stream.WriteTimeout = 30000;
+
+            var writer = Task.Run(() =>
+            {
+                for (var i = 0; i < packetCount; i++)
+                    stream.Write(BuildPacket(i, bodySize));
+
+                stream.Flush();
+            });
+
+            var header = new byte[LiveEchoReceiveFilter.PacketHeaderSize];
+            var body = new byte[bodySize];
+            var expected = BuildPacket(0, bodySize);
+
+            for (var i = 0; i < packetCount; i++)
+            {
+                ReadExactly(stream, header, header.Length);
+                ReadExactly(stream, body, bodySize);
+
+                Assert.Equal(i, BinaryPrimitives.ReadInt32LittleEndian(body), $"echoed packet {i} should keep its order");
+
+                // Everything after the sequence number is a fixed filler; a stale/clobbered buffer
+                // would show up here as 0xEE.
+                for (var b = sizeof(int); b < bodySize; b++)
+                {
+                    Assert.Equal(
+                        expected[LiveEchoReceiveFilter.PacketHeaderSize + b],
+                        body[b],
+                        $"echoed packet {i} byte {b} should match the original payload");
+                }
+            }
+
+            writer.GetAwaiter().GetResult();
+        }, sendMode);
+    }
+
+    /// <summary>
+    /// TODO-10: StopAsync must let the already queued responses reach the client before it closes
+    /// the sessions.
+    /// </summary>
+    public static void StopAsyncDrainsQueuedSends()
+    {
+        const int responsePackets = 300;
+        const int bodySize = 512;
+
+        var config = CreateConfig("graceful-stop-test");
+        config.SendingQueueSize = responsePackets + 16;
+        config.MaxRequestLength = 4096;
+        config.SendBufferSize = 2048;
+
+        var server = new LiveEchoServer();
+        var queued = new ManualResetEventSlim(false);
+
+        server.RequestInterceptor = (session, _) =>
+        {
+            for (var i = 0; i < responsePackets; i++)
+                session.Send(BuildPacket(i, bodySize), 0, LiveEchoReceiveFilter.PacketHeaderSize + bodySize);
+
+            queued.Set();
+            return true;
+        };
+
+        Assert.True(server.Setup(new RootConfig(), config, logFactory: new SilentLogFactory()), "server setup should succeed");
+        Assert.True(server.Start(), "server should start");
+
+        try
+        {
+            using var client = new TcpClient();
+            client.NoDelay = true;
+            client.Connect(IPAddress.Loopback, config.Port);
+
+            var stream = client.GetStream();
+            stream.ReadTimeout = 30000;
+
+            stream.Write(BuildPacket(0, 8));
+            stream.Flush();
+
+            Assert.True(queued.Wait(10000), "the handler should have queued the whole response");
+
+            var stopTask = server.StopAsync(TimeSpan.FromSeconds(15));
+
+            var header = new byte[LiveEchoReceiveFilter.PacketHeaderSize];
+            var body = new byte[bodySize];
+
+            for (var i = 0; i < responsePackets; i++)
+            {
+                ReadExactly(stream, header, header.Length);
+                ReadExactly(stream, body, bodySize);
+
+                Assert.Equal(i, BinaryPrimitives.ReadInt32LittleEndian(body), $"drained packet {i} should arrive in order");
+            }
+
+            stopTask.GetAwaiter().GetResult();
+        }
+        finally
+        {
+            server.Stop();
+        }
+    }
+
+    /// <summary>
+    /// TODO-19: MaxRequestLength must still reject a single oversized request, even though it is no
+    /// longer measured against the whole receive buffer.
+    /// </summary>
+    public static void OversizedSingleRequestIsStillRejected()
+    {
+        const int declaredSize = 8192;
+
+        var config = CreateConfig("oversize-request-test");
+        config.MaxRequestLength = 1024;
+
+        RunWithServer(config, (server, port) =>
+        {
+            using var client = new TcpClient();
+            client.NoDelay = true;
+            client.Connect(IPAddress.Loopback, port);
+
+            var stream = client.GetStream();
+            stream.ReadTimeout = 15000;
+
+            var oversized = new byte[declaredSize];
+            BinaryPrimitives.WriteInt16LittleEndian(oversized, (short)declaredSize);
+
+            try
+            {
+                stream.Write(oversized);
+                stream.Flush();
+            }
+            catch (IOException)
+            {
+                // The server may have reset the connection mid-write, which is the expected outcome.
+                return;
+            }
+
+            var session = server.GetAllSessions()?.FirstOrDefault();
+
+            WaitFor(
+                () => session == null || !session.Connected,
+                "a request larger than MaxRequestLength should close the session",
+                timeoutMs: 10000);
+        });
+    }
+
+    /// <summary>
+    /// TODO-16: with SyncSessionConnectedEvent the connected handler must run before the first
+    /// request handler, even for a client that sends immediately after connecting.
+    /// </summary>
+    public static void SyncSessionConnectedEventOrdersBeforeFirstRequest()
+    {
+        var config = CreateConfig("event-order-test");
+        config.SyncSessionConnectedEvent = true;
+        config.MaxRequestLength = 4096;
+
+        Assert.True(!new ServerConfig().SyncSessionConnectedEvent, "the ordering guarantee should be opt-in");
+
+        var server = new LiveEchoServer();
+        var events = new List<string>();
+        var firstRequest = new ManualResetEventSlim(false);
+
+        server.NewSessionConnected += _ =>
+        {
+            lock (events)
+                events.Add("connected");
+        };
+
+        server.RequestInterceptor = (_, _) =>
+        {
+            lock (events)
+                events.Add("request");
+
+            firstRequest.Set();
+            return true;
+        };
+
+        Assert.True(server.Setup(new RootConfig(), config, logFactory: new SilentLogFactory()), "server setup should succeed");
+        Assert.True(server.Start(), "server should start");
+
+        try
+        {
+            using var client = new TcpClient();
+            client.NoDelay = true;
+            client.Connect(IPAddress.Loopback, config.Port);
+
+            var stream = client.GetStream();
+            stream.Write(BuildPacket(0, 8));
+            stream.Flush();
+
+            Assert.True(firstRequest.Wait(10000), "the server should have processed the first request");
+
+            lock (events)
+            {
+                Assert.True(events.Count >= 2, $"both events should have fired, saw {events.Count}");
+                Assert.Equal("connected", events[0], "NewSessionConnected must run before the first request");
+                Assert.Equal("request", events[1], "the first request must be handled after the connected event");
+            }
+        }
+        finally
+        {
+            server.Stop();
+        }
+    }
+
+    /// <summary>
+    /// TODO-12: connections refused by the connection limit must be counted.
+    /// </summary>
+    public static void RejectedSessionsAreCounted()
+    {
+        var config = CreateConfig("rejected-metric-test");
+        config.MaxConnectionNumber = 1;
+
+        RunWithServer(config, (server, port) =>
+        {
+            using var accepted = new TcpClient();
+            accepted.Connect(IPAddress.Loopback, port);
+            WaitForSession(server);
+
+            using var refused = new TcpClient();
+            refused.Connect(IPAddress.Loopback, port);
+
+            WaitFor(
+                () => server.TotalSessionsRejected > 0,
+                $"the connection over the limit should be counted, counter is {server.TotalSessionsRejected}",
+                timeoutMs: 10000);
+        });
+    }
+
     private static ServerConfig CreateConfig(string name)
     {
         return new ServerConfig
@@ -319,9 +581,9 @@ static class LiveServerTests
         };
     }
 
-    private static void RunWithServer(ServerConfig config, Action<LiveEchoServer, int> body)
+    private static void RunWithServer(ServerConfig config, Action<LiveEchoServer, int> body, EchoSendMode sendMode = EchoSendMode.Send)
     {
-        var server = new LiveEchoServer();
+        var server = new LiveEchoServer(sendMode);
 
         Assert.True(
             server.Setup(new RootConfig(), config, logFactory: new SilentLogFactory()),
@@ -448,23 +710,81 @@ class LiveEchoSession : AppSession<LiveEchoSession, LiveEchoRequestInfo>
 {
 }
 
+enum EchoSendMode
+{
+    /// <summary>Zero-copy Send(byte[], int, int).</summary>
+    Send,
+
+    /// <summary>Pooled copy-on-send; the test buffer is deliberately clobbered right after.</summary>
+    SendCopied,
+
+    /// <summary>Awaited ValueTask send.</summary>
+    SendAsync
+}
+
 class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
 {
+    private readonly EchoSendMode m_SendMode;
+
+    // Reused across requests on purpose: with SendCopied the session must not depend on it.
+    [ThreadStatic]
+    private static byte[]? s_ScratchBuffer;
+
+    /// <summary>Set by the test to have the handler queue extra traffic before returning.</summary>
+    public Func<LiveEchoSession, LiveEchoRequestInfo, bool>? RequestInterceptor { get; set; }
+
     public LiveEchoServer()
+        : this(EchoSendMode.Send)
+    {
+    }
+
+    public LiveEchoServer(EchoSendMode sendMode)
         : base(new DefaultReceiveFilterFactory<LiveEchoReceiveFilter, LiveEchoRequestInfo>())
     {
+        m_SendMode = sendMode;
         NewRequestReceived += OnRequestReceived;
     }
 
-    private static void OnRequestReceived(LiveEchoSession session, LiveEchoRequestInfo requestInfo)
+    private void OnRequestReceived(LiveEchoSession session, LiveEchoRequestInfo requestInfo)
     {
-        var totalSize = LiveEchoReceiveFilter.PacketHeaderSize + requestInfo.Body.Length;
-        var packet = new byte[totalSize];
+        var interceptor = RequestInterceptor;
 
+        if (interceptor != null && interceptor(session, requestInfo))
+            return;
+
+        var totalSize = LiveEchoReceiveFilter.PacketHeaderSize + requestInfo.Body.Length;
+
+        if (m_SendMode == EchoSendMode.SendCopied)
+        {
+            // Deliberately reuses one buffer: SendCopied must already own the bytes when it returns.
+            var scratch = s_ScratchBuffer;
+
+            if (scratch == null || scratch.Length < totalSize)
+            {
+                scratch = new byte[Math.Max(totalSize, 1024)];
+                s_ScratchBuffer = scratch;
+            }
+
+            BinaryPrimitives.WriteInt16LittleEndian(scratch, (short)totalSize);
+            requestInfo.Body.CopyTo(scratch, LiveEchoReceiveFilter.PacketHeaderSize);
+
+            session.SendCopied(new ReadOnlySpan<byte>(scratch, 0, totalSize));
+
+            // Poison it immediately - a correct copy-on-send is unaffected.
+            scratch.AsSpan(0, totalSize).Fill(0xEE);
+            return;
+        }
+
+        // Send and SendAsync are both zero-copy for array-backed data, so each response needs its
+        // own buffer until the send completes.
+        var packet = new byte[totalSize];
         BinaryPrimitives.WriteInt16LittleEndian(packet, (short)totalSize);
         requestInfo.Body.CopyTo(packet, LiveEchoReceiveFilter.PacketHeaderSize);
 
-        session.Send(packet, 0, packet.Length);
+        if (m_SendMode == EchoSendMode.Send)
+            session.Send(packet, 0, packet.Length);
+        else
+            session.SendAsync(packet).AsTask().GetAwaiter().GetResult();
     }
 }
 

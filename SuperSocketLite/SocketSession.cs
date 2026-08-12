@@ -125,6 +125,11 @@ abstract partial class SocketSession : ISocketSession
     // (ClearPrevSendState) before OnSendingCompleted can trigger the next drain.
     private readonly List<ArraySegment<byte>> m_SendBatch = new List<ArraySegment<byte>>();
 
+    // ArrayPool arrays backing the batch currently being sent. They are returned once the whole
+    // batch is done, which is also correct for the partial-send retry path: TrimSegments only
+    // points at a different slice of the very same arrays.
+    private readonly List<byte[]> m_PooledInFlight = new List<byte[]>();
+
     
     public SocketSession(Socket client)
         : this(Guid.NewGuid().ToString())
@@ -158,8 +163,30 @@ abstract partial class SocketSession : ISocketSession
 
         // Initialize the receive pipeline. PipeOptions.useSynchronizationContext=false keeps
         // ProcessPipeAsync off the captured SynchronizationContext.
+        var segmentSize = Math.Max(Config.ReceiveBufferSize, 1);
+        var configuredPauseThreshold = (Config as ServerConfig)?.MaxReceivePipeBufferSize ?? 0;
+
+        if (configuredPauseThreshold <= 0)
+            configuredPauseThreshold = 65536;   // the System.IO.Pipelines default
+
+        // A pipe throws unless pauseWriterThreshold >= minimumSegmentSize; keep room for at least
+        // two full receive buffers so the receive loop can always make progress.
+        var pauseThreshold = Math.Max(configuredPauseThreshold, segmentSize * 2L);
+
+        // A zero-copy (sequence) filter leaves an incomplete request in the pipe until it is whole,
+        // so the pipe must be able to hold a maximum-size request plus a receive buffer. Otherwise
+        // a large MaxRequestLength would pause the receive loop before the request can ever be
+        // completed or rejected.
+        if (Config.MaxRequestLength > 0)
+            pauseThreshold = Math.Max(pauseThreshold, (long)Config.MaxRequestLength + segmentSize * 2L);
+
+        if (pauseThreshold > int.MaxValue)
+            pauseThreshold = int.MaxValue;
+
         var pipeOptions = new PipeOptions(
-            minimumSegmentSize: Config.ReceiveBufferSize,
+            minimumSegmentSize: segmentSize,
+            pauseWriterThreshold: pauseThreshold,
+            resumeWriterThreshold: pauseThreshold / 2,
             useSynchronizationContext: false);
         _receivePipe = new Pipe(pipeOptions);
         _pipeWriter  = _receivePipe.Writer;
@@ -244,7 +271,10 @@ abstract partial class SocketSession : ISocketSession
             return false;
 
         if (!m_SendQueue.TryEnqueue(segments))
+        {
+            RecordSendQueueFull();
             return false;
+        }
 
         StartSend(true);
         return true;
@@ -261,16 +291,28 @@ abstract partial class SocketSession : ISocketSession
             return false;
 
         if (!m_SendQueue.TryEnqueue(segment))
+        {
+            RecordSendQueueFull();
             return false;
+        }
 
         StartSend(true);
         return true;
+    }
+
+    private void RecordSendQueueFull()
+    {
+        AppSession?.AppServer?.RecordSendQueueFull();
     }
 
     /// <summary>
     /// Tries to send memory.
     /// </summary>
     /// <param name="memory">The memory.</param>
+    /// <remarks>
+    /// An array-backed memory is sent without copying, so the caller must not modify it until the
+    /// data has been sent. Any other memory is copied into a pooled buffer.
+    /// </remarks>
     public bool TrySend(ReadOnlyMemory<byte> memory)
     {
         if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(memory, out ArraySegment<byte> segment))
@@ -278,16 +320,106 @@ abstract partial class SocketSession : ISocketSession
             return TrySend(segment);
         }
 
-        return TrySend(new ArraySegment<byte>(memory.ToArray()));
+        return TrySendCopied(memory.Span);
     }
 
     /// <summary>
-    /// Tries to send span.
+    /// Tries to send span. The data is always copied into a pooled buffer.
     /// </summary>
     /// <param name="span">The span.</param>
     public bool TrySend(ReadOnlySpan<byte> span)
     {
-        return TrySend(new ArraySegment<byte>(span.ToArray()));
+        return TrySendCopied(span);
+    }
+
+    /// <summary>
+    /// Copies <paramref name="data"/> into a pooled buffer and queues it, so the caller may reuse
+    /// or overwrite its own buffer as soon as this returns.
+    /// </summary>
+    /// <param name="data">The data to send.</param>
+    /// <returns>false if the session is closed or the sending queue is full.</returns>
+    public bool TrySendCopied(ReadOnlySpan<byte> data)
+    {
+        if (IsClosed)
+            return false;
+
+        if (data.IsEmpty)
+            return true;
+
+        var buffer = ArrayPool<byte>.Shared.Rent(data.Length);
+        data.CopyTo(buffer);
+
+        if (!m_SendQueue.TryEnqueue(new SendItem(new ArraySegment<byte>(buffer, 0, data.Length), buffer)))
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+            RecordSendQueueFull();
+            return false;
+        }
+
+        StartSend(true);
+        return true;
+    }
+
+    /// <summary>
+    /// Queues <paramref name="data"/>, waiting asynchronously when the sending queue is full.
+    /// </summary>
+    /// <param name="data">The data to send. Array-backed memory is sent without copying.</param>
+    /// <param name="cancellationToken">Cancels the wait for queue space.</param>
+    /// <returns>false if the session is closed or was closed while waiting.</returns>
+    /// <remarks>
+    /// The configured <c>SendTimeOut</c> does not apply here; pass a cancellation token created
+    /// from a <see cref="CancellationTokenSource"/> with a timeout to bound the wait.
+    /// </remarks>
+    public async ValueTask<bool> SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+    {
+        if (IsClosed)
+            return false;
+
+        if (data.IsEmpty)
+            return true;
+
+        //Fast path: there is room right now.
+        if (TrySend(data))
+            return true;
+
+        byte[]? pooledBuffer = null;
+        SendItem item;
+
+        if (System.Runtime.InteropServices.MemoryMarshal.TryGetArray(data, out ArraySegment<byte> segment))
+        {
+            item = new SendItem(segment);
+        }
+        else
+        {
+            pooledBuffer = ArrayPool<byte>.Shared.Rent(data.Length);
+            data.Span.CopyTo(pooledBuffer);
+            item = new SendItem(new ArraySegment<byte>(pooledBuffer, 0, data.Length), pooledBuffer);
+        }
+
+        bool enqueued;
+
+        try
+        {
+            enqueued = await m_SendQueue.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            if (pooledBuffer != null)
+                ArrayPool<byte>.Shared.Return(pooledBuffer);
+
+            throw;
+        }
+
+        if (!enqueued)
+        {
+            if (pooledBuffer != null)
+                ArrayPool<byte>.Shared.Return(pooledBuffer);
+
+            return false;
+        }
+
+        StartSend(true);
+        return true;
     }
 
     /// <summary>
@@ -333,7 +465,7 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        m_SendQueue.DrainAvailable(m_SendBatch);
+        m_SendQueue.DrainAvailable(m_SendBatch, m_PooledInFlight);
 
         if (m_SendBatch.Count == 0)
         {
@@ -342,6 +474,28 @@ abstract partial class SocketSession : ISocketSession
         }
 
         Send(m_SendBatch);
+    }
+
+    /// <summary>
+    /// Returns the pooled buffers of the batch that has just finished sending.
+    /// </summary>
+    /// <remarks>
+    /// Only called from the batch-completion points (<see cref="OnSendingCompleted"/> /
+    /// <see cref="OnSendError"/>), never while the socket may still be reading the arrays. If the
+    /// session dies with a send in flight the arrays are simply not recycled - the GC reclaims
+    /// them, which is far cheaper than risking a buffer that is handed out twice.
+    /// </remarks>
+    private void ReturnPooledSendBuffers()
+    {
+        var pooled = m_PooledInFlight;
+
+        if (pooled.Count == 0)
+            return;
+
+        for (var i = 0; i < pooled.Count; i++)
+            ArrayPool<byte>.Shared.Return(pooled[i]);
+
+        pooled.Clear();
     }
 
     private void OnSendEnd()
@@ -357,6 +511,10 @@ abstract partial class SocketSession : ISocketSession
 
     protected virtual void OnSendingCompleted(IList<ArraySegment<byte>> sentItems)
     {
+        //The batch is done with the socket here, so any pooled payload can go back to the pool
+        //before the next drain reuses the tracking list.
+        ReturnPooledSendBuffers();
+
         if (IsInClosingOrClosed)
         {
             Socket? client;
@@ -385,6 +543,14 @@ abstract partial class SocketSession : ISocketSession
         {
             StartSend(false);
         }
+    }
+
+    /// <summary>
+    /// Gets whether the session has nothing left to send.
+    /// </summary>
+    public bool IsSendIdle
+    {
+        get { return m_SendQueue == null || (m_SendQueue.Count == 0 && !CheckState(SocketState.InSending)); }
     }
 
     private Socket? m_Client;
@@ -471,6 +637,8 @@ abstract partial class SocketSession : ISocketSession
 
     protected void OnSendError(IList<ArraySegment<byte>> sentItems, CloseReason closeReason)
     {
+        ReturnPooledSendBuffers();
+        AppSession?.AppServer?.RecordSendError();
         OnSendEnd(closeReason, true);
     }
 
@@ -544,7 +712,9 @@ abstract partial class SocketSession : ISocketSession
 
     private void ValidateClosed(CloseReason closeReason, bool forceClose, bool forSend)
     {
-        lock (this)
+        //Locks the private SyncRoot rather than the session instance: application code that happens
+        //to lock the session object would otherwise be able to deadlock the close path.
+        lock (SyncRoot)
         {
             if (IsClosed)
                 return;

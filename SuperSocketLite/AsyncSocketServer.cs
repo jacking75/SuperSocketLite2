@@ -90,6 +90,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         SocketAsyncEventArgsProxy? socketEventArgsProxy;
         if (!m_ReceiveSAEAPool!.TryGet(out socketEventArgsProxy))
         {
+            AppServer.RecordSessionRejected();
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
                 AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
@@ -103,6 +104,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         {
             socketEventArgsProxy.Reset();
             m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+            AppServer.RecordSessionRejected();
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
                 AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");

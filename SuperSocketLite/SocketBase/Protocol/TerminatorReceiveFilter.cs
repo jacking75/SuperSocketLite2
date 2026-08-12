@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Text;
 using SuperSocketLite.Common;
 
@@ -8,7 +9,7 @@ namespace SuperSocketLite.SocketBase.Protocol;
 /// Terminator Receive filter
 /// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
+public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
     private readonly SearchMarkState<byte> m_SearchState;
@@ -187,6 +188,37 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     {
         byte[] tempBuffer = buffer.ToArray();
         return Filter(tempBuffer, 0, tempBuffer.Length, toBeCopied, out rest);
+    }
+
+    /// <summary>
+    /// Zero-copy parse straight from the receive pipe: an incomplete request stays in the pipe
+    /// instead of being copied into the session's carry buffer on every read.
+    /// </summary>
+    /// <param name="buffer">The received data available from PipeReader.</param>
+    /// <param name="consumed">The position up to which data was consumed.</param>
+    /// <param name="examined">The position up to which data was examined.</param>
+    /// <returns>The parsed request, or null when the terminator has not arrived yet.</returns>
+    /// <remarks>
+    /// This path is only used when the server has no RawDataReceived handler registered; otherwise
+    /// the session falls back to the byte[] overload.
+    /// </remarks>
+    TRequestInfo? ISequenceReceiveFilter<TRequestInfo>.Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    {
+        var reader = new SequenceReader<byte>(buffer);
+
+        // TryReadTo handles a multi-byte terminator that straddles a segment boundary.
+        if (!reader.TryReadTo(out ReadOnlySequence<byte> body, m_SearchState.Mark, advancePastDelimiter: true))
+        {
+            consumed = buffer.Start;
+            examined = buffer.End;
+            return NullRequestInfo;
+        }
+
+        consumed = reader.Position;
+        examined = consumed;
+
+        var data = SequenceFilterHelper.AsArraySegment(body);
+        return ProcessMatchedRequest(data.Array!, data.Offset, data.Count);
     }
 
     private void InternalReset()

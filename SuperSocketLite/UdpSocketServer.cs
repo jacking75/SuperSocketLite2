@@ -96,6 +96,13 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     }
 
 
+    // A UdpRequestInfo filter parses one self-contained datagram, so one instance per receive
+    // thread can be reused instead of allocating a filter for every packet. It is Reset() before
+    // each use. CONTRACT: a filter used with UdpRequestInfo must be stateless across datagrams and
+    // must not capture the remote endpoint passed to CreateFilter.
+    [ThreadStatic]
+    private static IReceiveFilter<TRequestInfo>? s_SessionIdFilter;
+
     void ProcessPackageWithSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData, int offset, int count)
     {
         TRequestInfo? requestInfo = default;
@@ -106,7 +113,18 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
         try
         {
-            var requestFilter = m_ReceiveFilterFactory.CreateFilter(AppServer, null!, remoteEndPoint);
+            var requestFilter = s_SessionIdFilter;
+
+            if (requestFilter == null)
+            {
+                requestFilter = m_ReceiveFilterFactory.CreateFilter(AppServer, null!, remoteEndPoint);
+                s_SessionIdFilter = requestFilter;
+            }
+            else
+            {
+                requestFilter.Reset();
+            }
+
             requestInfo = requestFilter.Filter(receivedData, offset, count, false, out rest);
         }
         catch (Exception exc)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Globalization;
 using System.Linq;
@@ -132,10 +133,19 @@ private ListenerInfo[]? m_Listeners;
     private static readonly Counter<long> s_TotalRequestsCounter = s_Meter.CreateCounter<long>("total-requests", "requests", "Total number of requests received");
     private static readonly Counter<long> s_TotalBytesReceivedCounter = s_Meter.CreateCounter<long>("total-bytes-received", "bytes", "Total bytes received");
     private static readonly Counter<long> s_TotalBytesSentCounter = s_Meter.CreateCounter<long>("total-bytes-sent", "bytes", "Total bytes sent");
+    private static readonly Counter<long> s_SessionsRejectedCounter = s_Meter.CreateCounter<long>("sessions-rejected", "connections", "Connections refused because the connection limit was reached");
+    private static readonly Counter<long> s_SendQueueFullCounter = s_Meter.CreateCounter<long>("send-queue-full", "sends", "Sends dropped because the session's sending queue was full");
+    private static readonly Counter<long> s_SendErrorsCounter = s_Meter.CreateCounter<long>("send-errors", "sends", "Sends that failed with a socket error");
+    private static readonly Histogram<double> s_RequestDurationHistogram = s_Meter.CreateHistogram<double>("request-duration", "ms", "Time spent in the request handler");
     private static UpDownCounter<int>? s_ActiveConnectionsCounter;
-    
+
+    // Registered once per server instance so that "session-count" reports the live session count.
+    private ObservableGauge<int>? m_SessionCountGauge;
+
     private long m_TotalBytesReceived = 0;
     private long m_TotalBytesSent = 0;
+
+    private KeyValuePair<string, object?> ServerTag => new KeyValuePair<string, object?>("server", Name);
 
     /// <summary>
     /// Records bytes received for metrics.
@@ -144,7 +154,7 @@ private ListenerInfo[]? m_Listeners;
     public void RecordBytesReceived(int count)
     {
         Interlocked.Add(ref m_TotalBytesReceived, count);
-        s_TotalBytesReceivedCounter.Add(count, new KeyValuePair<string, object?>("server", Name));
+        s_TotalBytesReceivedCounter.Add(count, ServerTag);
     }
 
     /// <summary>
@@ -154,8 +164,39 @@ private ListenerInfo[]? m_Listeners;
     public void RecordBytesSent(int count)
     {
         Interlocked.Add(ref m_TotalBytesSent, count);
-        s_TotalBytesSentCounter.Add(count, new KeyValuePair<string, object?>("server", Name));
+        s_TotalBytesSentCounter.Add(count, ServerTag);
     }
+
+    /// <summary>
+    /// Records a connection that was refused because the connection limit was reached.
+    /// </summary>
+    public void RecordSessionRejected()
+    {
+        Interlocked.Increment(ref m_TotalSessionsRejected);
+        s_SessionsRejectedCounter.Add(1, ServerTag);
+    }
+
+    /// <summary>
+    /// Records a send that was dropped because the session's sending queue was full.
+    /// </summary>
+    public void RecordSendQueueFull()
+    {
+        Interlocked.Increment(ref m_TotalSendQueueFull);
+        s_SendQueueFullCounter.Add(1, ServerTag);
+    }
+
+    /// <summary>
+    /// Records a failed send.
+    /// </summary>
+    public void RecordSendError()
+    {
+        Interlocked.Increment(ref m_TotalSendErrors);
+        s_SendErrorsCounter.Add(1, ServerTag);
+    }
+
+    private long m_TotalSessionsRejected = 0;
+    private long m_TotalSendQueueFull = 0;
+    private long m_TotalSendErrors = 0;
 
     /// <summary>
     /// Gets the total bytes received.
@@ -166,6 +207,21 @@ private ListenerInfo[]? m_Listeners;
     /// Gets the total bytes sent.
     /// </summary>
     public long TotalBytesSent => m_TotalBytesSent;
+
+    /// <summary>
+    /// Gets the number of connections refused because the connection limit was reached.
+    /// </summary>
+    public long TotalSessionsRejected => m_TotalSessionsRejected;
+
+    /// <summary>
+    /// Gets the number of sends dropped because the sending queue was full.
+    /// </summary>
+    public long TotalSendQueueFull => m_TotalSendQueueFull;
+
+    /// <summary>
+    /// Gets the number of sends that failed with a socket error.
+    /// </summary>
+    public long TotalSendErrors => m_TotalSendErrors;
 
 
     /// <summary>
@@ -620,6 +676,7 @@ return LogFactory.GetLog(loggerName);
 
         // Initialize active connections counter for metrics
         s_ActiveConnectionsCounter ??= s_Meter.CreateUpDownCounter<int>("active-connections", "connections", "Number of active connections");
+        m_SessionCountGauge ??= s_Meter.CreateObservableGauge("session-count", () => new Measurement<int>(SessionCount, ServerTag), "sessions", "Number of sessions currently registered");
 
         if (!m_SocketServer.Start())
         {
@@ -678,6 +735,77 @@ return LogFactory.GetLog(loggerName);
     protected virtual void OnStopped()
     {
 
+    }
+
+    /// <summary>
+    /// Stops this server instance gracefully: new connections are refused immediately, then the
+    /// existing sessions are given up to <paramref name="drainTimeout"/> to flush what they have
+    /// already queued for sending, and finally the regular <see cref="Stop"/> runs.
+    /// </summary>
+    /// <param name="drainTimeout">How long to wait for the sending queues to empty.</param>
+    /// <remarks>
+    /// Receiving stays active while draining, so a client's last request can still be answered.
+    /// Sessions that are still sending when the timeout expires are closed anyway.
+    /// </remarks>
+    public virtual async Task StopAsync(TimeSpan drainTimeout)
+    {
+        //Take ownership of the shutdown exactly like Stop() does, so a concurrent Stop()/StopAsync()
+        //cannot run the teardown twice.
+        if (Interlocked.CompareExchange(ref m_StateCode, ServerStateConst.Stopping, ServerStateConst.Running)
+                != ServerStateConst.Running)
+        {
+            return;
+        }
+
+        try
+        {
+            (m_SocketServer as SuperSocketLite.SocketEngine.SocketServerBase)?.StopListeners();
+
+            await DrainSendingSessionsAsync(drainTimeout).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            if (Logger.IsErrorEnabled)
+                Logger.Error("Failed to drain the sessions during the graceful shutdown.", e);
+        }
+        finally
+        {
+            //Hand back to Stop(): it expects to make the Running -> Stopping transition itself.
+            m_StateCode = ServerStateConst.Running;
+            Stop();
+        }
+    }
+
+    private async Task DrainSendingSessionsAsync(TimeSpan drainTimeout)
+    {
+        if (drainTimeout <= TimeSpan.Zero)
+            return;
+
+        var deadline = Environment.TickCount64 + (long)drainTimeout.TotalMilliseconds;
+
+        while (Environment.TickCount64 < deadline)
+        {
+            var sessions = GetAllSessions();
+
+            if (sessions == null)
+                return;
+
+            var pending = 0;
+
+            foreach (var session in sessions)
+            {
+                if (!session.SocketSession.IsSendIdle)
+                    pending++;
+            }
+
+            if (pending == 0)
+                return;
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        if (Logger.IsInfoEnabled)
+            Logger.Info(string.Format("The drain timeout of {0} elapsed before every session finished sending; the remaining sessions will be closed.", drainTimeout));
     }
 
     /// <summary>
@@ -771,6 +899,9 @@ return LogFactory.GetLog(loggerName);
         if (handler == null)
             return;
 
+        //Stopwatch timestamps are allocation free, unlike DateTime based timing.
+        var startTimestamp = Stopwatch.GetTimestamp();
+
         try
         {
             handler(session, requestInfo);
@@ -779,6 +910,8 @@ return LogFactory.GetLog(loggerName);
         {
             session.InternalHandleExcetion(e);
         }
+
+        s_RequestDurationHistogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, ServerTag);
 
         session.PrevCommand = requestInfo.Key;
         session.MarkActive();
@@ -791,9 +924,9 @@ if (Config.LogCommand && Logger.IsInfoEnabled)
         }
 
 Interlocked.Increment(ref m_TotalHandledRequests);
-        
+
         // Track total requests for metrics
-        s_TotalRequestsCounter.Add(1, new KeyValuePair<string, object?>("server", Name));
+        s_TotalRequestsCounter.Add(1, ServerTag);
     }
 
 
@@ -930,6 +1063,12 @@ Interlocked.Increment(ref m_TotalHandledRequests);
     /// Called when [new session connected].
     /// </summary>
     /// <param name="session">The session.</param>
+    /// <remarks>
+    /// By default the handler runs on the thread pool, which means a fast client's first request
+    /// can be delivered before it. Set <c>ServerConfig.SyncSessionConnectedEvent</c> to raise it
+    /// synchronously: registration happens before the socket session starts receiving, so the
+    /// ordering becomes structurally guaranteed - at the cost of blocking the accept path.
+    /// </remarks>
     protected virtual void OnNewSessionConnected(TAppSession session)
     {
         var handler = m_NewSessionConnected;
@@ -938,7 +1077,22 @@ Interlocked.Increment(ref m_TotalHandledRequests);
             return;
         }
 
-Task.Run(() => handler(session));            
+        if ((Config as ServerConfig)?.SyncSessionConnectedEvent == true)
+        {
+            try
+            {
+                handler(session);
+            }
+            catch (Exception e)
+            {
+                if (Logger.IsErrorEnabled)
+                    Logger.Error("The NewSessionConnected handler threw", e);
+            }
+
+            return;
+        }
+
+        Task.Run(() => handler(session));
     }
 
     /// <summary>

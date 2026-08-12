@@ -250,9 +250,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
                     if (sendData.Count > 0)
                     {
-                        var snapshot = new byte[sendData.Count];
-                        Buffer.BlockCopy(sendData.Array!, sendData.Offset, snapshot, 0, snapshot.Length);
-                        session.Send(snapshot, 0, snapshot.Length);
+                        //SendCopied takes its own pooled copy, so the collect buffer can be
+                        //committed right after without the extra snapshot array.
+                        session.SendCopied(new ReadOnlySpan<byte>(sendData.Array!, sendData.Offset, sendData.Count));
                     }
 
                     session.CommitCollectSend(sendDataLength);

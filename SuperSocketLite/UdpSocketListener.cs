@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
@@ -11,9 +11,15 @@ namespace SuperSocketLite.SocketEngine;
 
 class UdpSocketListener : SocketListenerBase
 {
+    /// <summary>
+    /// Upper bound on the number of concurrent ReceiveFrom operations. A single outstanding receive
+    /// serialises the whole UDP server, but there is no benefit in going much wider than the CPU.
+    /// </summary>
+    private const int MaxConcurrentReceives = 8;
+
     private Socket? m_ListenSocket;
 
-    private SocketAsyncEventArgs? m_ReceiveSAE;
+    private SocketAsyncEventArgs[]? m_ReceiveSAEs;
 
     public UdpSocketListener(ListenerInfo info)
         : base(info)
@@ -55,20 +61,34 @@ class UdpSocketListener : SocketListenerBase
                 }
             }
 
-            var eventArgs = new SocketAsyncEventArgs();
-            m_ReceiveSAE = eventArgs;
-
-            eventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
-            eventArgs.RemoteEndPoint = CreateAnyEndPoint();
-
             int receiveBufferSize = config.ReceiveBufferSize <= 0 ? 2048 : config.ReceiveBufferSize;
-            var buffer = ArrayPool<byte>.Shared.Rent(receiveBufferSize);
-            eventArgs.SetBuffer(buffer, 0, buffer.Length);
-            eventArgs.UserToken = receiveBufferSize;
+            var receiveCount = Math.Max(1, Math.Min(Environment.ProcessorCount, MaxConcurrentReceives));
+            var receiveSAEs = new SocketAsyncEventArgs[receiveCount];
+            m_ReceiveSAEs = receiveSAEs;
 
-            if (!m_ListenSocket.ReceiveFromAsync(eventArgs))
+            for (var i = 0; i < receiveCount; i++)
             {
-                eventArgs_Completed(m_ListenSocket, eventArgs);
+                var eventArgs = new SocketAsyncEventArgs();
+                receiveSAEs[i] = eventArgs;
+
+                eventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
+                eventArgs.RemoteEndPoint = CreateAnyEndPoint();
+
+                var buffer = ArrayPool<byte>.Shared.Rent(receiveBufferSize);
+                eventArgs.SetBuffer(buffer, 0, buffer.Length);
+                eventArgs.UserToken = receiveBufferSize;
+            }
+
+            //Post every receive only after all of them exist, so a synchronous completion cannot
+            //run against a half-built array.
+            for (var i = 0; i < receiveCount; i++)
+            {
+                var eventArgs = receiveSAEs[i];
+
+                if (!m_ListenSocket.ReceiveFromAsync(eventArgs))
+                {
+                    eventArgs_Completed(m_ListenSocket, eventArgs);
+                }
             }
 
             return true;
@@ -139,7 +159,9 @@ class UdpSocketListener : SocketListenerBase
             e.SetBuffer(nextBuffer, 0, nextBuffer.Length);
             e.RemoteEndPoint = CreateAnyEndPoint();
 
-            OnNewClientAcceptedAsync(m_ListenSocket!, packet);
+            //Handled inline: with several outstanding receives the parallelism comes from the
+            //receive loops themselves, so there is no need to pay a Task plus closure per datagram.
+            OnNewClientAccepted(m_ListenSocket!, packet);
         }
         catch (Exception exc)
         {
@@ -160,7 +182,7 @@ class UdpSocketListener : SocketListenerBase
                 return;
 
             var listenSocket = m_ListenSocket;
-            var receiveSAE = m_ReceiveSAE;
+            var receiveSAEs = m_ReceiveSAEs;
 
             if(!Platform.IsMono)
             {
@@ -181,42 +203,48 @@ class UdpSocketListener : SocketListenerBase
                 m_ListenSocket = null;
             }
 
-            if (receiveSAE != null)
+            if (receiveSAEs != null)
             {
-                receiveSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
+                for (var i = 0; i < receiveSAEs.Length; i++)
+                    CleanupReceiveSAE(receiveSAEs[i]);
 
-                //Closing the socket aborts the outstanding ReceiveFrom, but that completion is
-                //delivered asynchronously. Until it arrives the SocketAsyncEventArgs is still busy,
-                //so SetBuffer throws - and the buffer must NOT be handed back to the pool while the
-                //kernel may still write into it. Detach first, return only on success.
-                var buffer = receiveSAE.Buffer;
-
-                if (buffer != null)
-                {
-                    try
-                    {
-                        receiveSAE.SetBuffer(null, 0, 0);
-                        ArrayPool<byte>.Shared.Return(buffer);
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        //still in flight: leave the buffer to the GC instead of failing Stop()
-                    }
-                }
-
-                try
-                {
-                    receiveSAE.Dispose();
-                }
-                catch (InvalidOperationException)
-                {
-                }
-
-                m_ReceiveSAE = null;
+                m_ReceiveSAEs = null;
             }
         }
 
         OnStopped();
+    }
+
+    private void CleanupReceiveSAE(SocketAsyncEventArgs receiveSAE)
+    {
+        receiveSAE.Completed -= new EventHandler<SocketAsyncEventArgs>(eventArgs_Completed);
+
+        //Closing the socket aborts the outstanding ReceiveFrom, but that completion is
+        //delivered asynchronously. Until it arrives the SocketAsyncEventArgs is still busy,
+        //so SetBuffer throws - and the buffer must NOT be handed back to the pool while the
+        //kernel may still write into it. Detach first, return only on success.
+        var buffer = receiveSAE.Buffer;
+
+        if (buffer != null)
+        {
+            try
+            {
+                receiveSAE.SetBuffer(null, 0, 0);
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
+            catch (InvalidOperationException)
+            {
+                //still in flight: leave the buffer to the GC instead of failing Stop()
+            }
+        }
+
+        try
+        {
+            receiveSAE.Dispose();
+        }
+        catch (InvalidOperationException)
+        {
+        }
     }
 
     private EndPoint CreateAnyEndPoint()

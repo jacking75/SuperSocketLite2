@@ -3,7 +3,9 @@
 
 namespace SuperSocketLite.Common;
 
-//TODO 유닛테스트 필요
+/// <summary>
+/// Fixed-size accumulation buffer used by the CollectSend feature.
+/// </summary>
 public class ReuseLockBaseBuffer
 {
     Int32 ReadPos = 0;
@@ -56,41 +58,36 @@ public class ReuseLockBaseBuffer
         }
     }
 
+    /// <summary>
+    /// Marks the first <paramref name="size"/> bytes of the current data as consumed.
+    /// </summary>
     public void Commit(int size)
     {
+        if (size <= 0)
+            return;
+
         lock (mBuffer)
         {
-            var currenDataSize = WritePos - ReadPos;
+            var currentDataSize = WritePos - ReadPos;
 
-            if (currenDataSize == size)
+            //Consuming everything (or more than is there) resets the buffer to the front.
+            if (size >= currentDataSize)
             {
                 ReadPos = 0;
                 WritePos = 0;
                 return;
             }
 
-
             ReadPos += size;
-            currenDataSize = WritePos - ReadPos;
+            currentDataSize = WritePos - ReadPos;
 
-            if(currenDataSize < ReadPos)
+            //Buffer.BlockCopy has memmove semantics, so the leftover bytes can be slid to the
+            //front with a single copy even though source and destination overlap - no temp array.
+            if (currentDataSize < ReadPos || MinumBufferSize < BufferSize - WritePos)
             {
-                Buffer.BlockCopy(mBuffer, ReadPos, mBuffer, 0, currenDataSize);
+                Buffer.BlockCopy(mBuffer, ReadPos, mBuffer, 0, currentDataSize);
                 ReadPos = 0;
-                WritePos = currenDataSize;
-            }
-            else
-            {
-                var remainingBufferLength = BufferSize - WritePos;
-                if (MinumBufferSize < remainingBufferLength)
-                {
-                    var temp = new byte[currenDataSize];
-                    Buffer.BlockCopy(mBuffer, ReadPos, temp, 0, currenDataSize);
-                    Buffer.BlockCopy(temp, 0, mBuffer, 0, currenDataSize);
-
-                    ReadPos = 0;
-                    WritePos = currenDataSize;
-                }
+                WritePos = currentDataSize;
             }
         }
     }

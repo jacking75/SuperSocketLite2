@@ -349,4 +349,30 @@ public partial class ServerConfig : IServerConfig
     /// so custom <see cref="IServerConfig"/> implementations always get the inline behaviour.
     /// </remarks>
     public bool ReceiveInlineOnIocpThread { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how many received bytes a session may buffer before the receive loop pauses,
+    /// in bytes. 0 or less uses the System.IO.Pipelines default (65536).
+    /// </summary>
+    /// <remarks>
+    /// This is the back-pressure threshold of the per-session receive pipe. Raise it when request
+    /// handlers are slow and bursty traffic must not stall; lower it to cap per-session memory.
+    /// The effective value is at least twice <see cref="ReceiveBufferSize"/>, because a pipe
+    /// requires its pause threshold to be no smaller than one segment.
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>.
+    /// </remarks>
+    public int MaxReceivePipeBufferSize { get; set; } = 65536;
+
+    /// <summary>
+    /// Gets or sets whether the NewSessionConnected event is raised synchronously on the accept path.
+    /// </summary>
+    /// <remarks>
+    /// By default the event is dispatched to the thread pool, so the first request of a fast client
+    /// can reach NewRequestReceived before the connected handler has run. Setting this to true
+    /// raises the event synchronously during session registration, which happens before receiving
+    /// starts, and therefore guarantees the ordering. The handler then blocks the accept path, so
+    /// it must stay short.
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>.
+    /// </remarks>
+    public bool SyncSessionConnectedEvent { get; set; } = false;
 }

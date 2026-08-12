@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net.Sockets;
 using System.Threading;
@@ -259,6 +260,11 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         try
         {
             var sae = m_SocketEventArgSend!;
+
+            //SocketAsyncEventArgs throws if Buffer and BufferList are set at the same time, so the
+            //previous send must always have been cleared by ClearPrevSendState.
+            Debug.Assert(sae.Buffer == null && sae.BufferList == null, "the previous send state was not cleared");
+
             sae.UserToken = queue;
 
             if (queue.Count > 1)
@@ -273,6 +279,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
             if (client == null)
             {
+                ClearPrevSendState(sae);
                 OnSendError(queue, CloseReason.SocketError);
                 return;
             }

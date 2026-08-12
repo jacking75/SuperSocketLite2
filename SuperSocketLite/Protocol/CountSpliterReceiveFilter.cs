@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.Text;
 using SuperSocketLite.SocketBase.Protocol;
 
@@ -11,7 +12,7 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 /// because this request is splited into many parts by 5 '#', we can create a Receive filter by CountSpliterRequestFilter((byte)'#', 5)
 /// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IOffsetAdapter
+public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IOffsetAdapter, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
     private int m_Total;
@@ -103,6 +104,41 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         }
 
         return requestInfo;
+    }
+
+    /// <summary>
+    /// Zero-copy parse straight from the receive pipe.
+    /// </summary>
+    /// <param name="buffer">The received data available from PipeReader.</param>
+    /// <param name="consumed">The position up to which data was consumed.</param>
+    /// <param name="examined">The position up to which data was examined.</param>
+    /// <returns>The parsed request, or null before the configured number of spliters has arrived.</returns>
+    /// <remarks>
+    /// The matched request spans from the start of the buffer through the last spliter, inclusive,
+    /// exactly like the byte[] overload. This path is only used when the server has no
+    /// RawDataReceived handler registered.
+    /// </remarks>
+    TRequestInfo? ISequenceReceiveFilter<TRequestInfo>.Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    {
+        var reader = new SequenceReader<byte>(buffer);
+        var found = 0;
+
+        while (found < m_SpliterCount && reader.TryAdvanceTo(m_Spliter, advancePastDelimiter: true))
+            found++;
+
+        if (found < m_SpliterCount)
+        {
+            consumed = buffer.Start;
+            examined = buffer.End;
+            return NullRequestInfo;
+        }
+
+        var requestEnd = reader.Position;
+        consumed = requestEnd;
+        examined = requestEnd;
+
+        var data = SequenceFilterHelper.AsArraySegment(buffer.Slice(buffer.Start, requestEnd));
+        return ProcessMatchedRequest(data.Array!, data.Offset, data.Count);
     }
 
     /// <summary>

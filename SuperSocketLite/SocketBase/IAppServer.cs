@@ -71,6 +71,21 @@ public interface IAppServer : IWorkItem, ILoggerProvider
     /// </summary>
     /// <param name="count">The number of bytes sent.</param>
     void RecordBytesSent(int count);
+
+    /// <summary>
+    /// Records a connection that was refused because the connection limit was reached.
+    /// </summary>
+    void RecordSessionRejected() { }
+
+    /// <summary>
+    /// Records a send that was dropped because the session's sending queue was full.
+    /// </summary>
+    void RecordSendQueueFull() { }
+
+    /// <summary>
+    /// Records a failed send.
+    /// </summary>
+    void RecordSendError() { }
 }
 
 /// <summary>

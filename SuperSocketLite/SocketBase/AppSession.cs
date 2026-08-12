@@ -5,6 +5,7 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
@@ -485,9 +486,99 @@ public string? CurrentCommand { get; set; }
     /// Sends the data segments to client.
     /// </summary>
     /// <param name="segments">The segments.</param>
+    /// <remarks>
+    /// The segment list itself is copied, so it can be reused as soon as this returns, but the
+    /// underlying arrays are not: do not modify them until the data has been sent. Use
+    /// <see cref="TrySendCopied"/> or <see cref="SendCopied"/> when the buffer must be reused right away.
+    /// </remarks>
     public virtual void Send(IList<ArraySegment<byte>> segments)
     {
         InternalSend(segments);
+    }
+
+    private bool InternalTrySendCopied(ReadOnlySpan<byte> data)
+    {
+        if (!SocketSession.TrySendCopied(data))
+            return false;
+
+        MarkActive();
+        return true;
+    }
+
+    /// <summary>
+    /// Try to send a copy of the data to the client, so the caller's buffer can be reused immediately.
+    /// </summary>
+    /// <param name="data">The data which will be sent.</param>
+    /// <returns>Indicate whether the message was pushed into the sending queue</returns>
+    public virtual bool TrySendCopied(ReadOnlySpan<byte> data)
+    {
+        if (!m_Connected)
+            return false;
+
+        return InternalTrySendCopied(data);
+    }
+
+    /// <summary>
+    /// Sends a copy of the data to the client, so the caller's buffer can be reused immediately.
+    /// </summary>
+    /// <param name="data">The data which will be sent.</param>
+    /// <exception cref="TimeoutException">The sending queue stayed full for longer than SendTimeOut.</exception>
+    public virtual void SendCopied(ReadOnlySpan<byte> data)
+    {
+        if (!m_Connected)
+            return;
+
+        if (InternalTrySendCopied(data))
+            return;
+
+        var sendTimeOut = Config.SendTimeOut;
+
+        //Don't retry, timeout directly
+        if (sendTimeOut < 0)
+        {
+            throw new TimeoutException("The sending attempt timed out");
+        }
+
+        var deadline = Environment.TickCount64 + sendTimeOut;
+
+        var spinWait = new SpinWait();
+
+        while (m_Connected)
+        {
+            spinWait.SpinOnce();
+
+            if (InternalTrySendCopied(data))
+                return;
+
+            //If sendTimeOut = 0, don't have timeout check
+            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
+            {
+                throw new TimeoutException("The sending attempt timed out");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Sends the data to the client, waiting asynchronously while the sending queue is full.
+    /// </summary>
+    /// <param name="data">The data which will be sent. Array-backed memory is sent without copying.</param>
+    /// <param name="cancellationToken">Cancels the wait for queue space.</param>
+    /// <returns>false if the session is not connected, or was closed while waiting.</returns>
+    /// <remarks>
+    /// The configured <c>SendTimeOut</c> does not apply to this overload - it is the caller's job to
+    /// bound the wait, e.g. with <c>new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token</c>.
+    /// </remarks>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    public virtual async ValueTask<bool> SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+    {
+        if (!m_Connected)
+            return false;
+
+        if (!await SocketSession.SendAsync(data, cancellationToken).ConfigureAwait(false))
+            return false;
+
+        MarkActive();
+        return true;
     }
 
     /// <summary>
@@ -748,18 +839,6 @@ public string? CurrentCommand { get; set; }
     {
         var maxRequestLength = GetMaxRequestLength();
 
-        if (maxRequestLength > 0 && sequence.Length >= maxRequestLength)
-        {
-            if (Logger.IsErrorEnabled)
-            {
-                var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, sequence.Length);
-                Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
-            }
-
-            Close(CloseReason.ProtocolError);
-            return new ProcessReceiveResult(sequence.End, sequence.End);
-        }
-
         var current = sequence;
         var consumedPosition = sequence.Start;
 
@@ -798,6 +877,23 @@ public string? CurrentCommand { get; set; }
 
                 current = sequence.Slice(consumedPosition);
                 continue;
+            }
+
+            // The filter needs more data. Only the bytes it could not turn into a request yet count
+            // towards MaxRequestLength: the receive pipe legitimately holds many complete pipelined
+            // requests at once, and measuring the whole buffer would kill healthy connections.
+            var pendingLength = sequence.Slice(consumed).Length;
+
+            if (maxRequestLength > 0 && pendingLength >= maxRequestLength)
+            {
+                if (Logger.IsErrorEnabled)
+                {
+                    var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, pendingLength);
+                    Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+                }
+
+                Close(CloseReason.ProtocolError);
+                return new ProcessReceiveResult(sequence.End, sequence.End);
             }
 
             return new ProcessReceiveResult(consumed, examined);

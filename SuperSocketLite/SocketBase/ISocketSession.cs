@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 
 namespace SuperSocketLite.SocketBase;
@@ -105,7 +107,47 @@ public interface ISocketSession : ISessionBase
     /// </summary>
     /// <param name="memory">The memory.</param>
     bool TrySend(ReadOnlyMemory<byte> memory);
-        
+
+    /// <summary>
+    /// Tries to send a copy of the data, so the caller may reuse its buffer immediately.
+    /// </summary>
+    /// <param name="data">The data to send.</param>
+    /// <returns>Indicate whether the message was pushed into the sending queue</returns>
+    /// <remarks>
+    /// Unlike <see cref="TrySend(ArraySegment{byte})"/>, which keeps a reference to the caller's
+    /// array until the data has actually been sent, this copies into a pooled buffer owned by the
+    /// session. The default implementation allocates; <c>SocketSession</c> overrides it to rent
+    /// from <see cref="System.Buffers.ArrayPool{T}"/>.
+    /// </remarks>
+    bool TrySendCopied(ReadOnlySpan<byte> data)
+    {
+        return TrySend(new ArraySegment<byte>(data.ToArray()));
+    }
+
+    /// <summary>
+    /// Queues the data, waiting asynchronously when the sending queue is full.
+    /// </summary>
+    /// <param name="data">The data to send. Array-backed memory is sent without copying.</param>
+    /// <param name="cancellationToken">Cancels the wait for queue space.</param>
+    /// <returns>false if the session is closed or was closed while waiting.</returns>
+    /// <remarks>
+    /// The configured <c>SendTimeOut</c> does not apply; bound the wait with a cancellation token.
+    /// The default implementation degrades to a non-waiting <see cref="TrySend(ReadOnlyMemory{byte})"/>;
+    /// <c>SocketSession</c> overrides it with a real asynchronous wait.
+    /// </remarks>
+    ValueTask<bool> SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return new ValueTask<bool>(TrySend(data));
+    }
+
+
+    /// <summary>
+    /// Gets whether the session has nothing left to send: its sending queue is empty and no send
+    /// operation is in progress. Used to drain sessions during a graceful shutdown.
+    /// </summary>
+    bool IsSendIdle => true;
+
     /// <summary>
     /// Gets the client socket.
     /// </summary>

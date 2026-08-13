@@ -1,139 +1,284 @@
 # SuperSocketLite2
-  
-SuperSocketLite의 업그레드 버전이다.  
-.NET 플랫폼을 지원한다.
-SuperSocketLite2은 게임 서버 개발에 사용하는 것을 주 용도로 예상하고 있지만, 일반적인 Socket 서버 개발에도 사용할 수 있다.      
-  
-SuperSocketLite2는 고성능, 안정성, 사용 편이를 목표로 한다.
 
-## 0.91 마이그레이션 가이드 (수신 필터 · Setup)
+**[🇰🇷 한국어 문서 (Korean README)](README_kr.md)**
 
-0.91에서 수신 필터의 `byte[]` 경로를 없애고 `ReadOnlySequence<byte>` 하나로 통일했다.
-**직접 만든 `ReceiveFilter`가 있으면 시그니처를 바꿔야 한다.**
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![C#](https://img.shields.io/badge/language-C%23-239120)](https://learn.microsoft.com/dotnet/csharp/)
 
-### 1. `FixedHeaderReceiveFilter<T>`
+**SuperSocketLite2** is a high-performance, async TCP/UDP socket server library for .NET, built
+for the kind of workload that doesn't forgive sloppy I/O: real-time multiplayer game servers.
+It gives you a session-based, event-driven framework on top of `SocketAsyncEventArgs` (IOCP) and
+`System.IO.Pipelines`, so you can focus on your game protocol instead of reinventing connection
+management, buffer pooling, and backpressure handling.
 
-`FixedHeaderSequenceReceiveFilter<T>`를 쓰고 있었다면 **이름만** 바꾸면 된다.
+It is a ground-up rewrite of the original [SuperSocketLite](https://github.com/jacking75/SuperSocketLite),
+which was itself a trimmed-down .NET port of [SuperSocket](https://github.com/kerryjiang/SuperSocket) 1.16.
+SuperSocketLite2 keeps the parts of that API that made sense and replaces the rest — the receive
+path, the send queue, the object pools — with a design built around `Pipelines` and modern .NET.
 
-```csharp
-// before
-public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<MyRequestInfo>
-// after
-public class ReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
+## Why SuperSocketLite2
+
+- **Zero-copy receive.** Each session owns one `System.IO.Pipelines.Pipe`. Your receive filter
+  parses requests straight out of a `ReadOnlySequence<byte>` — there is no per-session carry
+  buffer, no extra copy for a request that arrives whole, and an incomplete request simply stays
+  in the pipe until the rest of it shows up.
+- **A send path built to avoid allocating.** Sends are queued through a lock-free, bounded
+  `Channel<T>` per session, drained in batches, and handed to the socket with scatter-gather I/O
+  (`SocketAsyncEventArgs.BufferList`) so several queued segments go out in a single syscall.
+  `SocketAsyncEventArgs` objects for both receiving and sending are pooled and reused, not
+  allocated per connection.
+- **You choose the copy semantics.** `Send` is zero-copy (you own the buffer until it's actually
+  sent); `SendCopied` copies into a pooled buffer so you can reuse your own buffer immediately;
+  `SendAsync` gives you a `ValueTask<bool>` that waits when the send queue is full instead of
+  spinning. Pick whichever fits your hot path.
+- **Backpressure and graceful shutdown, not an afterthought.** The receive pipe's pause/resume
+  thresholds are sized around your configured `MaxRequestLength`, so a slow handler can't grow
+  memory without bound. `StopAsync(drainTimeout)` stops accepting new connections and lets
+  already-queued responses flush before it closes anything.
+- **A pluggable, binary-first protocol layer.** Implement `IReceiveFilter<T>` once and you're done
+  — built-in `FixedHeaderReceiveFilter<T>` and `FixedSizeReceiveFilter<T>` cover the common cases
+  (length-prefixed and fixed-size packets), and pipelined requests (several complete packets
+  arriving in one read) are handled for you.
+- **Observable without instrumenting your hot path.** Request/byte counters, active-connection
+  gauges, and a request-duration histogram are published through `System.Diagnostics.Metrics`
+  (`Meter("SuperSocketLite")`), ready for any OpenTelemetry-compatible collector. The gauges are
+  observable, so they cost nothing when nobody is listening.
+- **Bring your own logger.** The library depends only on its own tiny `ILog` abstraction, plus a
+  built-in `MicrosoftLoggingLogFactory` bridge — so Serilog, NLog, ZLogger, and log4net all work
+  out of the box through their `Microsoft.Extensions.Logging` providers.
+- **TCP and UDP from the same framework.** UDP sessions get the same `AppSession` model as TCP,
+  either keyed by remote endpoint or by a session ID you embed in the datagram yourself.
+- **Modern .NET, nullable-annotated, no legacy baggage.** Targets .NET 10, uses
+  `System.IO.Pipelines` and `System.Threading.Channels` throughout, and doesn't carry forward
+  API surface nobody used (see the [migration guide](Docs/Migration_0.90_to_0.91.md) for what was
+  cut and why).
+
+## Quick Start
+
+### Requirements
+
+- .NET 10.0 SDK
+- Windows or Linux (the async socket engine and TCP keep-alive options are cross-platform)
+
+### Get the library
+
+SuperSocketLite2 (0.91+, targeting .NET 10, the `Pipelines`-based engine described in this
+document) has not been published to NuGet yet — the `SuperSocketLite` package on NuGet.org is
+still the older, pre-rewrite line. Until a new release goes out, reference the project directly:
+
+```bash
+git clone https://github.com/jacking75/SuperSocketLite2.git
 ```
 
-옛 `byte[]` 기반 `FixedHeaderReceiveFilter<T>`를 쓰고 있었다면 메서드 2개를 옮긴다.
+```xml
+<ItemGroup>
+  <ProjectReference Include="..\SuperSocketLite2\SuperSocketLite\SuperSocketLite.csproj" />
+</ItemGroup>
+```
+
+### A minimal echo server
+
+A protocol is a length-prefixed packet: a 4-byte little-endian body length, followed by the body.
 
 ```csharp
-// before
-protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+// EchoProtocol.cs
+using System.Buffers;
+using System.Buffers.Binary;
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Protocol;
+using SuperSocketLite.SocketEngine.Protocol;
+
+// The request info: just the body bytes.
+public sealed class MyRequestInfo : BinaryRequestInfo
 {
-    return BitConverter.ToInt16(header, offset) - HeaderSize;
+    public MyRequestInfo(byte[] body) : base(string.Empty, body) { }
 }
 
-protected override MyRequestInfo ResolveRequestInfo(
-    ArraySegment<byte> header, byte[] buffer, int offset, int length)
+// The receive filter: parse a 4-byte length prefix, then the body.
+public sealed class MyReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
 {
-    return new MyRequestInfo(
-        BitConverter.ToInt16(header.Array, 0),
-        buffer.CloneRange(offset, length));
+    public MyReceiveFilter() : base(4) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
+    {
+        Span<byte> buffer = stackalloc byte[4];
+        header.CopyTo(buffer);
+        return BinaryPrimitives.ReadInt32LittleEndian(buffer);
+    }
+
+    protected override MyRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
+    {
+        return new MyRequestInfo(body.ToArray());
+    }
 }
 
-// after
-protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
-{
-    Span<byte> buf = stackalloc byte[HeaderSize];
-    header.CopyTo(buf);                                   // 세그먼트 경계에 걸려도 안전
-    return BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(0, 2)) - HeaderSize;
-}
+public sealed class MySession : AppSession<MySession, MyRequestInfo> { }
 
-protected override MyRequestInfo ResolveRequestInfo(
-    ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
+public sealed class MyServer : AppServer<MySession, MyRequestInfo>
 {
-    Span<byte> buf = stackalloc byte[HeaderSize];
-    header.CopyTo(buf);
-
-    return new MyRequestInfo(
-        BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(0, 2)),
-        body.ToArray());
+    public MyServer() : base(new DefaultReceiveFilterFactory<MyReceiveFilter, MyRequestInfo>()) { }
 }
 ```
 
-- `offset` / `length` / `toBeCopied` 인자는 전부 사라졌다. 요청 경계는 라이브러리가 잘라 준다.
-- `header` / `body`는 세그먼트 여러 개에 걸쳐 있을 수 있다. `header.First.Span`으로 바로 읽지 말고
-  `CopyTo(Span)` 또는 `ToArray()`를 쓴다.
-- 바디가 없으면 `body`는 빈 시퀀스다(널이 아니다).
-- 헤더와 바디가 붙은 원본 바이트열이 필요하면(MemoryPack 등) 두 시퀀스를 한 배열에 이어 붙인다.
-
-### 2. `FixedSizeReceiveFilter<T>`
-
 ```csharp
-// before
-protected override MyRequestInfo ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
-// after
-protected override MyRequestInfo ProcessMatchedRequest(ReadOnlySequence<byte> buffer)
+// Program.cs
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Config;
+using SuperSocketLite.SocketBase.Logging;
+
+var config = new ServerConfig
+{
+    Ip = "Any",
+    Port = 2012,
+    MaxConnectionNumber = 1000,
+    Mode = SocketMode.Tcp,
+    Name = "EchoServer"
+};
+
+var server = new MyServer();
+server.NewRequestReceived += (session, request) => session.Send(request.Body, 0, request.Body.Length);
+
+if (!server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory()))
+{
+    Console.WriteLine("Failed to set up the server.");
+    return;
+}
+
+server.Start();
+Console.WriteLine("Listening on 2012. Press any key to stop...");
+Console.ReadKey();
+server.Stop();
 ```
 
-### 3. `IReceiveFilter<T>`를 직접 구현한 경우
+That's a complete, runnable TCP server. For a walkthrough that builds this up step by step —
+including options parsing, structured logging, and a `Generic Host` version — see
+[`Tutorials/EchoServer`](Tutorials/EchoServer).
 
-```csharp
-// before
-TRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest);
-int LeftBufferSize { get; }
+## How It Works
 
-// after
-TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined);
+```
+[TCP client]
+    ↓
+TcpAsyncSocketListener        accept loop(s) (SocketAsyncEventArgs / IOCP)
+    ↓
+AsyncSocketServer              pools SocketAsyncEventArgs, creates sessions
+    ↓
+SocketSession                  state machine (InReceiving / InSending / Closed),
+    ↓                          one System.IO.Pipelines.Pipe per session
+AppSession<TSession, TReq>     your session type, Send/SendAsync/SendCopied
+    ↓
+IReceiveFilter<TRequestInfo>   parses a ReadOnlySequence<byte> into a request
+    ↓
+AppServerBase.NewRequestReceived   your handler runs here
 ```
 
-| 반환 | consumed | examined |
+The IOCP completion thread only advances the pipe writer and posts the next receive — it never
+runs your application code. A dedicated task per session reads the pipe, runs your filter, and
+dispatches `NewRequestReceived`, so a slow handler on one connection can't stall another
+connection's I/O.
+
+Sending mirrors that split: `TrySend`/`Send` enqueue onto a per-session `Channel`, and a
+single-flight send loop drains everything currently queued into one batch per socket write. A
+partial send (rare, but possible) is retried with the remaining bytes, not requeued from scratch.
+
+For the full breakdown — object pool sizing, the receive pipe's backpressure thresholds, the
+session state machine, and the logging abstraction — see
+[`.claude/architecture.md`](.claude/architecture.md) *(Korean)*.
+
+## Sending Data
+
+| Method | Copy semantics | When to use |
 |---|---|---|
-| 요청 1개 완성 | 요청 끝 위치 | consumed와 동일 |
-| 데이터 부족 | `buffer.Start` | `buffer.End` |
+| `Send(byte[], offset, length)` / `TrySend` | Zero-copy — the library keeps a reference to your array | You own a buffer you won't touch again until it's sent |
+| `SendCopied(ReadOnlySpan<byte>)` / `TrySendCopied` | Copies into a pooled buffer | You need your buffer back immediately (e.g. a reused scratch buffer) |
+| `SendAsync(ReadOnlyMemory<byte>, CancellationToken)` | Zero-copy for array-backed memory | You want to `await` when the send queue is full, instead of the blocking `Send` retry loop |
+| `Send(IList<ArraySegment<byte>>)` | The **list** is copied on enqueue; the underlying arrays are not | Sending several segments as one logical message |
 
-`LeftBufferSize`는 없어졌다. `MaxRequestLength` 판정은 라이브러리가 미소비 길이로 직접 한다.
+`TrySend*` returns `false` instead of blocking or throwing when the session is closed or its
+queue is full; `Send`/`SendCopied` spin-wait up to `ServerConfig.SendTimeOut` and then throw
+`TimeoutException`. See [`.claude/cautions.md`](.claude/cautions.md) *(Korean)* for the exact
+buffer-lifetime rules around the zero-copy overloads.
 
-### 4. `Setup` 인자
+## Configuration
 
-`Setup`에서 쓰지 않던 인자 2개(`socketServerFactory`, `connectionFilters`)가 빠졌다.
-`logFactory:` 처럼 **명명 인자**로 호출하고 있었다면 고칠 것이 없다.
+`ServerConfig` covers the usual suspects (`Port`, `MaxConnectionNumber`, `ReceiveBufferSize`,
+`SendTimeOut`, TCP keep-alive, idle session cleanup, ...) plus a few knobs worth knowing about:
 
-```csharp
-Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory());   // 그대로 동작
-```
+| Setting | Default | What it's for |
+|---|---|---|
+| `ReceiveInlineOnIocpThread` | `true` | Advances the receive pipe directly on the IOCP completion thread instead of dispatching to the thread pool — saves a thread hop and two `Task` allocations per received packet. |
+| `PreAllocateSAEA` / `MinPoolSize` | `true` / `100` | Pre-allocate every pooled `SocketAsyncEventArgs` at startup for the best accept-time latency, or grow the pool on demand from `MinPoolSize`. |
+| `MaxReceivePipeBufferSize` | `65536` | The receive pipe's backpressure threshold; automatically raised to fit `MaxRequestLength` so a large max request can't deadlock the receive loop. |
+| `SyncSessionConnectedEvent` | `false` | Raises `NewSessionConnected` synchronously during accept, so it's structurally guaranteed to run before a fast client's first request. |
+| `AcceptLoopCount` | `1` | Runs several concurrent accept loops on the same listening socket — helps a server that has to absorb a reconnect storm. |
+| `UseZeroByteReceive` | `false` | An idle session waits on a zero-byte receive instead of holding a real receive buffer — cuts idle-connection memory on servers where most sessions are quiet. |
 
-파생 클래스에서 `protected override bool Setup(IRootConfig, IServerConfig)` 훅을 재정의하고
-있었다면 이름이 **`OnSetup`**으로 바뀌었다.
+## UDP Support
 
-### 5. 없어진 기능
+UDP sessions go through the same `AppSession`/`IReceiveFilter` pipeline as TCP. Two modes are
+supported: one session per remote endpoint (the default), or — when your request type implements
+`UdpRequestInfo` — a session ID you embed in the payload yourself, so a client can keep the same
+logical session across a NAT rebind. See [`Tutorials/SimpleUDPServer`](Tutorials/SimpleUDPServer).
 
-| 제거 | 대체 |
+## Observability
+
+Everything is published through a single `Meter("SuperSocketLite")`:
+
+- **Counters**: `total-requests`, `total-bytes-received`, `total-bytes-sent`, `sessions-rejected`,
+  `send-queue-full`, `send-errors`
+- **Histogram**: `request-duration` (time spent in your request handler)
+- **Gauges**: `active-connections`, `session-count`, plus internal send-queue-depth and
+  `SocketAsyncEventArgs` pool-usage gauges (not exposed as public C# properties, but visible to
+  any metrics collector subscribed to the meter)
+
+Gauges are `ObservableGauge`s, so nothing is computed unless a collector is actually listening —
+wiring up metrics costs you nothing until you use them.
+
+## Examples
+
+The [`Tutorials/`](Tutorials) directory builds up from a bare echo server to more complete
+patterns:
+
+| Project | What it shows |
 |---|---|
-| `CollectSend` / `GetCollectSendData` / `CommitCollectSend`, `CollectSendIntervalMillSec` | 없음. 필요하면 앱에서 모아 `SendCopied` 한 번 호출 |
-| `RawDataReceived` / `IRawDataProcessor<T>` | 없음. 필터에서 처리 |
-| `IConnectionFilter` | 없음. `OnNewSessionConnected`에서 검사 후 `Close` |
-| `ISocketServerFactory` 주입 | 없음. `SocketMode`에 따라 라이브러리가 고른다 |
-| `AppSession.Items` / `PrevCommand` / `CurrentCommand`, `LogCommand` | 없음. 파생 세션 클래스에 직접 필드를 둔다 |
-| 문자열 명령 프로토콜(`StringRequestInfo`, `TerminatorReceiveFilter`, `CountSpliterReceiveFilter`, `BeginEndMarkReceiveFilter`, 비제네릭 `AppServer`/`AppSession`) | 없음. `AppServer<TSession, TRequestInfo>`와 바이너리 필터를 쓴다 |
+| [`EchoServer`](Tutorials/EchoServer) | The minimal end-to-end setup |
+| [`EchoServerEx`](Tutorials/EchoServerEx) | Command-line options, NLog integration |
+| [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) | Running as a `Generic Host` service |
+| [`ChatServer`](Tutorials/ChatServer) / [`ChatServerEx`](Tutorials/ChatServerEx) | Broadcasting to multiple sessions |
+| [`BinaryPacketServer`](Tutorials/BinaryPacketServer) | A structured binary protocol |
+| [`MultiPortServer`](Tutorials/MultiPortServer) | Listening on several ports at once |
+| [`SimpleUDPServer`](Tutorials/SimpleUDPServer) | UDP sessions |
+| [`SwitchReceiveFilter`](Tutorials/SwitchReceiveFilter) | Switching the receive filter mid-session |
+| [`GateServer_GameServer`](Tutorials/GateServer_GameServer), [`PvPGameServer`](Tutorials/PvPGameServer), [`GameServer_MoDedicated`](Tutorials/GameServer_MoDedicated) | Closer-to-production game server shapes |
 
-## VS Code에서 저장소 전체 분석
+## Testing & Quality
 
-저장소 루트의 `SuperSocketLite2.slnx`에는 라이브러리, 템플릿, 테스트, 튜토리얼을 포함한
-C# 프로젝트 33개가 등록되어 있다. VS Code에서 저장소 루트를 열었을 때 C# 확장이 이 통합
-솔루션을 자동으로 선택하지 않으면, 열어 본 파일만 임시 `Canonical.csproj`로 분석한다.
-이 상태에서는 같은 파일이나 .NET 기본 라이브러리의 정의는 F12로 이동되지만, 아직 로드되지
-않은 다른 소스 파일의 정의는 이동되지 않을 수 있다.
+The library ships with a substantial safety net of its own: a **40-case regression suite**
+covering the receive/send pipelines, the session state machine, close-path races, and logging
+adapters (`Test/SuperSocketLiteRegressionTests`), plus a **load-testing toolkit** with its own
+94-test self-suite (`Test/LoadTest`) that drives real TCP/UDP traffic against a live server,
+produces an HTML report, and can gate a change on throughput/latency regressions against a
+baseline run. Both suites are run before any change to the core library lands.
 
-저장소 전체를 분석하려면 `.vscode/settings.json`에 다음 작업 영역 설정을 둔다.
-
-```json
-{
-  "dotnet.defaultSolution": "SuperSocketLite2.slnx"
-}
+```bash
+dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
+dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 ```
 
-설정 후 명령 팔레트에서 `개발자: 창 다시 로드`를 실행한다. `출력` 패널의 `C#` 로그에서
-임시 `Canonical.csproj`가 아니라 `SuperSocketLite2.slnx`와 그 프로젝트들이 로드되는지
-확인한다. `.vscode/`는 이 저장소의 `.gitignore` 대상이므로 이 설정은 각 개발 환경에서
-로컬로 생성해야 한다.
+## Documentation
 
-자세한 원인과 확인 절차는 [VS Code 저장소 전체 분석 매뉴얼](Docs/VSCode_Repository_Analysis.html)에 있다.
+- [Architecture & data flow](.claude/architecture.md) *(Korean)*
+- [Coding conventions](.claude/conventions.md) *(Korean)*
+- [Known caveats](.claude/cautions.md) *(Korean)* — thread-safety notes, zero-copy buffer lifetime, UDP quirks
+- [Migrating from 0.90 to 0.91](Docs/Migration_0.90_to_0.91.md)
+- [Diagrams](Docs/index.html) *(Korean)* — architecture, TCP connection flow, receive/send pipeline detail
+- [Setting up VS Code for whole-repository analysis](Docs/VSCode_Repository_Analysis.html) *(Korean)*
+
+## Contributing
+
+Issues and pull requests are welcome on [GitHub](https://github.com/jacking75/SuperSocketLite2).
+
+## License
+
+[MIT](LICENSE)

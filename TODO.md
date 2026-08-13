@@ -9,10 +9,12 @@
 > 회귀 테스트는 10개 → 31개로 늘었다: `dotnet run --project Test/SuperSocketLiteRegressionTests -c Release`
 >
 > 남은 것 (필요해지면 신규 TODO로):
-> - `HttpReceiveFilterBase`의 `ISequenceReceiveFilter` 구현 (사용 빈도가 낮아 보류)
 > - LoadTest 기반 before/after 성능 수치 측정 (RPS, p99, Gen0)
-> - `ReuseLockBaseBuffer.Commit`의 압축 조건(`MinumBufferSize < 남은 공간`)이 의도와 반대로
->   보인다 — 여유가 적을 때가 아니라 많을 때 압축한다. 동작상 손상은 없어 그대로 두었다.
+>
+> 해소된 항목 (2026-08-13, `SIMPLIFY.md` 작업):
+> - `HttpReceiveFilterBase`의 sequence 구현 → `ISequenceReceiveFilter` 자체가 없어졌다.
+>   `IReceiveFilter`가 곧 sequence 인터페이스다(C-1).
+> - `ReuseLockBaseBuffer.Commit`의 압축 조건 의문 → CollectSend 기능과 함께 삭제됐다(D-1).
 
 ## 공통 규칙
 

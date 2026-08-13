@@ -2,6 +2,12 @@
 
 전체 규칙 원문: `Tutorials/coding_rule.md`
 
+> **아래 규칙 중 상당수는 저장소 루트 `.editorconfig`로 빌드가 강제한다.**
+> `SuperSocketLite.csproj`에 `EnforceCodeStyleInBuild=true`가 켜져 있어
+> 네이밍 위반(`_camelCase` / `s_` / const PascalCase)과 사용하지 않는 `using`,
+> `new()` 미단순화, 컬렉션 초기화 미단순화가 **빌드 경고**로 잡힌다.
+> 라이브러리 빌드는 경고 0을 유지하므로 규칙을 어기면 바로 드러난다.
+
 ---
 
 ## 필수 네이밍 규칙

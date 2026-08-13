@@ -28,9 +28,13 @@ buffer[0] = 0;          // OK
 (배열만 공유된다).
   
 
-## 수신 필터 zero-copy 경로
-`RawDataReceived` 핸들러를 등록하면 sequence(zero-copy) 경로가 **비활성화**되고 모든 수신 데이터가
-세션 캐리 버퍼로 복사된다. 성능이 중요하면 `RawDataReceived`를 쓰지 않는다.
+## 수신 필터
+필터는 파이프에서 `ReadOnlySequence<byte>`를 직접 받는다. 요청이 아직 완성되지 않았으면
+`consumed`를 전진시키지 말고 그대로 두면 된다 — 데이터는 파이프에 남고 다음 수신 때 이어서 온다.
+필터가 자체 캐리 버퍼를 두면 오히려 복사가 늘어난다.
+
+`header` / `body`는 세그먼트 여러 개에 걸쳐 있을 수 있다. `header.First.Span`으로 바로 읽지 말고
+`CopyTo(Span)`나 `ToArray()`를 쓴다.
 
 UDP + `UdpRequestInfo` 조합에서 sessionID 파싱용 필터는 **수신 스레드당 1개가 재사용**된다
 (`Reset()` 후 재사용). 이 필터는 데이터그램 간 상태를 갖지 않아야 하고
@@ -60,11 +64,6 @@ session.Close();
 이 경우 `NewSessionConnected`가 **호출되지 않는다**.
   
 
-## CollectSend 사용 시
-`Config.CollectSendIntervalMillSec > 0`이면 `SyncSend = true`가 강제 설정된다.
-사용 순서: `CollectSend()` → `GetCollectSendData()` → `CommitCollectSend()`
-  
-
 ## UDP 모드
-UDP 세션은 `m_Client(Socket)`가 null일 수 있다 (소켓 인스턴스 공유 구조).
+UDP 세션은 `_client(Socket)`가 null일 수 있다 (소켓 인스턴스 공유 구조).
 `Close()` 내부에서 UDP/TCP 경로가 분기되므로 UDP 관련 코드 수정 시 주의한다.

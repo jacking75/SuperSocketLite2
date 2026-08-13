@@ -11,8 +11,8 @@
     <!-- CS1591: public 멤버 XML 주석 누락, CS1573: 일부 인자만 param 태그 존재.
          문서화는 설명이 필요한 곳에만 한다는 방침이므로 둘 다 끈다. -->
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
-    <PackageVersion>0.90.0</PackageVersion>
-    <Version>0.90.0</Version>	
+    <PackageVersion>0.91.0</PackageVersion>
+    <Version>0.91.0</Version>
 	<PackageId>SuperSocketLite</PackageId>
 	<Authors>jacking75</Authors>
 	<Company>Com2us</Company>	

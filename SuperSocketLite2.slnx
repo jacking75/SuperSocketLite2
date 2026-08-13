@@ -34,7 +34,6 @@
     <Project Path="Tutorials/PvPGameServer/PvPGameServer.csproj" />
     <Project Path="Tutorials/sendFailTestServer/sendFailTestServer.csproj" />
     <Project Path="Tutorials/SimpleUDPServer/SimpleUDPServer.csproj" />
-    <Project Path="Tutorials/SwitchReceiveFilter/SwitchReceiveFilter.csproj" />
   </Folder>
   <Folder Name="/Tutorials/ChatClient/">
     <Project Path="Tutorials/ChatClient/TestClient.csproj" />

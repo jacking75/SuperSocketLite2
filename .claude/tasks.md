@@ -10,6 +10,33 @@
 
 ## 완료된 태스크
 
+### TASK-22: 코드 간결화 (`SIMPLIFY.md` A~D 전 단계) — ✅ 완료 (2026-08-13)
+
+라이브러리 **11,203줄 → 6,603줄 (-41%), 85개 파일 → 67개**. 버전 0.90.0 → 0.91.0.
+단계마다 빌드 경고 0 + 회귀 테스트 + 튜토리얼 빌드를 확인하고 개별 커밋했다.
+
+| 단계 | 내용 | 줄수 |
+|---|---|---|
+| A-2 | `ImplicitUsings` 활성화, using 98줄 제거 | 11,203 → 11,068 |
+| A-5 | `m_Xxx` → `_xxx` 735곳, `.editorconfig` + `EnforceCodeStyleInBuild` 도입 | 11,068 |
+| A-4 | 죽은 코드 제거(`StringExtension`, 죽은 분기, `NullAppSession`, `Async.AsyncRun` 재작성) | 11,026 |
+| A-3 | `get { return ...; }` 32곳 → 식 본문 프로퍼티 | 10,916 |
+| A-1 | XML 주석 압축(3,002줄 → 1,209줄). `<remarks>` 33개는 보존 | 9,145 |
+| B | 중복 통합 7건(송신 재시도 루프, 타이머, SAEA 거부 경로 등) | 9,118 |
+| C-5·C-2 | 실행되지 않는 default 구현 제거, `Setup` 정리(`OnSetup` 개명으로 no-op 함정 제거) | 9,060 |
+| C-4 | `SocketSession` 상태 머신: CloseReason 인코딩 분리, CAS 루프 4벌 → 1벌 | 9,060 |
+| D-5 | 문자열 프로토콜 계열 제거. `AppServer`/`AppSession` 3단 계층 → 1단 | 8,072 |
+| D-1,2,3,4,7 | CollectSend / RawDataReceived / IConnectionFilter / 팩토리 주입 / Items 제거 | 7,720 |
+| C-1 | **수신 필터 이중 경로 단일화** — `IReceiveFilter`가 sequence 전용 | 6,564 |
+| C-3 | `AppServerBase`를 partial 4개로 분할 | 6,603 |
+
+- **남긴 기능**: `IActiveConnector`(D-6), `AppSession.LastActiveTime`(D-8), UDP, `SendEndWhenSendingTimeOut`.
+- **public API가 바뀐다.** 외부 게임 서버 영향은 `README.md`의 "0.91 마이그레이션 가이드" 참고.
+- 검증: 회귀 테스트 31/31, LoadTest 통합 56/56,
+  실부하(TCP 50클라이언트 20초) 34,608 송신 / 34,603 수신 / 타임아웃 0 / p99 약 0.98ms.
+- 회귀 테스트 수가 36 → 31로 준 것은 삭제한 기능 전용 테스트 5개(문자열 필터 3, CollectSend 버퍼 2)를
+  함께 지웠기 때문이다. C-1 사전 테스트 2개는 새로 추가했다.
+
 ### TASK-21: 로깅 인터페이스 정비 — ✅ 완료 (2026-08-13)
 외부 로그 라이브러리 연동성 점검 후 발견한 문제를 전부 처리했다.
 - **MEL 브리지 추가**: `MicrosoftLoggingLogFactory` / `MicrosoftLoggingLog`.
@@ -68,13 +95,10 @@
   `sessions-rejected`, `send-queue-full`, `send-errors`, `request-duration`(Histogram, ms).
 - 확인: `dotnet-counters monitor --counters SuperSocketLite`
 
-### TASK-07: ReceiveFilter Span 오버로드 — ✅ 완료
-- **파일**: `SocketBase/Protocol/IReceiveFilter.cs`
-- `ReadOnlySpan<byte>` 오버로드가 default 구현으로 존재한다.
-- 실질적인 상위 호환은 `ISequenceReceiveFilter<T>`(zero-copy `ReadOnlySequence` 경로)이며,
-  `FixedSizeReceiveFilter`, `FixedHeaderReceiveFilter`, `FixedHeaderSequenceReceiveFilter`,
-  `TerminatorReceiveFilter`, `BeginEndMarkReceiveFilter`, `CountSpliterReceiveFilter`가 구현한다.
-  (`HttpReceiveFilterBase`는 미구현 — 필요해지면 TODO 신설)
+### TASK-07: ReceiveFilter Span 오버로드 — ✅ 완료 → **TASK-22로 대체됨**
+- 당시에는 `IReceiveFilter`(byte[])와 `ISequenceReceiveFilter`(zero-copy) 두 경로를 병행했다.
+- TASK-22(C-1)에서 `ISequenceReceiveFilter`를 없애고 `IReceiveFilter` 자체를
+  `ReadOnlySequence` 전용으로 만들어 경로가 하나로 합쳐졌다.
 
 ### TASK-01 Pipelines 전환 / TASK-02 Span·Memory 송신 / TASK-03 CancellationToken / TASK-09 Nullable — ✅ 완료
 - 수신은 `System.IO.Pipelines` 기반이며 `BufferManager`는 제거되었다.

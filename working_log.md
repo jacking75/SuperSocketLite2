@@ -1,5 +1,21 @@
 ﻿# 작업 로그
 
+## 2026-08-13 14:48 KST - SIMPLIFY.md 구현 (A~D 전 단계 완료)
+
+- 라이브러리 **11,203줄 → 6,603줄(-41%), 85개 파일 → 67개**. 단계마다 빌드·회귀 테스트·튜토리얼 빌드를 확인하고 12개 커밋으로 나눴다. 버전 0.90.0 → 0.91.0.
+- 가장 큰 건인 **C-1(수신 필터 이중 경로 단일화)** 을 계획보다 뒤로 미루고 **D-5(문자열 프로토콜 제거)를 먼저** 했다. D-5가 필터 3종을 통째로 지워서 C-1에서 sequence로 옮길 필터가 6종 → 3종으로 줄었기 때문이다.
+- C-1 결과 `IReceiveFilter`가 `ReadOnlySequence` 전용이 되고 세션 캐리 버퍼·오프셋 산술이 사라졌다. `ArraySegmentList`/`BinaryUtil`/`SearchMarkState`/`ReceiveFilterBase`/`IOffsetAdapter`/`ISequenceReceiveFilter` 6개 파일이 통째로 삭제됐다. **public API가 바뀌므로 `README.md`에 0.91 마이그레이션 가이드를 넣었다.**
+- 실제 버그 2건이 정리됐다. `Setup(rootConfig, config)`가 조용히 no-op이 되던 오버로드 함정(`OnSetup`으로 개명), CloseReason을 `_state`에 곱셈 인코딩해 `Closed` 비트가 서면 엉뚱한 값이 나오던 문제(별도 필드로 분리).
+- 검증: 회귀 테스트 31/31, LoadTest 통합 56/56, 실부하(TCP 50클라이언트 20초) 34,608 송신 / 타임아웃 0 / RTT p99 약 0.98ms.
+
+## 2026-08-13 13:11 KST - 라이브러리 코드 간결화 계획 수립 (SIMPLIFY.md)
+
+- 라이브러리 85개 파일 11,197줄을 전수 조사해 간결화 방안을 `SIMPLIFY.md`로 정리했다. 다음 세션의 작업 지시서다.
+- 최대 건은 **수신 필터의 이중 경로**(레거시 `byte[]` vs zero-copy `ReadOnlySequence`)다. 필터 6종이 같은 일을 두 알고리즘으로 구현 중이고, sequence 하나로 통일하면 `ArraySegmentList`/`BinaryUtil`/`ReceiveFilterBase` 등 6개 파일이 통째로 사라져 약 1,800줄이 준다.
+- 조사 중 **`Setup` 오버로드 함정**을 발견했다. `Setup(rootConfig, config)`를 인자 2개로 부르면 아무것도 안 하고 `true`를 반환하는 `protected virtual` 훅이 선택된다. 저장소의 모든 호출부가 `logFactory:` 명명 인자를 붙인 이유가 이것이다. `OnSetup`으로 개명을 제안했다.
+- XML 주석 3,002줄 중 정보가 있는 건 `<remarks>` 33블록뿐이고 동어반복 `<param>` 194개·빈 `<returns>` 75개 등이 나머지다. 기계적 압축만으로 약 1,500줄이 준다.
+- A(기계적)+B(중복 통합)+C(구조) 단계까지 하면 11,197 → 약 7,300줄(-35%). D(기능 축소)는 CollectSend·RawDataReceived·문자열 프로토콜 계열 등 8건에 대한 사용자 판단이 필요해 표로 남겨 두었다.
+
 ## 2026-08-13 12:38:19 KST - 다이어그램 스킬을 저장소에 포함(팀 공유)
 
 - 팀원 모두가 같은 스킬을 쓰도록 `archify`(v2.14)와 `diagram-design`(v2.3)을 `.claude/skills/` 에 벤더링했다. 저장소를 받으면 별도 설치 없이 바로 쓸 수 있다.

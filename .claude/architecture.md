@@ -47,10 +47,6 @@ Closed      = 0x01000000
 ```
 상태 전환은 `Interlocked.CompareExchange`로 원자적으로 처리된다.
 
-**ReuseLockBaseBuffer** (CollectSend)
-`Config.CollectSendIntervalMillSec > 0`이면 활성화.
-여러 Send 호출을 하나의 버퍼에 모아 한 번에 전송한다.
-  
 
 ## 이벤트 스레드 모델
 
@@ -111,14 +107,32 @@ Logger.Log(LogEventLevel.Error, session.SessionLogContext, "Max request length e
 `ILogProvider`(MEL의 `ILoggerProvider`와 구분), `LogEventLevel`(MEL의 `LogLevel`과 구분).
 
 
-## 수신 필터 두 경로
+## 수신 필터
 
-| 인터페이스 | 경로 | 비고 |
-|---|---|---|
-| `ISequenceReceiveFilter<T>` | zero-copy. `ReadOnlySequence`를 그대로 파싱 | 기본 필터 전부 구현 |
-| `IReceiveFilter<T>` | 세션 캐리 버퍼(`ArrayPool`)로 복사 후 `byte[]` 파싱 | fallback |
+경로는 하나다. 필터는 `ReadOnlySequence<byte>`를 파이프에서 직접 받아 파싱하고,
+아직 요청이 되지 않은 데이터는 **파이프에 그대로 둔다**(`consumed`를 전진시키지 않는다).
+세션 캐리 버퍼도, 오프셋 산술도 없다.
 
-`RawDataReceived` 핸들러를 등록하면 zero-copy 경로가 꺼지고 항상 `byte[]` 경로를 탄다.
+```csharp
+public interface IReceiveFilter<TRequestInfo>
+    where TRequestInfo : IRequestInfo
+{
+    TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined);
+    IReceiveFilter<TRequestInfo>? NextReceiveFilter { get; }
+    void Reset();
+    FilterState State { get; }
+}
+```
+
+| 반환 | consumed | examined | 의미 |
+|---|---|---|---|
+| RequestInfo | 요청 끝 | consumed와 동일 | 요청 1개 완성. 남은 바이트로 루프가 계속 돈다 |
+| null | `buffer.Start` | `buffer.End` | 데이터 부족. 파이프가 더 받을 때까지 그대로 둔다 |
+
+`State`를 `FilterState.Error`로 두면 세션이 `CloseReason.ProtocolError`로 닫힌다.
+
+`MaxRequestLength` 판정은 **미소비 길이**(`sequence.Slice(consumed).Length`)로 한다.
+파이프에는 완결된 파이프라인 요청이 여러 개 들어 있을 수 있으므로 버퍼 전체 길이로 재면 안 된다.
   
 
 ## 기본 구현 패턴
@@ -129,16 +143,25 @@ public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
 {
     public ReceiveFilter() : base(12) { }
 
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
-        => BitConverter.ToInt32(header, offset + 8);
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
+    {
+        Span<byte> buf = stackalloc byte[12];
+        header.CopyTo(buf);                       // 세그먼트 경계에 걸려도 안전하다
+        return BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(8, 4));
+    }
 
     protected override EFBinaryRequestInfo ResolveRequestInfo(
-        ArraySegment<byte> header, byte[] bodyBuffer, int offset, int length)
-        => new EFBinaryRequestInfo(
-            BitConverter.ToInt32(header.Array, 0),
-            BitConverter.ToInt16(header.Array, 4),
-            BitConverter.ToInt16(header.Array, 6),
-            bodyBuffer.CloneRange(offset, length));
+        ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
+    {
+        Span<byte> buf = stackalloc byte[12];
+        header.CopyTo(buf);
+
+        return new EFBinaryRequestInfo(
+            BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(0, 4)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(4, 2)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(6, 2)),
+            body.ToArray());
+    }
 }
 
 // 2. AppServer

@@ -1,4 +1,4 @@
-﻿# Tutorial
+# Tutorial
 여기에는 있는 서버를 순서대로 만들어 보면서 SuperSocketLite 사용 방법을 배운다.  
 각 서버 프로젝트를 빌드하면 00_server_bins 디렉토리에 출력한다.  
     
@@ -227,68 +227,8 @@ class Program
 ```    
   
   
-## SwitchReceiveFilter
-![SwitchReceiveFilter](./01_images/006.png)            
-  
-- 연결되는 클라이언트 마다 서로 다른 `ReceiveFilter`를 적용하는 예를 보여준다. 
-- 아래는 `SwitchReceiveFilter`에서 `ReceiveFilterA` 와 `ReceiveFilterB` 두개를 어떤 조건에 의해서 선택해서 사용하고 있다
-```
-public class MyAppServer : AppServer
-{
-    public MyAppServer()
-        : base(new DefaultReceiveFilterFactory<SwitchReceiveFilter, StringRequestInfo>())
-    {
-
-    }
-}
-
-
-public class SwitchReceiveFilter : IReceiveFilter<StringRequestInfo>
-{
-    private IReceiveFilter<StringRequestInfo> m_FilterA;
-    private byte m_BeginMarkA = (byte)'Y';
-
-    private IReceiveFilter<StringRequestInfo> m_FilterB;
-    private byte m_BeginMarkB = (byte)'*';
-
-    public SwitchReceiveFilter()
-    {
-        m_FilterA = new ReceiveFilterA(this);
-        m_FilterB = new ReceiveFilterB(this);
-    }
-
-    public StringRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
-    {
-        rest = length;
-        var flag = readBuffer[offset];
-
-        if (flag == m_BeginMarkA)
-            NextReceiveFilter = m_FilterA;
-        else if (flag == m_BeginMarkB)
-            NextReceiveFilter = m_FilterB;
-        else
-            State = FilterState.Error;
-
-        return null;
-    }
-
-    public int LeftBufferSize { get; private set; }
-
-    public IReceiveFilter<StringRequestInfo> NextReceiveFilter { get; private set; }
-
-    public void Reset()
-    {
-
-    }
-
-    public FilterState State { get; private set; }
-}
-```  
-  
-
-
 ## SimpleUDPServer  
-![SwitchReceiveFilter](./01_images/007.png)    
+![SimpleUDPServer](./01_images/007.png)    
   
 - UDP 통신을 하는 간단한 예제 코드
    

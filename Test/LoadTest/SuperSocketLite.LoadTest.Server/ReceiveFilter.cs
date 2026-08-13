@@ -4,7 +4,7 @@ using SuperSocketLite.SocketEngine.Protocol;
 
 namespace SuperSocketLite.LoadTest.Server;
 
-public sealed class ReceiveFilter : FixedHeaderSequenceReceiveFilter<LoadTestRequestInfo>
+public sealed class ReceiveFilter : FixedHeaderReceiveFilter<LoadTestRequestInfo>
 {
     public ReceiveFilter()
         : base(LoadTestRequestInfo.HeaderSize)

@@ -12,7 +12,7 @@
           "CommonLib": "1.0.0",
           "MemoryPack": "1.21.4",
           "NLog.Extensions.Logging": "6.1.3",
-          "SuperSocketLite": "0.90.0"
+          "SuperSocketLite": "0.91.0"
         },
         "runtime": {
           "GateServer.dll": {}
@@ -145,14 +145,14 @@
           }
         }
       },
-      "SuperSocketLite/0.90.0": {
+      "SuperSocketLite/0.91.0": {
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         },
         "runtime": {
           "SuperSocketLite.dll": {
-            "assemblyVersion": "0.90.0.0",
-            "fileVersion": "0.90.0.0"
+            "assemblyVersion": "0.91.0.0",
+            "fileVersion": "0.91.0.0"
           }
         }
       }
@@ -253,7 +253,7 @@
       "serviceable": false,
       "sha512": ""
     },
-    "SuperSocketLite/0.90.0": {
+    "SuperSocketLite/0.91.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

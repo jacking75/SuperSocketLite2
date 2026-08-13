@@ -11,7 +11,7 @@
           "MemoryPack": "1.21.4",
           "Microsoft.Extensions.Hosting": "10.0.8",
           "Microsoft.Extensions.Logging": "10.0.8",
-          "SuperSocketLite": "0.90.0",
+          "SuperSocketLite": "0.91.0",
           "ZLogger": "2.5.10"
         },
         "runtime": {
@@ -442,14 +442,14 @@
           }
         }
       },
-      "SuperSocketLite/0.90.0": {
+      "SuperSocketLite/0.91.0": {
         "dependencies": {
           "Microsoft.Extensions.Logging.Abstractions": "10.0.8"
         },
         "runtime": {
           "SuperSocketLite.dll": {
-            "assemblyVersion": "0.90.0.0",
-            "fileVersion": "0.90.0.0"
+            "assemblyVersion": "0.91.0.0",
+            "fileVersion": "0.91.0.0"
           }
         }
       }
@@ -692,7 +692,7 @@
       "path": "zlogger/2.5.10",
       "hashPath": "zlogger.2.5.10.nupkg.sha512"
     },
-    "SuperSocketLite/0.90.0": {
+    "SuperSocketLite/0.91.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

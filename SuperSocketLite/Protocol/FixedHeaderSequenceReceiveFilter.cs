@@ -48,7 +48,7 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
 
         if (buffer.Length < _headerSize)
         {
-            _leftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return default;
         }
 
@@ -58,7 +58,7 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
         if (!ValidateBodyLength(bodyLength))
         {
             State = FilterState.Error;
-            _leftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return default;
         }
 
@@ -66,7 +66,7 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
 
         if (buffer.Length < requestLength)
         {
-            _leftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return default;
         }
 
@@ -148,11 +148,6 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
     }
 
     protected abstract TRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body);
-
-    private static int ToInt32BufferSize(long length)
-    {
-        return length > int.MaxValue ? int.MaxValue : (int)length;
-    }
 
     private void EnsureLegacyBufferCapacity(int requiredLength)
     {

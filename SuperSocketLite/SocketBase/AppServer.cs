@@ -144,12 +144,50 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     public override int SessionCount => _sessionDict.Count;
 
 
+    /// <summary>
+    /// Starts a periodic timer whose callback never re-enters itself.
+    /// </summary>
+    /// <remarks>
+    /// A tick that arrives while the previous one is still running is dropped rather than queued,
+    /// so a slow sweep over the session snapshot cannot pile up timer callbacks.
+    /// </remarks>
+    private static Timer StartPeriodicTimer(Action body, int intervalMillSec)
+    {
+        var gate = new object();
+
+        return new Timer(_ =>
+        {
+            if (!Monitor.TryEnter(gate))
+                return;
+
+            try
+            {
+                body();
+            }
+            finally
+            {
+                Monitor.Exit(gate);
+            }
+        }, gate, intervalMillSec, intervalMillSec);
+    }
+
+    private static void StopTimer(ref Timer? timer)
+    {
+        if (timer == null)
+            return;
+
+        timer.Change(Timeout.Infinite, Timeout.Infinite);
+        timer.Dispose();
+        timer = null;
+    }
+
+
     private Timer? _collectSendSessionTimer = null;
 
     private void StartCollectSendSessionTimer()
     {
         int interval = Config.CollectSendIntervalMillSec;
-        _collectSendSessionTimer = new Timer(CollectSendSession, new object(), interval, interval);
+        _collectSendSessionTimer = StartPeriodicTimer(CollectSendSession, interval);
 
         if (Logger.IsInfoEnabled)
         {
@@ -158,44 +196,35 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     }
 
     /// <summary>세션들의 데이터를 모아서 보내기</summary>
-    private void CollectSendSession(object? state)
+    private void CollectSendSession()
     {
-        if (Monitor.TryEnter(state!))
+        try
         {
-            try
-            {
-                var sessionSource = SessionSource;
+            var sessionSource = SessionSource;
 
-                if (sessionSource == null)
+            if (sessionSource == null)
+                return;
+
+            Parallel.ForEach(sessionSource, s =>
+            {
+                var session = s.Value;
+                var sendData = session.GetCollectSendData();
+                var sendDataLength = sendData.Count;
+
+                if (sendData.Count > 0)
                 {
-                    return;
+                    //SendCopied takes its own pooled copy, so the collect buffer can be
+                    //committed right after without the extra snapshot array.
+                    session.SendCopied(new ReadOnlySpan<byte>(sendData.Array!, sendData.Offset, sendData.Count));
                 }
 
-                Parallel.ForEach(sessionSource, s =>
-                {
-                    var session = s.Value;
-                    var sendData = session.GetCollectSendData();
-                    var sendDataLength = sendData.Count;
-
-                    if (sendData.Count > 0)
-                    {
-                        //SendCopied takes its own pooled copy, so the collect buffer can be
-                        //committed right after without the extra snapshot array.
-                        session.SendCopied(new ReadOnlySpan<byte>(sendData.Array!, sendData.Offset, sendData.Count));
-                    }
-
-                    session.CommitCollectSend(sendDataLength);
-                });
-            }
-            catch (Exception e)
-            {
-                if (Logger.IsErrorEnabled)
-                    Logger.Error("Collect Send Session error!", e);
-            }
-            finally
-            {
-                Monitor.Exit(state!);
-            }
+                session.CommitCollectSend(sendDataLength);
+            });
+        }
+        catch (Exception e)
+        {
+            if (Logger.IsErrorEnabled)
+                Logger.Error("Collect Send Session error!", e);
         }
     }
 
@@ -207,50 +236,43 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     private void StartClearSessionTimer()
     {
         int interval = Config.ClearIdleSessionInterval * 1000;//in milliseconds
-        _clearIdleSessionTimer = new Timer(ClearIdleSession, new object(), interval, interval);
+        _clearIdleSessionTimer = StartPeriodicTimer(ClearIdleSession, interval);
     }
 
     /// <summary>Clears the idle session.</summary>
-    private void ClearIdleSession(object? state)
+    private void ClearIdleSession()
     {
-        if (Monitor.TryEnter(state!))
+        try
         {
-            try
+            var sessionSource = SessionSource;
+
+            if (sessionSource == null)
+                return;
+
+            // Idle detection runs off the monotonic tick stamp, so it is immune to wall-clock
+            // adjustments (DST, NTP) and costs nothing compared to DateTime.Now.
+            var nowTicks = Environment.TickCount64;
+            var idleTimeOutMillSec = (long)Config.IdleSessionTimeOut * 1000;
+
+            var timeOutSessions = sessionSource.Where(s => nowTicks - s.Value.LastActiveTimeTicks >= idleTimeOutMillSec).Select(s => s.Value);
+
+            Parallel.ForEach(timeOutSessions, s =>
             {
-                var sessionSource = SessionSource;
+                if (Logger.IsInfoEnabled)
+                {
+                    var idleSeconds = (nowTicks - s.LastActiveTimeTicks) / 1000.0;
+                    Logger.Log(LogEventLevel.Info,
+                        new LogSessionContext(s.SessionID, s.RemoteEndPoint),
+                        string.Format("The session will be closed after being idle for {0} seconds, start time: {1}, last active time: {2}", idleSeconds, s.StartTime, s.LastActiveTime));
+                }
 
-                if (sessionSource == null)
-                    return;
-
-                // Idle detection runs off the monotonic tick stamp, so it is immune to wall-clock
-                // adjustments (DST, NTP) and costs nothing compared to DateTime.Now.
-                var nowTicks = Environment.TickCount64;
-                var idleTimeOutMillSec = (long)Config.IdleSessionTimeOut * 1000;
-
-                var timeOutSessions = sessionSource.Where(s => nowTicks - s.Value.LastActiveTimeTicks >= idleTimeOutMillSec).Select(s => s.Value);
-
-                Parallel.ForEach(timeOutSessions, s =>
-                    {
-                        if (Logger.IsInfoEnabled)
-                        {
-                            var idleSeconds = (nowTicks - s.LastActiveTimeTicks) / 1000.0;
-                            Logger.Log(LogEventLevel.Info,
-                                new LogSessionContext(s.SessionID, s.RemoteEndPoint),
-                                string.Format("The session will be closed after being idle for {0} seconds, start time: {1}, last active time: {2}", idleSeconds, s.StartTime, s.LastActiveTime));
-                        }
-
-                        s.Close(CloseReason.TimeOut);
-                    });
-            }
-            catch (Exception e)
-            {
-                if(Logger.IsErrorEnabled)
-                    Logger.Error("Clear idle session error!", e);
-            }
-            finally
-            {
-                Monitor.Exit(state!);
-            }
+                s.Close(CloseReason.TimeOut);
+            });
+        }
+        catch (Exception e)
+        {
+            if (Logger.IsErrorEnabled)
+                Logger.Error("Clear idle session error!", e);
         }
     }
 
@@ -268,16 +290,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     private void StartSessionSnapshotTimer()
     {
         int interval = Math.Max(Config.SessionSnapshotInterval, 1) * 1000;//in milliseconds
-        _sessionSnapshotTimer = new Timer(TakeSessionSnapshot, new object(), interval, interval);
+        _sessionSnapshotTimer = StartPeriodicTimer(TakeSessionSnapshot, interval);
     }
 
-    private void TakeSessionSnapshot(object? state)
+    private void TakeSessionSnapshot()
     {
-        if (Monitor.TryEnter(state!))
-        {
-            Interlocked.Exchange(ref _sessionsSnapshot, _sessionDict.ToArray());
-            Monitor.Exit(state!);
-        }
+        Interlocked.Exchange(ref _sessionsSnapshot, _sessionDict.ToArray());
     }
 
     
@@ -312,26 +330,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     {
         base.Stop();
 
-        if (_sessionSnapshotTimer != null)
-        {
-            _sessionSnapshotTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            _sessionSnapshotTimer.Dispose();
-            _sessionSnapshotTimer = null;
-        }
-
-        if (_clearIdleSessionTimer != null)
-        {
-            _clearIdleSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            _clearIdleSessionTimer.Dispose();
-            _clearIdleSessionTimer = null;
-        }
-
-        if (_collectSendSessionTimer != null)
-        {
-            _collectSendSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            _collectSendSessionTimer.Dispose();
-            _collectSendSessionTimer = null;
-        }
+        StopTimer(ref _sessionSnapshotTimer);
+        StopTimer(ref _clearIdleSessionTimer);
+        StopTimer(ref _collectSendSessionTimer);
 
         _sessionsSnapshot = null;
 

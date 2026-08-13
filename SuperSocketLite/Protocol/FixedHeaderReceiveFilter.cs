@@ -125,7 +125,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
 
         if (buffer.Length < Size)
         {
-            _sequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return NullRequestInfo;
         }
 
@@ -135,7 +135,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         if (!ValidateBodyLength(bodyLength))
         {
             State = FilterState.Error;
-            _sequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return NullRequestInfo;
         }
 
@@ -143,7 +143,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
 
         if (buffer.Length < requestLength)
         {
-            _sequenceLeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             return NullRequestInfo;
         }
 
@@ -249,10 +249,5 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         _bodyLength = 0;
         _sequenceLeftBufferSize = 0;
         _bodyBuffer?.ClearSegements();
-    }
-
-    private static int ToInt32BufferSize(long length)
-    {
-        return length > int.MaxValue ? int.MaxValue : (int)length;
     }
 }

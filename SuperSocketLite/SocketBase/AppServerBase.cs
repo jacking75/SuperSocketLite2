@@ -731,15 +731,10 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     /// <summary>Executes the command for the session.</summary>
     internal void ExecuteCommand(IAppSession session, TRequestInfo requestInfo)
-    {
-        this.ExecuteCommand((TAppSession)session, requestInfo);
-    }
+        => ExecuteCommand((TAppSession)session, requestInfo);
 
-    /// <summary>Executes the command.</summary>
     void IRequestHandler<TRequestInfo>.ExecuteCommand(IAppSession session, TRequestInfo requestInfo)
-    {
-        this.ExecuteCommand((TAppSession)session, requestInfo);
-    }
+        => ExecuteCommand(session, requestInfo);
 
     /// <summary>Gets or sets the server's connection filter</summary>
     public IEnumerable<IConnectionFilter>? ConnectionFilters => _connectionFilters;
@@ -920,14 +915,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return activeConnector.ActiveConnect(targetEndPoint, localEndPoint);
     }
 
-    /// <summary>Connect the remote endpoint actively.</summary>
-    /// <exception cref="System.Exception">This server cannot support active connect.</exception>
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint)
-    {
-        return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
-    }
 
-    
 
     /// <summary>Releases unmanaged and - optionally - managed resources</summary>
     public void Dispose()

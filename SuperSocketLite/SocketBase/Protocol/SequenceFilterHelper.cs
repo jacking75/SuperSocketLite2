@@ -23,6 +23,14 @@ internal static class SequenceFilterHelper
     }
 
     /// <summary>
+    /// Clamps a sequence length to int, for the int-typed <c>LeftBufferSize</c> contract.
+    /// </summary>
+    public static int ToInt32BufferSize(long length)
+    {
+        return length > int.MaxValue ? int.MaxValue : (int)length;
+    }
+
+    /// <summary>
     /// Compares the first <paramref name="length"/> bytes of <paramref name="sequence"/> with the
     /// beginning of <paramref name="prefix"/>.
     /// </summary>

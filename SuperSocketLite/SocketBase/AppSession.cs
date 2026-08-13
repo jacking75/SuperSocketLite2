@@ -278,6 +278,57 @@ public string? CurrentCommand { get; set; }
     }
 
 
+    /// <summary>
+    /// The spin-and-timeout policy shared by every blocking Send overload.
+    /// </summary>
+    /// <remarks>
+    /// A struct so the retry loop allocates nothing on the sending hot path. The single blocking
+    /// Send that <see cref="SendCopied"/> performs takes a <c>ReadOnlySpan</c>, which cannot be
+    /// captured by a lambda - that is why the retry is expressed as a policy the caller drives
+    /// rather than as a delegate the policy calls.
+    /// </remarks>
+    private struct SendRetryPolicy
+    {
+        private const string TimedOutMessage = "The sending attempt timed out";
+
+        private readonly int _sendTimeOut;
+        private readonly long _deadline;
+        private SpinWait _spinWait;
+
+        public SendRetryPolicy(int sendTimeOut)
+        {
+            //Don't retry, timeout directly
+            if (sendTimeOut < 0)
+            {
+                throw new TimeoutException(TimedOutMessage);
+            }
+
+            _sendTimeOut = sendTimeOut;
+            _deadline = Environment.TickCount64 + sendTimeOut;
+            _spinWait = new SpinWait();
+        }
+
+        /// <summary>Spins once before the next attempt; false once the session is gone.</summary>
+        public bool SpinBeforeRetry(bool connected)
+        {
+            if (!connected)
+                return false;
+
+            _spinWait.SpinOnce();
+            return true;
+        }
+
+        /// <summary>Called after a failed attempt.</summary>
+        public readonly void ThrowIfTimedOut()
+        {
+            //If sendTimeOut = 0, don't have timeout check
+            if (_sendTimeOut > 0 && Environment.TickCount64 >= _deadline)
+            {
+                throw new TimeoutException(TimedOutMessage);
+            }
+        }
+    }
+
     private void InternalSend(ArraySegment<byte> segment)
     {
         if (!_connected)
@@ -286,30 +337,14 @@ public string? CurrentCommand { get; set; }
         if (InternalTrySend(segment))
             return;
 
-        var sendTimeOut = Config.SendTimeOut;
+        var retry = new SendRetryPolicy(Config.SendTimeOut);
 
-        //Don't retry, timeout directly
-        if (sendTimeOut < 0)
+        while (retry.SpinBeforeRetry(_connected))
         {
-            throw new TimeoutException("The sending attempt timed out");
-        }
-
-        var deadline = Environment.TickCount64 + sendTimeOut;
-
-        var spinWait = new SpinWait();
-
-        while (_connected)
-        {
-            spinWait.SpinOnce();
-
             if (InternalTrySend(segment))
                 return;
 
-            //If sendTimeOut = 0, don't have timeout check
-            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
-            {
-                throw new TimeoutException("The sending attempt timed out");
-            }
+            retry.ThrowIfTimedOut();
         }
     }
 
@@ -347,30 +382,14 @@ public string? CurrentCommand { get; set; }
         if (InternalTrySend(segments))
             return;
 
-        var sendTimeOut = Config.SendTimeOut;
+        var retry = new SendRetryPolicy(Config.SendTimeOut);
 
-        //Don't retry, timeout directly
-        if (sendTimeOut < 0)
+        while (retry.SpinBeforeRetry(_connected))
         {
-            throw new TimeoutException("The sending attempt timed out");
-        }
-
-        var deadline = Environment.TickCount64 + sendTimeOut;
-
-        var spinWait = new SpinWait();
-
-        while (_connected)
-        {
-            spinWait.SpinOnce();
-
             if (InternalTrySend(segments))
                 return;
 
-            //If sendTimeOut = 0, don't have timeout check
-            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
-            {
-                throw new TimeoutException("The sending attempt timed out");
-            }
+            retry.ThrowIfTimedOut();
         }
     }
 
@@ -416,30 +435,14 @@ public string? CurrentCommand { get; set; }
         if (InternalTrySendCopied(data))
             return;
 
-        var sendTimeOut = Config.SendTimeOut;
+        var retry = new SendRetryPolicy(Config.SendTimeOut);
 
-        //Don't retry, timeout directly
-        if (sendTimeOut < 0)
+        while (retry.SpinBeforeRetry(_connected))
         {
-            throw new TimeoutException("The sending attempt timed out");
-        }
-
-        var deadline = Environment.TickCount64 + sendTimeOut;
-
-        var spinWait = new SpinWait();
-
-        while (_connected)
-        {
-            spinWait.SpinOnce();
-
             if (InternalTrySendCopied(data))
                 return;
 
-            //If sendTimeOut = 0, don't have timeout check
-            if (sendTimeOut > 0 && Environment.TickCount64 >= deadline)
-            {
-                throw new TimeoutException("The sending attempt timed out");
-            }
+            retry.ThrowIfTimedOut();
         }
     }
 

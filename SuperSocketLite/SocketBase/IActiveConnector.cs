@@ -16,8 +16,8 @@ public class ActiveConnectResult
 /// <summary>The inerface to connect the remote endpoint actively</summary>
 public interface IActiveConnector
 {
-    /// <summary>Connect the target endpoint actively.</summary>
-    Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint);
+    /// <summary>Connect the target endpoint actively, binding no local endpoint.</summary>
+    Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint) => ActiveConnect(targetEndPoint, null);
 
     /// <summary>Connect the target endpoint actively.</summary>
     Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint);

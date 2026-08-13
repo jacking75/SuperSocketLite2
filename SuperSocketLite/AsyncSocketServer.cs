@@ -55,29 +55,31 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     private IAppSession? ProcessNewClient(Socket client)
     {
-        // Get receive SAEA from pool
-        SocketAsyncEventArgsProxy? socketEventArgsProxy;
-        if (!_receiveSAEAPool!.TryGet(out socketEventArgsProxy))
+        //Every rejection closes the socket off the accept thread; a pool miss additionally counts
+        //and logs the refusal.
+        IAppSession? Reject(bool poolExhausted)
         {
-            AppServer.RecordSessionRejected();
-            AppServer.AsyncRun(client.SafeClose);
-            if (AppServer.Logger.IsErrorEnabled)
-                AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
+            if (poolExhausted)
+            {
+                AppServer.RecordSessionRejected();
 
+                if (AppServer.Logger.IsErrorEnabled)
+                    AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
+            }
+
+            AppServer.AsyncRun(client.SafeClose);
             return null;
         }
 
+        // Get receive SAEA from pool
+        if (!_receiveSAEAPool!.TryGet(out SocketAsyncEventArgsProxy? socketEventArgsProxy))
+            return Reject(poolExhausted: true);
+
         // Get send SAEA from pool
-        SocketAsyncEventArgs? sendSAEA;
-        if (!_sendSAEAPool!.TryGet(out sendSAEA))
+        if (!_sendSAEAPool!.TryGet(out SocketAsyncEventArgs? sendSAEA))
         {
-            socketEventArgsProxy.Reset();
-            _receiveSAEAPool.Push(socketEventArgsProxy);
-            AppServer.RecordSessionRejected();
-            AppServer.AsyncRun(client.SafeClose);
-            if (AppServer.Logger.IsErrorEnabled)
-                AppServer.Logger.Error($"Max connection number {AppServer.Config.MaxConnectionNumber} was reached!");
-            return null;
+            ReturnReceiveSAEA(socketEventArgsProxy);
+            return Reject(poolExhausted: true);
         }
 
         var socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA);
@@ -86,11 +88,9 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
         if (session == null)
         {
-            socketEventArgsProxy.Reset();
-            _receiveSAEAPool.Push(socketEventArgsProxy);
+            ReturnReceiveSAEA(socketEventArgsProxy);
             _sendSAEAPool.Push(sendSAEA);
-            AppServer.AsyncRun(client.SafeClose);
-            return null;
+            return Reject(poolExhausted: false);
         }
 
         socketSession.Closed += SessionClosed;
@@ -101,6 +101,12 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         }
 
         return session;
+    }
+
+    private void ReturnReceiveSAEA(SocketAsyncEventArgsProxy proxy)
+    {
+        proxy.Reset();
+        _receiveSAEAPool!.Push(proxy);
     }
 
     private bool RegisterSession(IAppSession appSession)
@@ -196,11 +202,6 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             TaskSource = taskSource;
             Socket = socket;
         }
-    }
-
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint)
-    {
-        return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
     }
 
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)

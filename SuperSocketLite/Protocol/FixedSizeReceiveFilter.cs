@@ -73,7 +73,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
 
         if (buffer.Length < _size)
         {
-            _parsedLength = ToInt32BufferSize(buffer.Length);
+            _parsedLength = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
             _offsetDelta = 0;
             return NullRequestInfo;
         }
@@ -128,10 +128,5 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     {
         InternalReset();
         State = FilterState.Normal;
-    }
-
-    private static int ToInt32BufferSize(long length)
-    {
-        return length > int.MaxValue ? int.MaxValue : (int)length;
     }
 }

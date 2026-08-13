@@ -169,22 +169,14 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     void ProcessPackageWithoutSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData, int offset, int count)
     {
         var sessionID = remoteEndPoint.ToString();
-        var appSession = AppServer.GetSessionByID(sessionID);
+        var appSession = AppServer.GetSessionByID(sessionID)
+            ?? CreateNewSession(listenSocket, remoteEndPoint, sessionID);
 
-        if (appSession == null) //New session
-        {
-            appSession = CreateNewSession(listenSocket, remoteEndPoint, sessionID);
+        //Failed to create a new session
+        if (appSession == null)
+            return;
 
-            //Failed to create a new session
-            if (appSession == null)
-                return;
-
-            appSession.ProcessRequest(receivedData, offset, count, false);
-        }
-        else //Existing session
-        {
-            appSession.ProcessRequest(receivedData, offset, count, false);
-        }
+        appSession.ProcessRequest(receivedData, offset, count, false);
     }
 
     void OnSocketSessionClosed(ISocketSession socketSession, CloseReason closeReason)
@@ -208,11 +200,6 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     protected override ISocketListener CreateListener(ListenerInfo listenerInfo)
     {
         return new UdpSocketListener(listenerInfo);
-    }
-
-    Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint)
-    {
-        return ((IActiveConnector)this).ActiveConnect(targetEndPoint, null);
     }
 
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)

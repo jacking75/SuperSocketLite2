@@ -110,6 +110,8 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--payload` | `small` | 페이로드 크기 패턴입니다. 예: `small`, `mixed`. |
 | `--output` | `logs\loadtest\client` | 클라이언트 CSV 출력 디렉토리입니다. |
 | `--scenario` | `echo` | 실행 시나리오입니다. 예: `echo`, `game-like`, `idle-heartbeat`, `reconnect-storm`. |
+| `--pacing` | `open` | 송신 페이싱 방식입니다. `open` 또는 `closed`를 지정합니다. 아래 설명을 참고합니다. |
+| `--max-in-flight` | 자동 | 응답을 기다리는 동안 동시에 떠 있을 수 있는 요청 수입니다. 지정하지 않으면 `송신 레이트 × 수신 타임아웃`으로 잡습니다. |
 | `--receive-timeout` | `00:00:05` | 응답 수신 타임아웃입니다. |
 | `--operation-sampling` | `1.0` | `client_operations.csv` 샘플링 비율입니다. |
 | `--client-operation-sampling` | `1.0` | `--operation-sampling`과 같은 옵션입니다. |
@@ -119,6 +121,43 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--udp-loss-percent` | `0` | UDP 테스트에서 클라이언트 송신 손실을 흉내 내는 비율입니다. |
 | `--run-id` | UTC 타임스탬프 | CSV에 기록할 실행 식별자입니다. |
 | `--machine-id` | OS 머신명 | 클라이언트 CSV에 기록할 부하 발생 머신 식별자입니다. 복수 머신 실행 시 명시하는 것을 권장합니다. |
+
+### 송신 페이싱 (`--pacing`)
+
+부하를 거는 방식이 두 가지입니다. 기본값은 `open`입니다.
+
+| 값 | 동작 |
+| --- | --- |
+| `open` | 실행 시작 기준의 절대 일정대로 보냅니다. 응답을 기다리는 동안에도 다음 송신이 나갑니다. |
+| `closed` | 응답을 받은 뒤에 다음 지연을 시작합니다. 예전 방식입니다. |
+
+닫힌 루프에서는 한 번의 사이클이 `지연 + 왕복 시간`이 됩니다.
+그래서 **서버가 느려지면 부하량도 함께 줄어듭니다.**
+정작 서버가 힘들 때 부하가 약해지므로 지연 시간이 실제보다 좋게 측정되고, 성능 회귀를 놓치게 됩니다.
+
+열린 루프는 송신 시각을 미리 정한 일정으로 고정합니다.
+한 번 늦게 나가도 다음 송신은 원래 예정 시각을 따르므로 오차가 누적되지 않습니다.
+요청과 응답은 본문 앞 8바이트에 실은 상관 ID로 짝지으므로 응답이 순서대로 오지 않아도 됩니다.
+
+열린 루프는 **TCP 바이너리 프로토콜에만** 적용됩니다.
+`--transport udp`와 `--protocol text-line`은 `--pacing open`을 지정해도 닫힌 루프로 동작합니다.
+
+변경 전후를 비교할 때는 양쪽 실행의 페이싱을 반드시 맞춥니다.
+`client_summary.csv`의 `pacing` 항목에 실제 적용된 값이 기록됩니다.
+
+#### 부하를 내지 못할 때 원인 가리기
+
+목표 레이트를 달성하지 못하면 원인이 서버인지 부하 발생기인지 구분해야 합니다.
+`client_summary.csv`의 다음 항목을 봅니다.
+
+| 키 | 의미 |
+| --- | --- |
+| `send_schedule_delay_p99_us` | 예정 시각보다 늦게 나간 송신의 지연입니다. 이 값이 크면 클라이언트가 일정을 따라가지 못하고 있습니다. |
+| `send_skipped_in_flight` | 동시 요청 한도에 걸려 보내지 못한 송신 수입니다. |
+| `max_in_flight_observed` | 실행 중 관측된 최대 동시 요청 수입니다. 한도에 붙어 있으면 한도를 올려야 합니다. |
+
+`send_schedule_delay_p99_us`가 작고 `send_skipped_in_flight`가 0인데 달성률이 낮다면 부하 발생기는 정상이며 다른 원인을 봐야 합니다.
+반대로 이 값들이 크면 클라이언트 머신이 한계에 닿은 것이므로 부하를 여러 머신에 나눠야 합니다.
 
 ### 게임형 시나리오
 
@@ -313,7 +352,7 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `server_events.csv` | 서버 | 접속, 종료, 오류, 샘플링된 요청 이벤트입니다. |
 | `client_samples.csv` | 클라이언트 | 활성 클라이언트, 접속/종료, 송수신, 타임아웃, RTT 분위수 등 주기 샘플입니다. |
 | `client_operations.csv` | 클라이언트 | 샘플링된 개별 요청/응답 지연 시간입니다. |
-| `client_summary.csv` | 클라이언트 | 실행 종료 시점의 요약 메트릭입니다. |
+| `client_summary.csv` | 클라이언트 | 실행 전체 요약입니다. **결과를 볼 때 이 파일을 먼저 봅니다.** |
 
 클라이언트 CSV에는 `machine_id` 컬럼이 포함됩니다.
 복수 머신 실행 결과를 분석할 때 이 값으로 부하 발생 머신별 결과를 구분합니다.
@@ -321,6 +360,50 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 고부하 테스트에서는 `client_operations.csv`가 병목이 될 수 있습니다.
 이 경우 `--operation-sampling 0.01`처럼 샘플링 비율을 낮춥니다.
 집계 샘플만 남기고 개별 작업 기록을 끄려면 `--operation-sampling 0.0`을 사용합니다.
+
+### 구간(phase) 컬럼
+
+`client_samples.csv`와 `server_samples.csv`의 각 행에는 그 시점이 어떤 구간인지가 기록됩니다.
+
+| 값 | 의미 |
+| --- | --- |
+| `rampup` | 목표 접속 수에 도달하는 중입니다. |
+| `steady` | 목표 부하가 걸린 정상 구간입니다. |
+| `rampdown` | 종료 절차에 들어갔습니다. |
+| `idle` | 접속이 없습니다. 서버만 켜 둔 구간입니다. |
+
+클라이언트는 자신의 접속 일정을 알고 있으므로 그것으로 판정합니다.
+서버는 클라이언트의 계획을 모르므로 활성 세션 수의 변화로 추정합니다.
+
+분석 뷰는 `steady` 구간만 평균합니다.
+서버를 클라이언트보다 오래 켜 두면 무부하 구간이 평균을 끌어내려 실제 처리량의 절반 이하로 보이게 되기 때문입니다.
+
+### 실행 전체 요약 (`client_summary.csv`)
+
+`key`, `value` 형식이며 실행이 끝날 때 한 번 기록됩니다.
+
+주요 항목입니다.
+
+| 키 | 설명 |
+| --- | --- |
+| `rtt_total_p50_us` … `rtt_total_p999_us` | **실행 전체** RTT 분위수입니다. p50, p90, p95, p99, p99.9, max를 기록합니다. |
+| `rtt_total_count` | 분위수 계산에 쓰인 응답 수입니다. |
+| `target_send_rate_per_sec` | 요청한 목표 송신 레이트입니다. `--clients` × `--send-rate-per-client`입니다. |
+| `steady_send_rate_per_sec` | 정상 구간에서 실제로 달성한 송신 레이트입니다. |
+| `steady_rate_achievement` | 목표 대비 달성률입니다. `1.0`이 목표 달성입니다. |
+| `response_rate` | 송신 대비 응답 수신 비율입니다. |
+| `pacing` | 실제로 적용된 페이싱 방식입니다. `open` 또는 `closed`입니다. |
+| `max_in_flight` | 적용된 동시 요청 한도입니다. |
+| `send_schedule_delay_p99_us` | 예정 시각 대비 송신 지연입니다. 클라이언트 포화를 판단합니다. |
+| `send_skipped_in_flight` | 동시 요청 한도에 걸려 건너뛴 송신 수입니다. |
+| `max_in_flight_observed` | 관측된 최대 동시 요청 수입니다. |
+
+`rtt_total_*` 값은 모든 응답을 세는 히스토그램에서 나옵니다.
+따라서 `--operation-sampling` 값에 영향을 받지 않습니다.
+샘플링을 `0.01`로 낮춰도 `client_operations.csv`에는 1%만 남지만 분위수는 응답 100%를 기준으로 계산됩니다.
+
+`steady_rate_achievement`가 `1.0`보다 크게 낮으면 요청한 만큼 부하를 걸지 못한 실행입니다.
+이때의 지연 시간 수치는 의도한 것보다 가벼운 테스트의 결과이므로 비교 대상으로 쓰면 안 됩니다.
 
 ## DuckDB 분석
 
@@ -333,6 +416,12 @@ duckdb loadtest.duckdb -init Test\LoadTest\analysis\duckdb_loadtest.sql
 DuckDB 콘솔에서 자주 쓰는 분석 뷰를 조회합니다.
 
 ```sql
+-- 실행 전체 요약. 분위수와 목표 달성률이 함께 나오므로 여기서 시작합니다.
+SELECT * FROM analysis_run_summary;
+
+-- 구간별 샘플 수. steady 샘플이 0이면 비교할 수 있는 측정이 없다는 뜻입니다.
+SELECT * FROM analysis_phase_breakdown;
+
 SELECT * FROM analysis_throughput;
 SELECT * FROM analysis_latency;
 SELECT * FROM analysis_client_machine_summary;

@@ -1,0 +1,1207 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>부하 테스트 툴킷 구축 계획</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f9fb;
+    --panel: #ffffff;
+    --text: #1f2937;
+    --muted: #64748b;
+    --line: #d8e0ea;
+    --accent: #156f6b;
+    --accent-soft: #e7f5f2;
+    --warn: #b45309;
+    --warn-soft: #fef3e2;
+    --bad: #b91c1c;
+    --bad-soft: #fdeaea;
+    --good: #15803d;
+    --good-soft: #e8f5ec;
+    --code-bg: #f1f5f9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+  }
+  main { max-width: 1080px; margin: 0 auto; padding: 44px 24px 80px; }
+
+  header.doc { border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 36px; }
+  h1 { margin: 0 0 10px; font-size: 32px; }
+  .lead { color: var(--muted); max-width: 780px; margin: 0; }
+  .meta-line { margin-top: 14px; font-size: 13px; color: var(--muted); }
+
+  h2 {
+    margin: 46px 0 14px;
+    font-size: 22px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--accent-soft);
+  }
+  h3 { margin: 28px 0 10px; font-size: 17px; }
+  h4 { margin: 20px 0 8px; font-size: 15px; color: var(--muted); }
+  p { margin: 0 0 12px; }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin-bottom: 5px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px;
+    font-size: 14px;
+    background: var(--panel);
+  }
+  th, td { border: 1px solid var(--line); padding: 9px 11px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .scroll-x { overflow-x: auto; }
+
+  code {
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 0.92em;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 13px 15px;
+    overflow-x: auto;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    margin: 12px 0 18px;
+  }
+  pre code { background: none; padding: 0; }
+
+  .box {
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    background: var(--panel);
+    border-radius: 0 6px 6px 0;
+    padding: 14px 18px;
+    margin: 18px 0;
+  }
+  .box.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .box.bad { border-left-color: var(--bad); background: var(--bad-soft); }
+  .box.good { border-left-color: var(--good); background: var(--good-soft); }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  .box strong.title { display: block; margin-bottom: 6px; }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 9px;
+    border-radius: 11px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tag.keep { background: var(--good-soft); color: var(--good); }
+  .tag.fix { background: var(--warn-soft); color: var(--warn); }
+  .tag.new { background: #eef0fb; color: #4338ca; }
+  .tag.p1 { background: var(--bad-soft); color: var(--bad); }
+  .tag.p2 { background: var(--warn-soft); color: var(--warn); }
+  .tag.p3 { background: var(--accent-soft); color: var(--accent); }
+  .tag.p4 { background: #eef2f6; color: var(--muted); }
+  .tag.done { background: var(--good-soft); color: var(--good); }
+
+  tr.done-row td:first-child { position: relative; }
+  .status-cell { white-space: nowrap; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+    margin: 18px 0 24px;
+  }
+  .kpi {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+    padding: 14px 16px;
+  }
+  .kpi .k { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .kpi .v { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .kpi .s { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .kpi.alert .v { color: var(--warn); }
+  .kpi.ok .v { color: var(--good); }
+
+  a { color: var(--accent); }
+  .diagram-link {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+    padding: 16px 18px;
+    text-decoration: none;
+    color: inherit;
+    margin: 18px 0 24px;
+  }
+  .diagram-link:hover { border-color: var(--accent); }
+  .diagram-link .t { font-weight: 600; color: var(--accent); }
+  .diagram-link .d { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  footer.doc {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header class="doc">
+  <h1>부하 테스트 툴킷 구축 계획</h1>
+  <p class="lead">
+    SuperSocketLite의 성능·안정성 변화를 재현 가능한 수치로 판정하기 위한 더미 클라이언트,
+    시나리오, 측정, 분석 도구의 구축 계획이다. 다음 세션의 구현 착수 문서로 쓴다.
+  </p>
+  <p class="meta-line">
+    대상 저장소 <code>SuperSocketLite2</code> · 작성일 2026-08-13 · <strong>단계 1·2 구현 완료</strong>
+  </p>
+</header>
+
+<div class="box good">
+  <strong class="title">진행 상황 — 단계 1(측정 신뢰성)·단계 2(부하 정확도) 구현 완료</strong>
+  <p>
+    <strong>단계 1</strong>에서 측정 정확도 문제 4건을 고쳤다. 실행 전체 p99가 남고,
+    분위수가 표본 추출 비율에 영향받지 않으며, 정상 구간만 집계된다
+    (<a href="#result">3장</a>).
+  </p>
+  <p>
+    <strong>단계 2</strong>에서 부하 생성을 열린 루프로 바꿨다.
+    목표 달성률이 96.8%에서 <strong>99.9%</strong>로 올랐고,
+    응답이 늦어져도 부하량이 유지된다(닫힌 루프 84.8% 대 열린 루프 100.0%)
+    (<a href="#result2">4장</a>).
+  </p>
+  <p>
+    그 과정에서 <strong>세션 수 계측 버그</strong>도 찾아 고쳤다.
+    접속·종료 이벤트 순서가 뒤바뀌면 활성 세션 수가 영구히 어긋나
+    없는 누수를 있다고 판정하고 있었다(<a href="#result2">4.4절</a>).
+  </p>
+  <p>
+    자체 테스트 66건 통과, 빌드 경고 0개. 다음 작업은 <a href="#next">단계 3(커버리지)</a>다.
+  </p>
+</div>
+
+<h2>1. 먼저 알아야 할 것: 이미 상당 부분이 존재한다</h2>
+
+<p>
+  이 작업을 백지에서 시작할 필요가 없다. <code>Test/LoadTest/</code> 아래에 5개 프로젝트,
+  C# 소스 <strong>4,183줄</strong> 규모의 부하 테스트 툴킷이 이미 커밋되어 있다
+  (<code>df3196d LoadTest 추가</code>).
+  계획을 세우기 전에 실제로 빌드하고 실행해 현재 수준을 확인했다.
+</p>
+
+<div class="box good">
+  <strong class="title">실행 검증 결과 (2026-08-13)</strong>
+  <p>
+    솔루션 빌드 성공(오류 0). TCP 바이너리 에코로 100 클라이언트 30초 부하를 실제로 완주했다.
+    연결 실패 0건, 타임아웃 0건, 서버 예외 0건, 세션 누수 없음(연결 100 / 종료 100).
+    CSV 5종이 정상 생성되고 행 유실도 없었다(<code>dropped_client_operation_rows=0</code>).
+  </p>
+</div>
+
+<p>따라서 이 계획의 성격은 <strong>신규 구축이 아니라, 이미 도는 툴킷을 "믿을 수 있는 측정기"로 끌어올리는 것</strong>이다.</p>
+
+<h3>1.1 현재 구성</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:26%">프로젝트</th><th style="width:10%">줄 수</th><th>역할</th><th style="width:12%">평가</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>LoadTest.Client</code></td><td class="num">1,399</td><td>더미 클라이언트. TCP/UDP/text 연결, 시나리오 5종, 클라이언트 계측·CSV</td><td><span class="tag fix">보강</span></td></tr>
+    <tr><td><code>LoadTest.Server</code></td><td class="num">337</td><td>계측용 TCP 바이너리 에코 서버 (측정 대상)</td><td><span class="tag fix">보강</span></td></tr>
+    <tr><td><code>LoadTest.ServerProbe</code></td><td class="num">682</td><td>서버 메트릭 수집. 세션·요청·GC·스레드풀·CPU·핸들러 지연</td><td><span class="tag fix">보강</span></td></tr>
+    <tr><td><code>LoadTest.Shared</code></td><td class="num">308</td><td>바이너리 패킷, CSV 라이터, 지연 히스토그램, 단조 시계</td><td><span class="tag fix">보강</span></td></tr>
+    <tr><td><code>LoadTest.Tests</code></td><td class="num">1,457</td><td>자체 테스트(통합 테스트 655줄 포함)</td><td><span class="tag keep">유지</span></td></tr>
+    <tr><td><code>analysis/</code></td><td class="num">—</td><td>DuckDB 분석 SQL. 분석 뷰 9종</td><td><span class="tag fix">보강</span></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  이미 갖춰진 것: 시나리오 5종(에코, 게임형, 하트비트, 재접속 폭주, UDP 에코),
+  CSV 스키마 5종, DuckDB 분석 뷰 9종, 복수 머신 분산 실행 규약(<code>machine_id</code>),
+  한국어 사용 문서(<code>BUILD_AND_USAGE.md</code>).
+</p>
+
+<div class="box">
+  <strong class="title">이 툴킷은 이미 다른 작업의 검증 수단으로 참조되고 있다</strong>
+  <p>
+    <code>TODO.md</code>는 성능 개선 항목마다 "LoadTest로 before/after 비교"를 검증 절차로 지정한다
+    (RPS·p99·Gen0 비교, ArrayPool 반환 검증, UDP 처리량 비교 등 10곳 이상).
+    즉 <strong>이 툴킷의 측정 정확도가 곧 개선 작업 전체의 판단 근거</strong>가 된다.
+    측정을 믿을 수 없으면 그 위의 모든 결론이 무너진다.
+  </p>
+</div>
+
+<h2>2. 실측으로 확인한 문제</h2>
+
+<p>
+  계획의 근거를 추정이 아니라 실측에 두기 위해 프로브 실행을 수행했다.
+  아래 수치는 모두 그 실행에서 나온 값이다.
+</p>
+
+<div class="box">
+  <p style="margin:0">
+    이 장은 <strong>수정 전</strong>의 진단이다. 여기서 지목한 문제는 단계 1에서 모두 처리했고,
+    수정 후 측정값은 <a href="#result">3장</a>에 있다. 비교를 위해 원래 수치를 그대로 남겨 둔다.
+  </p>
+</div>
+
+<pre><code># 서버
+dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Server -c Release -- \
+  --port 2012 --max-connections 500 --duration 00:01:10 --run-id probe01
+
+# 클라이언트 (목표: 100 클라이언트 × 5 req/s = 500 req/s)
+dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Client -c Release -- \
+  --transport tcp --protocol echo-binary --clients 100 \
+  --ramp-up 00:00:05 --duration 00:00:30 --send-rate-per-client 5.0 --run-id probe01</code></pre>
+
+<div class="kpi-grid">
+  <div class="kpi alert">
+    <div class="k">정상 구간 달성 레이트</div>
+    <div class="v">484.4 / 500</div>
+    <div class="s">목표 대비 3.1% 미달 (범위 473~495)</div>
+  </div>
+  <div class="kpi alert">
+    <div class="k">RTT p99 (1초 창)</div>
+    <div class="v">529 ~ 6,321 µs</div>
+    <div class="s">중앙값 729 µs · 최대 12배 변동</div>
+  </div>
+  <div class="kpi alert">
+    <div class="k">서버 샘플 중 부하 구간</div>
+    <div class="v">31 / 76</div>
+    <div class="s">45개 행이 무부하 구간</div>
+  </div>
+  <div class="kpi ok">
+    <div class="k">기능적 오류</div>
+    <div class="v">0건</div>
+    <div class="s">예외·타임아웃·세션 누수 없음</div>
+  </div>
+</div>
+
+<h3>2.1 부하량이 목표에 못 미친다 — 그리고 구조적으로 더 미달할 수 있다</h3>
+
+<p>
+  목표 초당 500요청에 대해 정상 구간 평균 <strong>484.4요청</strong>만 발생했다.
+  원인은 두 가지이고, 성격이 다르므로 구분해야 한다.
+</p>
+
+<ol>
+  <li>
+    <strong>타이머 해상도로 인한 상시 미달 (관측된 3.1%)</strong> —
+    현재 페이싱은 <code>Task.Delay(think time)</code>이다
+    (<code>LoadScenario.NextThinkTime</code>).
+    Windows 기본 타이머 해상도는 약 15.6ms라 200ms 지연 요청이 실제로는 더 길어지고,
+    그 오차가 사이클마다 누적된다.
+  </li>
+  <li>
+    <strong>닫힌 루프 구조로 인한 잠재 미달 (부하가 커질수록 확대)</strong> —
+    <code>ClientActor.RunTcpLoopAsync</code>는 요청 하나를 보내고 응답을 <em>받은 뒤에</em>
+    다음 지연을 시작한다. 즉 사이클 시간 = 지연 + RTT다.
+    서버가 느려지면 부하 발생량도 함께 줄어들어, <strong>서버가 힘들어질수록 부하가 약해진다.</strong>
+    이번 실행은 RTT가 0.3ms 수준이라 영향이 미미했지만,
+    고부하에서 RTT가 커지면 이 항이 지배적이 되고 지연 시간이 실제보다 좋게 측정된다.
+  </li>
+</ol>
+
+<div class="box warn">
+  <strong class="title">왜 중요한가</strong>
+  <p>
+    성능 개선의 before/after를 비교할 때, 느려진 쪽은 부하도 함께 줄어 "지연은 비슷한데 처리량만 낮은"
+    모습으로 나타난다. 회귀를 놓치거나 크기를 과소평가하게 된다.
+  </p>
+</div>
+
+<h3>2.2 실행 전체의 p99가 어디에도 남지 않는다</h3>
+
+<p>
+  <code>ClientRuntime</code>의 샘플러는 1초마다
+  <code>Snapshot(resetLatency: true)</code>로 히스토그램을 <strong>비운다</strong>.
+  그래서 <code>client_samples.csv</code>의 분위수는 모두 "직전 1초 안의 p99"다.
+  이번 실행에서 그 값은 529µs에서 6,321µs까지 흔들렸다.
+  초당 약 500샘플에서 p99는 상위 5개 값이라 통계적으로 불안정할 수밖에 없다.
+</p>
+
+<p>
+  그런데 <code>client_summary.csv</code>에는 클라이언트 수, 실행 시간, 유실 행 수만 기록되고
+  <strong>실행 전체 분위수가 없다.</strong> 결국 전체 p99를 알려면
+  <code>client_operations.csv</code>를 집계해야 하는데, 고부하에서는
+  <code>--operation-sampling</code>을 낮추라고 문서가 권고하므로 그때는 정확도가 떨어진다.
+  <em>부하가 클수록 지연 통계가 부정확해지는</em> 구조다.
+</p>
+
+<h3>2.3 부하 구간과 무부하 구간이 구분되지 않는다</h3>
+
+<p>
+  서버는 클라이언트와 독립적으로 <code>--duration</code>만큼 돈다. 이번 실행에서 서버는 76개 샘플을 기록했지만
+  실제 부하가 걸린 구간은 31개뿐이었다(핸들러 지연이 0이 아닌 행 기준).
+  나머지 45개 행은 처리량 0이다. 이 행들이 그대로 평균에 섞이면 처리량이 절반 이하로 왜곡된다.
+  램프업 구간도 마찬가지다. 지금은 CSV에 구간을 표시하는 컬럼이 없어
+  분석 시점에 사람이 <code>elapsed_ms</code> 범위를 눈으로 잘라내야 한다.
+</p>
+
+<h3>2.4 그 밖에 확인된 결함</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:22%">항목</th><th>내용</th><th style="width:20%">근거</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>종료 시 중복 샘플</td>
+      <td>서버 종료 직후 14ms 간격으로 샘플 3행이 연속 기록된다. 1초 주기 규칙을 깨고 처리량 0인 행을 늘린다. <code>Flush()</code>가 <code>WriteSample()</code>을 호출하는데 종료 경로에서 중복 호출된다.</td>
+      <td><code>elapsed_ms</code> 72,622 / 72,636 / 72,650</td>
+    </tr>
+    <tr>
+      <td>정상 종료가 오류로 집계</td>
+      <td>클라이언트 종료 시점에 <code>send_fail</code> 2건, <code>socket_error</code> 2건이 남는다. 실제 장애가 아니라 종료 경로의 처리 미흡이며, 오류율 판정에 노이즈가 된다.</td>
+      <td>마지막 <code>client_samples</code> 행</td>
+    </tr>
+    <tr>
+      <td>지연 히스토그램 경합</td>
+      <td><code>LatencyHistogram</code>이 <code>List&lt;long&gt;</code> + 단일 <code>lock</code>이다. 모든 클라이언트의 모든 응답이 하나의 락을 통과하고, 스냅샷마다 전체 정렬이 일어난다. 5,000 클라이언트 규모에서는 측정기 자체가 병목이자 왜곡 요인이 된다.</td>
+      <td><code>Shared/Metrics/LatencyHistogram.cs</code></td>
+    </tr>
+    <tr>
+      <td>UDP·text 시나리오 실행 불가</td>
+      <td>클라이언트는 <code>--transport udp|text</code>를 받지만 대응 서버가 없다. 문서도 "별도 서버나 호환 엔드포인트가 필요하다"고 명시한다. 시나리오 5종 중 UDP 에코는 사실상 미검증 상태다.</td>
+      <td><code>BUILD_AND_USAGE.md</code> "다른 전송 방식"</td>
+    </tr>
+    <tr>
+      <td>묶음 전송의 RTT 정의 모호</td>
+      <td><code>--coalesced-packet</code>에서 두 요청의 RTT를 같은 시작 시각 기준으로 계산한다. 두 번째 요청의 RTT에는 첫 응답 대기 시간이 포함되어 부풀려진다. 의도된 정의일 수 있으나 문서화되어 있지 않다.</td>
+      <td><code>ClientActor.cs:124,149</code></td>
+    </tr>
+    <tr>
+      <td>실행 자동화 부재</td>
+      <td>서버와 클라이언트를 사람이 각각 다른 창에서 띄우고 종료를 지켜봐야 한다. 시나리오 여러 개를 연속 실행하거나 결과를 자동 수집하는 수단이 없다.</td>
+      <td><code>README.md</code> 실행 절차</td>
+    </tr>
+    <tr>
+      <td>분석 산출물 부재</td>
+      <td>DuckDB 뷰는 있으나 조회는 수작업이다. 그래프·리포트, before/after 비교, 임계값 기반 자동 판정이 없다. <code>analysis_smoke_verdict</code>가 유일한 판정이며 스모크 전용이다.</td>
+      <td><code>analysis/duckdb_loadtest.sql</code></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="result">3. 단계 1 구현 결과</h2>
+
+<p>
+  2장이 지목한 문제를 모두 수정했다. 아래 수치는 수정 후 실행에서 다시 측정한 값이다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:8%">항목</th><th style="width:30%">한 일</th><th>확인된 효과</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>C1</td>
+      <td>지연 히스토그램을 고정 버킷 방식으로 교체</td>
+      <td>표본을 개별 보관하지 않으므로 기록 비용과 메모리가 표본 수와 무관해졌다. 기록을 스레드별 슬롯으로 나눠 단일 락 경합을 없앴다. 실행 전체 누적과 1초 창을 함께 유지한다.</td>
+    </tr>
+    <tr>
+      <td>C2</td>
+      <td><code>client_summary.csv</code>에 실행 전체 지표 기록</td>
+      <td>전체 p50·p90·p95·p99·p99.9·max, 성공률, 목표 대비 달성률이 남는다. 요약 파일만 봐도 실행을 판단할 수 있다.</td>
+    </tr>
+    <tr>
+      <td>C3</td>
+      <td>CSV에 <code>phase</code> 구간 컬럼 추가</td>
+      <td>램프업·정상·종료·무부하가 행마다 표시된다. 클라이언트는 접속 일정으로, 서버는 세션 수 변화로 판정한다.</td>
+    </tr>
+    <tr>
+      <td>C4</td>
+      <td>서버 종료 시 중복 샘플 제거</td>
+      <td><code>Flush()</code>가 샘플을 쓰지 않게 하고 마지막 샘플을 한 곳에서만 기록한다. 종료 시 14ms 간격 3행이 사라졌다.</td>
+    </tr>
+    <tr>
+      <td>A4</td>
+      <td>정상 종료를 오류로 세지 않도록 수정</td>
+      <td>실행 시간이 끝나 소켓이 정리되는 중의 예외를 장애로 집계하지 않는다.</td>
+    </tr>
+    <tr>
+      <td>D4</td>
+      <td>분석 SQL에 정상 구간 필터 반영</td>
+      <td>집계 뷰가 <code>steady</code> 행만 평균한다. 실행 전체 요약 뷰와 구간 분포 뷰를 새로 추가했다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>3.1 히스토그램이 원본과 일치하는가</h3>
+
+<p>
+  고정 버킷 방식은 값을 버킷에 세므로 원본과 오차가 생긴다. 그 오차가 실제로 얼마인지 확인했다.
+  전량 기록한 실행(<code>verify01</code>, 응답 10,900건)에서 요약이 보고한 분위수와
+  <code>client_operations.csv</code> 원본을 직접 정렬해 구한 값을 비교했다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th>분위수</th><th class="num">히스토그램 (µs)</th><th class="num">CSV 원본 (µs)</th><th class="num">오차</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>p50</td><td class="num">343</td><td class="num">342</td><td class="num">+0.29%</td></tr>
+    <tr><td>p90</td><td class="num">547</td><td class="num">546</td><td class="num">+0.18%</td></tr>
+    <tr><td>p95</td><td class="num">723</td><td class="num">722</td><td class="num">+0.14%</td></tr>
+    <tr><td>p99</td><td class="num">1,271</td><td class="num">1,268</td><td class="num">+0.24%</td></tr>
+    <tr><td>p99.9</td><td class="num">2,831</td><td class="num">2,820</td><td class="num">+0.39%</td></tr>
+    <tr><td>max</td><td class="num">15,295</td><td class="num">15,249</td><td class="num">+0.30%</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  오차는 모두 0.4% 이내이고, <strong>전부 원본보다 크거나 같다.</strong>
+  버킷의 상한값을 돌려주도록 만들었기 때문이며, 성능을 실제보다 좋게 보고하지 않는다는 뜻이다.
+  표본 수는 10,900건으로 정확히 일치했다.
+</p>
+
+<h3>3.2 샘플링 비율에 영향을 받지 않는가</h3>
+
+<p>
+  2장에서 지적한 "부하가 클수록 지연 통계가 부정확해지는" 문제가 해소되었는지 확인했다.
+  <code>--operation-sampling 0.01</code>로 실행한 결과다.
+</p>
+
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="k">CSV에 기록된 행</div>
+    <div class="v">108</div>
+    <div class="s">샘플링 1%가 적용된 결과</div>
+  </div>
+  <div class="kpi ok">
+    <div class="k">분위수 계산에 쓰인 응답</div>
+    <div class="v">10,916</div>
+    <div class="s">응답 100%가 집계됨</div>
+  </div>
+</div>
+
+<p>
+  CSV 쓰기 부담을 100분의 1로 줄이면서도 분위수는 전체 응답을 기준으로 계산된다.
+  고부하 실행에서도 지연 통계의 정확도를 포기하지 않아도 된다.
+</p>
+
+<h3>3.3 정상 구간 필터의 효과</h3>
+
+<p>
+  같은 데이터를 정상 구간만 집계했을 때와 전체 구간을 평균했을 때의 차이다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th>실행</th><th class="num">정상 구간 기준 (RPS)</th><th class="num">전체 구간 평균 (RPS)</th><th class="num">차이</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>verify01</code></td><td class="num">483.1</td><td class="num">205.6</td><td class="num">2.35배</td></tr>
+    <tr><td><code>verify02</code></td><td class="num">483.6</td><td class="num">253.8</td><td class="num">1.91배</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  서버를 클라이언트보다 오래 켜 두면 무부하 구간이 평균을 끌어내린다.
+  구간 구분이 없을 때는 실제로 낸 처리량의 절반 이하가 보고되고 있었다.
+  구간 판정이 맞는지도 확인했다. <code>verify01</code>에서 서버는 클라이언트 접속 전 구간을
+  <code>idle</code>로, 접속이 늘어나는 5초를 <code>rampup</code>으로, 이후를 <code>steady</code>로 판정했다.
+  클라이언트에 지정한 <code>--ramp-up 00:00:05</code>와 일치한다.
+</p>
+
+<h3>3.4 종료 시 노이즈</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th>지표</th><th class="num">수정 전 (probe01)</th><th class="num">수정 후 (verify01)</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>클라이언트 <code>send_fail</code></td><td class="num">2</td><td class="num">0</td></tr>
+    <tr><td>클라이언트 <code>socket_error</code></td><td class="num">2</td><td class="num">0</td></tr>
+    <tr><td>서버 종료 시 중복 샘플</td><td class="num">3행</td><td class="num">0행</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  자동 판정 뷰가 이 차이를 그대로 잡아낸다. 수정 전 실행은 소켓 오류 2건 때문에
+  <code>analysis_smoke_verdict</code>에서 불합격으로, 수정 후 실행은 합격으로 나온다.
+</p>
+
+<h3>3.5 재현성</h3>
+
+<p>
+  같은 파라미터로 3회 반복 실행한 결과다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr>
+      <th>실행</th><th class="num">정상 구간 RPS</th><th class="num">목표 달성률</th>
+      <th class="num">p50 (ms)</th><th class="num">p99 (ms)</th><th class="num">p99.9 (ms)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>repeat01</code></td><td class="num">483.2</td><td class="num">0.967</td><td class="num">0.331</td><td class="num">1.135</td><td class="num">3.791</td></tr>
+    <tr><td><code>repeat02</code></td><td class="num">484.9</td><td class="num">0.970</td><td class="num">0.333</td><td class="num">1.327</td><td class="num">3.631</td></tr>
+    <tr><td><code>repeat03</code></td><td class="num">483.4</td><td class="num">0.967</td><td class="num">0.317</td><td class="num">0.919</td><td class="num">1.695</td></tr>
+    <tr><td><strong>변동폭</strong></td><td class="num"><strong>0.35%</strong></td><td class="num"><strong>0.34%</strong></td><td class="num"><strong>5.0%</strong></td><td class="num"><strong>44%</strong></td><td class="num"><strong>124%</strong></td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box warn">
+  <strong class="title">처리량은 재현되지만 꼬리 분위수는 아직 흔들린다</strong>
+  <p>
+    처리량과 달성률은 0.35% 안에서 재현된다. 처리량 비교는 지금 바로 신뢰할 수 있다.
+    p50도 5% 이내다. 그러나 p99는 실행 간 44%, p99.9는 124% 변동한다.
+  </p>
+  <p>
+    이는 측정 결함이 아니라 로컬 환경의 실제 변동(GC, OS 스케줄링, 백그라운드 프로세스)이 꼬리에 실린 것이다.
+    1초 창 p99가 12배까지 흔들리던 이전보다는 크게 나아졌지만,
+    <strong>꼬리 지연으로 회귀를 판정하려면 단일 실행이 아니라 여러 회 실행의 중앙값을 써야 한다.</strong>
+    이 점은 단계 4의 판정 도구(D2·D3) 설계에 반영해야 한다.
+  </p>
+</div>
+
+<h3>3.6 하위 호환</h3>
+
+<p>
+  CSV에 컬럼을 추가했지만 과거 실행 결과도 계속 분석할 수 있다.
+  분석 뷰가 <code>union_by_name</code>을 쓰고, <code>phase</code>가 없는 행은 <code>unknown</code>으로 채워
+  부하 구간으로 취급한다. 실제로 구 스키마 실행(<code>probe01</code>)과 신 스키마 실행을 한 데이터베이스에서
+  함께 조회해 확인했다. 구 실행은 새 요약 항목이 빈 값으로 나올 뿐 집계에서 사라지지 않는다.
+</p>
+
+<h2 id="result2">4. 단계 2 구현 결과</h2>
+
+<p>
+  측정을 믿을 수 있게 되었으니 다음은 부하 자체를 목표대로 거는 일이다.
+  2.1절에서 지목한 닫힌 루프 구조를 열린 루프로 바꿨다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:8%">항목</th><th style="width:30%">한 일</th><th>내용</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A1</td>
+      <td>열린 루프 페이싱</td>
+      <td>송신 시각을 실행 시작 기준의 절대 일정으로 고정했다. 한 번 늦게 나가도 다음 송신은 원래 예정 시각을 따르므로 오차가 누적되지 않는다. <code>--pacing open|closed</code>로 예전 동작도 남겼고 기본값은 <code>open</code>이다.</td>
+    </tr>
+    <tr>
+      <td>A2</td>
+      <td>동시 요청 지원</td>
+      <td>본문 앞 8바이트에 상관 ID를 실어 요청과 응답을 짝짓는다. 응답 순서에 의존하지 않는다. <code>--max-in-flight</code>로 깊이를 정하고, 지정하지 않으면 <code>송신 레이트 × 수신 타임아웃</code>으로 잡는다.</td>
+    </tr>
+    <tr>
+      <td>A3</td>
+      <td>송수신 루프 분리</td>
+      <td>송신과 수신을 독립 루프로 나눴다. 응답 처리가 늦어져도 송신 일정이 밀리지 않는다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  열린 루프는 TCP 바이너리 프로토콜에만 적용된다.
+  UDP와 text-line은 상관 ID를 실을 자리가 없어 닫힌 루프로 남겨 두었다.
+</p>
+
+<h3>4.1 목표 부하를 실제로 거는가</h3>
+
+<p>
+  100 클라이언트 × 초당 5요청(목표 500 req/s)으로 같은 조건에서 두 방식을 비교했다.
+  아래 <strong>응답 지연</strong> 행은 <code>--slow-receiver-delay-ms 20</code>으로
+  응답 처리를 인위적으로 늦춘 경우다. 서버가 느려진 상황을 흉내 낸다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr>
+      <th style="width:20%">조건</th><th style="width:12%">페이싱</th>
+      <th class="num">달성 RPS</th><th class="num">목표 달성률</th>
+      <th class="num">최대 동시 요청</th><th class="num">RTT p99 (ms)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td rowspan="2">정상</td><td><code>closed</code></td><td class="num">484.1</td><td class="num">96.8%</td><td class="num">—</td><td class="num">1.775</td></tr>
+    <tr><td><code>open</code></td><td class="num">499.4</td><td class="num"><strong>99.9%</strong></td><td class="num">25</td><td class="num">5.599</td></tr>
+    <tr><td rowspan="2">응답 20ms 지연</td><td><code>closed</code></td><td class="num">424.0</td><td class="num"><strong>84.8%</strong></td><td class="num">—</td><td class="num">35.327</td></tr>
+    <tr><td><code>open</code></td><td class="num">499.8</td><td class="num"><strong>100.0%</strong></td><td class="num">25</td><td class="num">5.055</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box good">
+  <strong class="title">두 가지가 확인됐다</strong>
+  <p>
+    <strong>목표 달성.</strong> 정상 조건에서 달성률이 96.8%에서 <strong>99.9%</strong>로 올랐다.
+    5장이 정한 완료 기준(±1% 이내)을 만족한다.
+    스케줄 지연 p99는 0µs, 한도에 걸려 건너뛴 송신도 0건이었다.
+  </p>
+  <p>
+    <strong>부하가 줄지 않는다.</strong> 응답 처리를 20ms 늦추자
+    닫힌 루프는 부하가 96.8%에서 <strong>84.8%로 떨어졌다</strong>.
+    같은 조건에서 열린 루프는 <strong>100.0%를 유지</strong>했다.
+    2.1절이 지목한 "서버가 느려지면 부하도 같이 줄어든다"가 실제로 그러함을,
+    그리고 그것이 해소되었음을 함께 보여준다.
+  </p>
+</div>
+
+<h3>4.2 닫힌 루프는 지연을 낮게 보고하고 있었다</h3>
+
+<p>
+  정상 조건에서 열린 루프의 RTT p99가 5.599ms로, 닫힌 루프의 1.775ms보다 3배 이상 높게 측정됐다.
+  <strong>측정이 나빠진 것이 아니라 부하가 제대로 걸린 것이다.</strong>
+</p>
+
+<p>
+  닫힌 루프는 응답을 받아야 다음 요청을 보내므로 한 연결에 요청이 항상 하나만 떠 있다.
+  서버 입장에서는 대기 행렬이 생기지 않는다.
+  열린 루프는 목표 레이트대로 보내므로 응답이 늦어지면 요청이 쌓인다.
+  실제로 최대 <strong>25건</strong>이 동시에 떠 있었고, 그 대기 시간이 지연에 반영된다.
+  실제 게임 클라이언트가 만드는 상황에 가까운 쪽은 후자다.
+</p>
+
+<div class="box warn">
+  <p style="margin:0">
+    다만 p99는 실행 간 변동이 크다(3.5절). 위 3배라는 값 자체는 단일 실행 비교이므로
+    정확한 크기는 반복 실행으로 확인해야 한다. 방향(닫힌 루프가 더 낮게 보고한다)은
+    동시 요청이 쌓인다는 구조적 이유가 뒷받침한다.
+  </p>
+</div>
+
+<div class="box bad">
+  <strong class="title">이전 실행과의 비교에 주의</strong>
+  <p>
+    페이싱이 다르면 지연 수치를 직접 비교할 수 없다.
+    단계 1까지의 실행(<code>probe01</code>, <code>verify0*</code>, <code>repeat0*</code>)은 모두 닫힌 루프다.
+    변경 전후를 비교할 때는 양쪽의 <code>pacing</code>을 맞춰야 한다.
+    <code>client_summary.csv</code>와 <code>analysis_run_summary</code>에 실제 적용된 값이 기록된다.
+  </p>
+</div>
+
+<h3>4.3 부하를 내지 못할 때 원인을 가린다</h3>
+
+<p>
+  열린 루프로 바꾸면 부하가 클라이언트 자원에 직접 부딪힌다(9장 위험 요소).
+  그래서 "서버가 느린 것"과 "클라이언트가 못 보내는 것"을 구분할 지표를 함께 넣었다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:34%">지표</th><th>읽는 법</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>send_schedule_delay_p99_us</code></td><td>예정 시각보다 늦게 나간 송신의 지연이다. 크면 클라이언트가 일정을 따라가지 못하고 있다.</td></tr>
+    <tr><td><code>send_skipped_in_flight</code></td><td>동시 요청 한도에 걸려 보내지 못한 송신 수다. 부하가 조용히 사라지지 않도록 명시적으로 센다.</td></tr>
+    <tr><td><code>max_in_flight_observed</code></td><td>관측된 최대 동시 요청 수다. 한도에 붙어 있으면 한도를 올려야 한다.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>
+  이 세 값이 모두 0에 가까운데 달성률이 낮다면 부하 발생기는 정상이며 다른 원인을 봐야 한다.
+  위 실측에서는 세 값이 각각 0µs, 0건, 25건이었다.
+  마지막 값이 한도(25)와 같으므로, 더 높은 레이트로 올릴 때는 <code>--max-in-flight</code>를 함께 올려야 한다.
+</p>
+
+<h3>4.4 부수 소득: 세션 수 계측 버그를 찾았다</h3>
+
+<p>
+  열린 루프로 바꾸자 재접속 폭주 시나리오의 자체 테스트가 실패하기 시작했다.
+  "클라이언트가 모두 떠난 뒤 서버의 활성 세션이 0이어야 한다"는 검사였다.
+  재현해 보니 서버가 이렇게 기록하고 있었다.
+</p>
+
+<pre><code>total_connected = 50
+total_closed    = 50
+active_sessions = 2      ← 맞지 않는다</code></pre>
+
+<p>
+  원인은 <code>active_sessions</code>를 별도 카운터로 증감한 데 있었다.
+  감소 시 값이 0이면 건너뛰는 방어가 들어 있었는데,
+  접속과 종료 이벤트는 서로 다른 스레드에서 오므로 순서가 뒤바뀔 수 있다.
+  활성이 0인 순간에 종료 이벤트가 먼저 도착하면 그 감소가 버려지고,
+  뒤늦게 도착한 접속 이벤트가 값을 올려 <strong>차이가 영구히 남는다.</strong>
+</p>
+
+<p>
+  두 누적 카운터의 차이(<code>total_connected - total_closed</code>)로 구하도록 바꿨다.
+  이벤트 순서와 무관하게 항상 맞는다.
+</p>
+
+<div class="box bad">
+  <strong class="title">이 버그는 세션 누수 판정을 망가뜨리고 있었다</strong>
+  <p>
+    <code>analysis_session_leak_check</code>와 <code>analysis_smoke_verdict</code>는
+    최종 활성 세션이 0인지로 누수를 판정한다.
+    누수가 없는데도 세션이 남은 것처럼 보고되고 있었으므로,
+    재접속이 잦은 실행에서는 <strong>없는 누수를 있다고 판정</strong>했을 것이다.
+  </p>
+  <p>
+    단계 2의 목표와는 무관한 결함이지만, 부하를 더 정확히 걸게 되자 드러났다.
+    닫힌 루프는 재접속이 느려 경합 창이 좁았고 그래서 눈에 띄지 않았다.
+  </p>
+</div>
+
+<h3>4.5 검증</h3>
+
+<p>
+  자체 테스트 <strong>66건 전부 통과</strong>했다(기존 60건 + 신규 6건). 빌드 경고 0개.
+  기본값을 <code>open</code>으로 바꿨는데도 기존 테스트가 모두 통과한다는 것은
+  부분 전송, 묶음 전송, 게임형 시나리오, 재접속 폭주가 새 경로에서도 동작한다는 뜻이다.
+</p>
+
+<p>신규 테스트는 다음을 검증한다.</p>
+
+<ul>
+  <li><strong>상관 ID 왕복</strong> — 부호화·복호화를 거쳐도 유지되는지, 본문이 충분히 길면 페이로드 크기가 그대로인지, 하트비트처럼 본문이 빈 패킷도 자리를 얻는지</li>
+  <li><strong>느린 응답에서의 송신 유지</strong> — 열린 루프가 닫힌 루프보다 최소 2배 이상 보내는지. 열린 루프가 존재하는 이유를 그대로 시험한다</li>
+  <li><strong>동시 요청 한도</strong> — 한도를 넘지 않는지, 넘겨서 건너뛴 송신이 기록되는지</li>
+</ul>
+
+<p>
+  세션 카운터 수정 후 테스트를 3회 연속 돌려 66건 전부 통과함을 확인했다.
+  간헐적 실패가 아니라 실제 결함이었으므로 반복 확인이 필요했다.
+</p>
+
+<h2>5. 목표와 완료 기준</h2>
+
+<p>이 툴킷이 최종적으로 대답해야 할 질문은 하나다.</p>
+
+<div class="box">
+  <p style="margin:0"><strong>"이 커밋은 이전 대비 성능·안정성이 나빠졌는가? 얼마나?"</strong></p>
+</div>
+
+<p>이 질문에 답하려면 다음이 성립해야 한다.</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:20%">요건</th><th>완료 기준</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>부하 정확도</td><td>지정한 목표 레이트를 정상 구간에서 ±1% 이내로 달성하고, 달성하지 못하면 그 사실과 원인(클라이언트 포화 / 서버 지연)을 지표로 구분해 보고한다.</td></tr>
+    <tr><td>지연 정확도</td><td>실행 전체 기준 p50·p90·p99·p99.9·max가 요약 파일에 남는다. 샘플링 비율을 낮춰도 이 값들은 정확도를 잃지 않는다.</td></tr>
+    <tr><td>구간 구분</td><td>램프업·정상·종료 구간이 CSV에 표시되어, 분석이 정상 구간만 자동으로 집계한다.</td></tr>
+    <tr><td>재현성</td><td>같은 파라미터로 반복 실행하면 정상 구간 처리량과 p99가 일정 범위 안에서 재현된다.</td></tr>
+    <tr><td>판정 자동화</td><td>기준 실행과 비교해 합격·불합격을 자동 판정하고 종료 코드로 알린다.</td></tr>
+    <tr><td>커버리지</td><td>TCP·UDP·text 세 전송 방식과 주요 이상 상황 시나리오를 모두 실행할 수 있다.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<a class="diagram-link" href="LoadTest_Toolkit_Pipeline.html">
+  <span class="t">→ 목표 구조 다이어그램 (LoadTest_Toolkit_Pipeline.html)</span>
+  <span class="d">부하 생성부터 회귀 판정까지의 데이터 흐름. 유지·개선·신규 대상이 표시되어 있다.</span>
+</a>
+
+<h2>6. 작업 항목</h2>
+
+<p>요청하신 네 축(더미 클라이언트 · 시나리오 · 측정 · 분석)에 실행 자동화를 더해 정리했다.</p>
+
+<h3>A. 더미 클라이언트</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:7%">ID</th><th style="width:24%">작업</th><th>내용</th><th style="width:9%">단계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>A1</td><td>열린 루프 페이싱</td>
+      <td>송신 시각을 미리 정한 스케줄대로 보낸다. 응답 대기가 다음 송신을 막지 않는다. 밀린 송신은 backlog로 기록해 클라이언트 포화를 드러낸다. <code>--pacing open|closed</code>로 기존 동작도 남긴다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>A2</td><td>동시 요청 지원</td>
+      <td>응답 대기 중에도 다음 요청을 보낸다. <code>packet_id</code>로 요청·응답을 상관시키고 <code>--max-in-flight</code>로 깊이를 정한다. 실제 게임 클라이언트 트래픽에 가까워진다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>A3</td><td>송수신 루프 분리</td>
+      <td>송신과 수신을 독립 루프로 나눈다. 서버가 먼저 보내는 푸시·브로드캐스트를 받을 수 있게 되어 채팅·룸 서버 유형의 테스트가 가능해진다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>A4</td><td>정상 종료 처리</td>
+      <td>실행 종료로 인한 소켓 종료를 오류로 세지 않는다. 오류율 판정의 노이즈를 없앤다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>A5</td><td>대규모 연결 대비</td>
+      <td>스레드풀 최소 워커 사전 확장, 소켓 옵션 조정, 임시 포트 고갈 감지와 안내. 5,000 연결 이상에서 클라이언트가 먼저 무너지지 않게 한다.</td>
+      <td><span class="tag p3">3</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>B. 시나리오</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:7%">ID</th><th style="width:24%">작업</th><th>내용</th><th style="width:9%">단계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>B1</td><td>UDP·text 서버 추가</td>
+      <td>측정 대상 서버에 UDP 엔드포인트와 text-line 포트를 추가한다. 이미 있는 클라이언트 옵션이 비로소 실행 가능해진다. <code>MultiPortServer</code> 예제 구성을 참고한다.</td>
+      <td><span class="tag p3">3</span></td>
+    </tr>
+    <tr>
+      <td>B2</td><td>선언적 시나리오 정의</td>
+      <td>지금은 시나리오가 C# 클래스로 고정되어 있다. JSON으로 단계·비율·간격을 기술하고 실행기가 해석하게 바꾼다. 코드 수정 없이 부하 조합을 바꿀 수 있다.</td>
+      <td><span class="tag p3">3</span></td>
+    </tr>
+    <tr>
+      <td>B3</td><td>이상 상황 시나리오 확충</td>
+      <td>순간 폭주(짧은 시간 집중 접속), 대용량 페이로드, 비정상 종료(RST), 느린 수신자 확대, 혼합 부하. 기존 재접속 폭주·부분 전송·묶음 전송과 함께 서버의 방어 동작을 확인한다.</td>
+      <td><span class="tag p3">3</span></td>
+    </tr>
+    <tr>
+      <td>B4</td><td>서버 장애 주입</td>
+      <td>부하 중 서버를 강제 종료·재기동했을 때 클라이언트 재접속 거동과 서버 회복을 측정한다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>C. 측정</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:7%">ID</th><th style="width:24%">작업</th><th>내용</th><th style="width:9%">단계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>C1</td><td>지연 히스토그램 교체</td>
+      <td><code>List&lt;long&gt;</code> + 단일 락을 고정 버킷 히스토그램으로 바꾼다. 스레드별 슬롯에 기록하고 스냅샷 때 병합해 락 경합과 정렬 비용을 없앤다. 값을 버리지 않으므로 실행 전체 누적과 구간별 집계를 함께 얻는다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>C2</td><td>실행 전체 요약 강화</td>
+      <td><code>client_summary.csv</code>에 총 요청 수, 성공률, p50·p90·p99·p99.9·max, 목표 레이트 대비 달성률, backlog 최대치를 기록한다. 요약 파일만 봐도 실행을 판단할 수 있게 한다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>C3</td><td>구간 태깅</td>
+      <td>모든 샘플 행에 <code>phase</code>(rampup / steady / rampdown / idle) 컬럼을 추가한다. 서버는 활성 세션 수와 클라이언트 실행 시각을 기준으로 판단한다. 분석이 정상 구간만 자동으로 고르게 된다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>C4</td><td>종료 시 중복 샘플 제거</td>
+      <td><code>Flush()</code>의 샘플 기록과 주기 루프의 기록이 겹치지 않게 한다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+    <tr>
+      <td>C5</td><td>서버 계측 확장</td>
+      <td>송신 큐 깊이, <code>SmartPool</code> 사용률, 세션별 대기량을 추가한다. <code>TODO.md</code>의 송신 경로·풀링 개선 항목을 검증하려면 이 지표가 필요하다.</td>
+      <td><span class="tag p3">3</span></td>
+    </tr>
+    <tr>
+      <td>C6</td><td>계측 오버헤드 검증</td>
+      <td>계측을 켠 실행과 끈 실행을 비교해 측정 자체가 결과에 주는 영향을 수치로 남긴다. 서버 내부 계측이라 이 확인이 필요하다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>D. 분석</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:7%">ID</th><th style="width:24%">작업</th><th>내용</th><th style="width:9%">단계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>D1</td><td>HTML 리포트 생성기</td>
+      <td>신규 프로젝트 <code>LoadTest.Report</code>. CSV를 읽어 단독 실행 HTML을 만든다. 처리량·지연·메모리 시계열, 지연 분포, 오류 요약, 실행 파라미터를 담는다. 정상 구간만 집계한다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+    <tr>
+      <td>D2</td><td>기준 실행 비교</td>
+      <td><code>--baseline &lt;run-id&gt;</code>로 이전 실행과 나란히 비교한다. 처리량·p99·메모리·오류율의 변화량과 변화율을 표로 낸다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+    <tr>
+      <td>D3</td><td>임계값 판정</td>
+      <td>합격 조건을 JSON으로 분리한다(p99 상승 한계, 오류율 상한, 메모리 증가율 등). 위반 시 종료 코드를 0이 아닌 값으로 반환해 자동화에 물릴 수 있게 한다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+    <tr>
+      <td>D4</td><td>DuckDB SQL 갱신</td>
+      <td>기존 분석 뷰 9종에 <code>phase</code> 필터를 반영한다. 현재 뷰는 무부하 구간을 함께 평균 내고 있다.</td>
+      <td><span class="tag done">완료</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>E. 실행 자동화</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:7%">ID</th><th style="width:24%">작업</th><th>내용</th><th style="width:9%">단계</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>E1</td><td>실행 러너</td>
+      <td><code>run-loadtest.ps1</code>. 서버 기동 → 준비 확인 → 클라이언트 실행 → 정상 종료 → 결과 수집 → 분석까지 한 번에 수행한다. 지금은 사람이 창 두 개를 지켜봐야 한다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+    <tr>
+      <td>E2</td><td>시나리오 매트릭스</td>
+      <td>여러 시나리오·클라이언트 수 조합을 연속 실행하고 결과를 한 곳에 모은다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+    <tr>
+      <td>E3</td><td>결과 보관 규칙</td>
+      <td>실행 결과 디렉토리 명명과 기준 실행 승격 절차를 정한다. before/after 비교의 전제다.</td>
+      <td><span class="tag p4">4</span></td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>7. 단계 계획</h2>
+
+<p>
+  순서의 원칙은 하나다. <strong>측정을 믿을 수 있게 만드는 일이 가장 먼저다.</strong>
+  부하를 더 정교하게 걸어도, 그 결과를 정확히 읽지 못하면 의미가 없다.
+  반대로 측정이 정확해지면 지금 구조로도 얻는 값이 즉시 좋아진다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr>
+      <th style="width:8%">단계</th><th style="width:20%">주제</th><th style="width:22%">항목</th>
+      <th>이 단계가 끝나면</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="tag done">1 완료</span></td>
+      <td>측정 신뢰성</td>
+      <td>C1 · C2 · C3 · C4 · D4 · A4</td>
+      <td>실행 전체 p99가 정확히 남고, 정상 구간만 집계되며, 오류 집계에 노이즈가 없다. <strong>지금 수준의 부하로도 결과를 신뢰할 수 있게 된다.</strong></td>
+    </tr>
+    <tr>
+      <td><span class="tag done">2 완료</span></td>
+      <td>부하 정확도</td>
+      <td>A1 · A2 · A3</td>
+      <td>목표 레이트를 실제로 달성하고, 달성하지 못하면 원인이 지표로 구분된다. 지연 시간이 과소평가되지 않는다.</td>
+    </tr>
+    <tr>
+      <td><span class="tag p3">3</span></td>
+      <td>커버리지</td>
+      <td>B1 · B2 · B3 · A5 · C5</td>
+      <td>UDP·text를 포함한 세 전송 방식과 이상 상황 시나리오를 실행할 수 있고, 서버 내부 큐·풀 지표를 본다.</td>
+    </tr>
+    <tr>
+      <td><span class="tag p4">4</span></td>
+      <td>자동화</td>
+      <td>D1 · D2 · D3 · E1 · E2 · E3 · B4 · C6</td>
+      <td>명령 하나로 실행부터 회귀 판정까지 끝난다. 개선 작업마다 before/after를 손쉽게 비교한다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box">
+  <strong class="title">단계 1만 끝나도 실질적 가치가 있다</strong>
+  <p>
+    단계 1은 기존 구조를 크게 바꾸지 않는 국소 수정이 대부분이다.
+    이것만으로 <code>TODO.md</code>의 개선 항목을 수치로 검증할 수 있게 된다.
+    단계 2 이후는 더 넓은 상황을 다루기 위한 확장이다.
+  </p>
+</div>
+
+<h2>8. 검증 방법</h2>
+
+<p>각 단계의 완료는 다음으로 확인한다.</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:14%">단계</th><th>확인 방법</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>단계 1</td>
+      <td>
+        같은 파라미터로 3회 반복 실행했을 때 정상 구간 처리량과 전체 p99가 재현되는지 확인한다.
+        <code>client_operations.csv</code>를 전량 기록한 실행과 1%만 샘플링한 실행의 요약 p99가 일치하는지 비교한다(C1·C2 검증).
+        서버 CSV에 처리량 0인 행이 정상 구간으로 분류되지 않는지 확인한다(C3·C4 검증).
+      </td>
+    </tr>
+    <tr>
+      <td>단계 2</td>
+      <td>
+        목표 레이트 대비 달성률이 정상 구간에서 99% 이상인지 확인한다.
+        서버에 인위적 지연을 넣었을 때 부하량이 유지되고 지연 시간이 실제로 증가하는지 본다(열린 루프 동작 확인).
+      </td>
+    </tr>
+    <tr>
+      <td>단계 3</td>
+      <td>UDP·text 시나리오가 실제로 완주하고 CSV가 생성되는지 확인한다. 이상 상황 시나리오에서 서버가 예외 없이 견디는지 본다.</td>
+    </tr>
+    <tr>
+      <td>단계 4</td>
+      <td>의도적으로 성능을 떨어뜨린 빌드에 대해 판정 도구가 불합격과 0이 아닌 종료 코드를 반환하는지 확인한다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>9. 위험 요소</h2>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:26%">위험</th><th>대응</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>클라이언트가 먼저 병목이 된다</td>
+      <td>열린 루프로 바꾸면 부하가 클라이언트 자원에 직접 부딪힌다. 송신 지연과 backlog를 지표로 남겨 "서버가 느린 것"과 "클라이언트가 못 보내는 것"을 구분한다. 이 지표 없이 열린 루프로 가면 안 된다.</td>
+    </tr>
+    <tr>
+      <td>단일 머신의 연결 수 한계</td>
+      <td>Windows 임시 포트와 <code>TIME_WAIT</code> 때문에 한 머신에서 낼 수 있는 연결 수에 한계가 있다. 이미 갖춰진 <code>machine_id</code> 기반 분산 실행 규약을 활용하고, 한계 도달을 오류가 아니라 명시적 경고로 보고한다.</td>
+    </tr>
+    <tr>
+      <td>계측이 측정 대상을 흔든다</td>
+      <td>서버 계측이 측정 대상 프로세스 안에서 돈다. C6로 오버헤드를 수치화하고, 고부하에서는 이벤트 기록 비율을 낮춘다.</td>
+    </tr>
+    <tr>
+      <td>CSV 스키마 변경의 파급</td>
+      <td><code>phase</code> 등 컬럼 추가는 DuckDB SQL과 기존 실행 결과에 영향을 준다. 분석 뷰가 <code>union_by_name</code>을 쓰므로 컬럼 추가는 견디지만, 판정 로직은 함께 갱신해야 한다(D4를 단계 1에 넣은 이유).</td>
+    </tr>
+    <tr>
+      <td>측정 환경의 변동</td>
+      <td>백신 실시간 검사, 다른 프로세스, 전원 설정이 결과를 흔든다. 실행 환경 정보를 결과에 함께 기록하고, 비교는 같은 환경의 실행끼리만 한다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="next">10. 다음 작업</h2>
+
+<p>
+  단계 1·2가 끝났으므로 다음은 <strong>단계 3(커버리지)</strong>다.
+  측정을 믿을 수 있고 목표 부하도 실제로 걸 수 있게 되었으니,
+  이제 다룰 수 있는 상황의 범위를 넓히는 일이 남았다.
+</p>
+
+<ol>
+  <li>
+    <strong>UDP·text 서버 추가 (B1)</strong> —
+    측정 대상 서버에 UDP 엔드포인트와 text-line 포트를 추가한다.
+    클라이언트에는 이미 옵션이 있지만 받아 줄 서버가 없어 실행할 수 없는 상태다.
+    <code>Tutorials/MultiPortServer</code>의 구성을 참고한다.
+    이 둘은 상관 ID를 실을 자리가 없어 닫힌 루프로 남아 있으므로,
+    열린 루프를 적용하려면 프로토콜에 상관 필드를 넣는 일도 함께 판단해야 한다.
+  </li>
+  <li>
+    <strong>이상 상황 시나리오 확충 (B3)</strong> —
+    순간 폭주, 대용량 페이로드, 비정상 종료(RST), 혼합 부하를 추가한다.
+    열린 루프가 들어왔으므로 폭주 시나리오가 실제로 폭주를 만들 수 있게 되었다.
+  </li>
+  <li>
+    <strong>선언적 시나리오 정의 (B2)</strong> —
+    지금은 시나리오가 C# 클래스로 고정되어 있다. JSON으로 기술하고 실행기가 해석하게 바꾼다.
+  </li>
+  <li>
+    <strong>대규모 연결 대비 (A5)</strong> —
+    스레드풀 사전 확장, 소켓 옵션, 임시 포트 고갈 감지.
+    열린 루프는 클라이언트 자원을 더 쓰므로 이 작업의 중요도가 올라갔다.
+  </li>
+  <li>
+    <strong>서버 계측 확장 (C5)</strong> —
+    송신 큐 깊이와 <code>SmartPool</code> 사용률. <code>TODO.md</code>의 송신 경로 개선을 검증하려면 필요하다.
+  </li>
+</ol>
+
+<div class="box">
+  <strong class="title">지금까지 확인된, 이후 설계에 반영할 사항</strong>
+  <ul>
+    <li>
+      꼬리 지연(p99·p99.9)은 실행 간 변동이 크다(3.5절). 회귀 판정은 단일 실행이 아니라
+      여러 회 실행의 중앙값을 기준으로 해야 한다. 단계 4의 D2·D3 설계에 반영한다.
+    </li>
+    <li>
+      CSV 스키마 변경은 하위 호환이 유지되는 것으로 확인됐다(3.6절).
+      이후 컬럼 추가도 같은 방식(끝에 추가 + <code>union_by_name</code>)으로 진행한다.
+    </li>
+    <li>
+      페이싱이 다른 실행은 지연 수치를 직접 비교할 수 없다(4.2절).
+      판정 도구는 비교 대상 두 실행의 <code>pacing</code>이 다르면 경고해야 한다.
+    </li>
+    <li>
+      동시 요청 한도의 기본값(<code>레이트 × 타임아웃</code>)이 실측에서 한도에 닿았다(4.3절).
+      더 높은 레이트를 쓸 때는 <code>--max-in-flight</code>를 함께 올리거나 기본 산정식을 재검토한다.
+    </li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <strong class="title">아직 확인이 필요한 사항</strong>
+  <ul>
+    <li>목표로 하는 최대 동시 접속 규모 (단일 머신 한계를 넘으면 분산 실행 준비가 필요하다)</li>
+    <li>UDP·text 프로토콜에 상관 ID 필드를 넣어 열린 루프를 적용할지, 닫힌 루프로 둘지</li>
+  </ul>
+  <p>
+    닫힌 루프 존치 여부는 <code>--pacing</code> 옵션으로 둘 다 남기는 것으로 정리했다.
+    기존 실행 결과와의 비교 가능성을 지키기 위해서이며, 기본값은 <code>open</code>이다.
+  </p>
+</div>
+
+<footer class="doc">
+  SuperSocketLite2 · 부하 테스트 툴킷 구축 계획 · 2026-08-13 작성 · 단계 1·2 구현 반영<br>
+  2장의 수치는 <code>probe01</code>(수정 전), 3장은
+  <code>verify01</code>·<code>verify02</code>·<code>repeat01~03</code>(단계 1 적용),
+  4장은 <code>open01</code>·<code>closed01</code>·<code>open-slow</code>·<code>closed-slow</code>(단계 2 적용)
+  실행에서 측정한 값이다.
+  관련 문서: <a href="LoadTest_Toolkit_Pipeline.html">목표 구조 다이어그램</a>,
+  <code>Test/LoadTest/BUILD_AND_USAGE.md</code>, <code>TODO.md</code>
+</footer>
+
+</main>
+</body>
+</html>

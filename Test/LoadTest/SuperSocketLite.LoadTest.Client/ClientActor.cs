@@ -6,7 +6,7 @@ using SuperSocketLite.LoadTest.Shared;
 
 namespace SuperSocketLite.LoadTest.Client;
 
-public sealed class ClientActor
+public sealed partial class ClientActor
 {
     private readonly int _clientId;
     private readonly LoadTestOptions _options;
@@ -51,6 +51,8 @@ public sealed class ClientActor
                     await RunUdpLoopAsync(connection, cancellationToken).ConfigureAwait(false);
                 else if (_options.Protocol == "text-line")
                     await RunTextLineLoopAsync(connection, cancellationToken).ConfigureAwait(false);
+                else if (_options.UsesOpenLoop())
+                    await RunOpenLoopTcpAsync(connection, cancellationToken).ConfigureAwait(false);
                 else
                     await RunTcpLoopAsync(connection, cancellationToken).ConfigureAwait(false);
             }
@@ -160,6 +162,10 @@ public sealed class ClientActor
             }
             catch (Exception ex)
             {
+                // 실행 시간이 끝나 소켓이 정리되는 중이라면 장애가 아니다. 오류율에 넣지 않는다.
+                if (cancellationToken.IsCancellationRequested)
+                    throw new OperationCanceledException(cancellationToken);
+
                 var endedMs = ElapsedMs();
                 _metrics.OnSendFail();
                 _metrics.OnSocketError();
@@ -246,6 +252,9 @@ public sealed class ClientActor
             }
             catch (Exception ex)
             {
+                if (cancellationToken.IsCancellationRequested)
+                    throw new OperationCanceledException(cancellationToken);
+
                 _metrics.OnSendFail();
                 _metrics.OnSocketError();
                 var endedMs = ElapsedMs();
@@ -293,6 +302,9 @@ public sealed class ClientActor
             }
             catch (Exception ex)
             {
+                if (cancellationToken.IsCancellationRequested)
+                    throw new OperationCanceledException(cancellationToken);
+
                 _metrics.OnSendFail();
                 _metrics.OnSocketError();
                 var endedMs = ElapsedMs();

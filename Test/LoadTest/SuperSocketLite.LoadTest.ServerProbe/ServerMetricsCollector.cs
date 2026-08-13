@@ -11,7 +11,6 @@ public sealed class ServerMetricsCollector : IDisposable
     private readonly LatencyHistogram _handlerLatency = new();
     private readonly Stopwatch _elapsed = Stopwatch.StartNew();
     private readonly object _rateLock = new();
-    private long _activeSessions;
     private long _totalConnected;
     private long _totalClosed;
     private long _totalRequests;
@@ -25,6 +24,8 @@ public sealed class ServerMetricsCollector : IDisposable
     private long _lastRateRequests;
     private long _lastRateBytesIn;
     private long _lastRateBytesOut;
+    private long _phasePreviousActive = -1;
+    private long _phasePeakActive;
 
     private ServerMetricsCollector(ServerMetricsOptions options)
     {
@@ -42,16 +43,23 @@ public sealed class ServerMetricsCollector : IDisposable
         return new ServerMetricsCollector(options);
     }
 
+    /// <summary>
+    /// 현재 열려 있는 세션 수입니다.
+    /// 별도 카운터를 증감하지 않고 두 누적 카운터의 차이로 구합니다.
+    /// 접속과 종료 이벤트는 서로 다른 스레드에서 오므로 순서가 뒤바뀔 수 있는데,
+    /// 그때 증감식 카운터는 값이 영구히 어긋납니다.
+    /// 실제로 재접속이 잦은 시나리오에서 접속 50건·종료 50건인데 활성 2건으로 남는 일이 있었습니다.
+    /// </summary>
+    public long ActiveSessions => Volatile.Read(ref _totalConnected) - Volatile.Read(ref _totalClosed);
+
     public void OnConnected(object? session, string? remoteEndpoint = null)
     {
-        Interlocked.Increment(ref _activeSessions);
         Interlocked.Increment(ref _totalConnected);
         TryWriteEvent("connect", SessionId(session), remoteEndpoint ?? string.Empty, 0, 0, 0, string.Empty, string.Empty, string.Empty);
     }
 
     public void OnClosed(object? session, string closeReason, string? remoteEndpoint = null)
     {
-        DecrementActiveSession();
         Interlocked.Increment(ref _totalClosed);
         TryWriteEvent("close", SessionId(session), remoteEndpoint ?? string.Empty, 0, 0, 0, closeReason, string.Empty, string.Empty);
     }
@@ -112,6 +120,8 @@ public sealed class ServerMetricsCollector : IDisposable
         var process = _processMetricReader.Read();
         var latency = _handlerLatency.Snapshot(resetLatency);
         var elapsedMs = _elapsed.ElapsedMilliseconds;
+        var activeSessions = ActiveSessions;
+        var phase = DeterminePhase(activeSessions);
         var totalRequests = Volatile.Read(ref _totalRequests);
         var totalBytesIn = Volatile.Read(ref _totalBytesIn);
         var totalBytesOut = Volatile.Read(ref _totalBytesOut);
@@ -142,7 +152,7 @@ public sealed class ServerMetricsCollector : IDisposable
             _options.RunId,
             _options.ServerName,
             process.ProcessId,
-            Volatile.Read(ref _activeSessions),
+            activeSessions,
             Volatile.Read(ref _totalConnected),
             Volatile.Read(ref _totalClosed),
             totalRequests,
@@ -173,7 +183,38 @@ public sealed class ServerMetricsCollector : IDisposable
             latency.P95Us,
             latency.P99Us,
             latency.MaxUs,
-            Volatile.Read(ref _droppedMetricRows));
+            Volatile.Read(ref _droppedMetricRows),
+            phase);
+    }
+
+    /// <summary>
+    /// 활성 세션 수의 변화로 구간을 판정합니다.
+    /// 서버는 클라이언트의 실행 계획을 모르므로 관측 가능한 세션 수만으로 추정합니다.
+    /// 재접속처럼 작은 흔들림이 정상 구간을 깨지 않도록 최고치의 2%를 문턱으로 둡니다.
+    /// </summary>
+    private string DeterminePhase(long activeSessions)
+    {
+        var previous = _phasePreviousActive;
+        _phasePreviousActive = activeSessions;
+
+        if (activeSessions > _phasePeakActive)
+            _phasePeakActive = activeSessions;
+
+        if (activeSessions == 0)
+            return "idle";
+
+        if (previous < 0)
+            return "rampup";
+
+        var threshold = Math.Max(1, _phasePeakActive / 50);
+        var delta = activeSessions - previous;
+
+        if (delta >= threshold)
+            return "rampup";
+        if (delta <= -threshold)
+            return "rampdown";
+
+        return "steady";
     }
 
     public IDisposable Start()
@@ -187,9 +228,13 @@ public sealed class ServerMetricsCollector : IDisposable
             Interlocked.Increment(ref _droppedMetricRows);
     }
 
+    /// <summary>
+    /// 버퍼에 남은 행을 파일로 내보냅니다.
+    /// 샘플을 새로 만들지는 않습니다. 종료 경로에서 여러 번 불려도 표본 주기가 깨지지 않아야 하기 때문입니다.
+    /// 마지막 샘플은 <see cref="ServerMetricsHostedLoop"/>가 종료할 때 한 번만 기록합니다.
+    /// </summary>
     public void Flush()
     {
-        WriteSample();
         _writer.Flush();
     }
 
@@ -220,19 +265,6 @@ public sealed class ServerMetricsCollector : IDisposable
 
         if (!_writer.TryWriteEvent(metricEvent))
             Interlocked.Increment(ref _droppedMetricRows);
-    }
-
-    private void DecrementActiveSession()
-    {
-        while (true)
-        {
-            var current = Volatile.Read(ref _activeSessions);
-            if (current == 0)
-                return;
-
-            if (Interlocked.CompareExchange(ref _activeSessions, current - 1, current) == current)
-                return;
-        }
     }
 
     private static string SessionId(object? session)

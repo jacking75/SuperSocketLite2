@@ -18,6 +18,8 @@ public sealed class LoadTestOptions
         "  --send-rate-per-client <rate>",
         "  --payload <small|medium|large|mixed>",
         "  --scenario <echo|game-like|idle-heartbeat|reconnect-storm>",
+        "  --pacing <open|closed>",
+        "  --max-in-flight <count>",
         "  --operation-sampling <0.0-1.0>",
         "  --machine-id <id>",
         "  --run-id <id>",
@@ -36,6 +38,20 @@ public sealed class LoadTestOptions
     public string Payload { get; set; } = "small";
     public string Output { get; set; } = Path.Combine("logs", "loadtest", "client");
     public string Scenario { get; set; } = "echo";
+
+    /// <summary>
+    /// 송신 페이싱 방식입니다.
+    /// <c>open</c>은 미리 정한 절대 시각 일정대로 보내므로 응답이 늦어도 부하량이 줄지 않습니다.
+    /// <c>closed</c>는 응답을 받은 뒤 다음 지연을 시작하는 예전 방식입니다.
+    /// 열린 루프는 TCP 바이너리 프로토콜에만 적용되며, UDP와 text-line은 항상 닫힌 루프로 동작합니다.
+    /// </summary>
+    public string Pacing { get; set; } = "open";
+
+    /// <summary>
+    /// 응답을 기다리는 동안 동시에 떠 있을 수 있는 요청 수입니다.
+    /// 0이면 송신 레이트와 수신 타임아웃으로 자동 산정합니다.
+    /// </summary>
+    public int MaxInFlight { get; set; }
     public int HeartbeatMinSec { get; set; } = 5;
     public int HeartbeatMaxSec { get; set; } = 15;
     public int ChatMinSec { get; set; } = 10;
@@ -101,6 +117,12 @@ public sealed class LoadTestOptions
                     break;
                 case "--scenario":
                     options.Scenario = Next();
+                    break;
+                case "--pacing":
+                    options.Pacing = Next();
+                    break;
+                case "--max-in-flight":
+                    options.MaxInFlight = int.Parse(Next(), CultureInfo.InvariantCulture);
                     break;
                 case "--heartbeat-min-sec":
                     options.HeartbeatMinSec = int.Parse(Next(), CultureInfo.InvariantCulture);
@@ -195,5 +217,29 @@ public sealed class LoadTestOptions
             throw new ArgumentOutOfRangeException(nameof(RoomCycleEvery), "RoomCycleEvery must be greater than zero.");
         if (string.IsNullOrWhiteSpace(MachineId))
             throw new ArgumentException("MachineId must not be empty.", nameof(MachineId));
+        if (Pacing is not ("open" or "closed"))
+            throw new ArgumentException("Pacing must be 'open' or 'closed'.", nameof(Pacing));
+        if (MaxInFlight < 0)
+            throw new ArgumentOutOfRangeException(nameof(MaxInFlight), "MaxInFlight must be greater than or equal to zero.");
+    }
+
+    /// <summary>
+    /// 실제로 적용할 동시 요청 한도입니다.
+    /// 명시하지 않으면 타임아웃 안에 떠 있을 수 있는 최대 요청 수로 잡습니다.
+    /// 한도가 너무 낮으면 열린 루프가 다시 응답 대기에 막히므로 최소 8은 확보합니다.
+    /// </summary>
+    public int ResolveMaxInFlight()
+    {
+        if (MaxInFlight > 0)
+            return MaxInFlight;
+
+        var expected = SendRatePerClient * ReceiveTimeout.TotalSeconds;
+        return Math.Max(8, (int)Math.Ceiling(expected));
+    }
+
+    /// <summary>열린 루프로 동작하는 조합인지입니다. TCP 바이너리 프로토콜에만 적용합니다.</summary>
+    public bool UsesOpenLoop()
+    {
+        return Pacing == "open" && Transport != "udp" && Protocol != "text-line";
     }
 }

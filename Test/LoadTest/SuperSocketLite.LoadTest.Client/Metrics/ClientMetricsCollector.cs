@@ -5,6 +5,15 @@ namespace SuperSocketLite.LoadTest.Client.Metrics;
 public sealed class ClientMetricsCollector
 {
     private readonly LatencyHistogram _rtt = new();
+
+    /// <summary>
+    /// 예정 시각보다 늦게 나간 송신의 지연 분포입니다.
+    /// 서버가 느린 것과 클라이언트가 부하를 내지 못하는 것을 구분하는 근거입니다.
+    /// </summary>
+    private readonly LatencyHistogram _scheduleDelay = new();
+    private long _sendSkippedInFlight;
+    private long _inFlight;
+    private long _maxInFlightObserved;
     private long _activeClients;
     private long _connectingClients;
     private long _connectedClients;
@@ -42,11 +51,45 @@ public sealed class ClientMetricsCollector
     public void OnSendFail() => Interlocked.Increment(ref _totalSendFail);
     public void OnReceive(long bytes, long rttUs) { Interlocked.Increment(ref _totalReceive); Interlocked.Add(ref _bytesReceived, bytes); _rtt.Record(rttUs); }
     public void OnTimeout() => Interlocked.Increment(ref _totalTimeout);
+
+    /// <summary>예정보다 늦게 나간 송신을 기록합니다. 제때 나갔으면 0을 기록합니다.</summary>
+    public void OnScheduleDelay(long delayUs) => _scheduleDelay.Record(Math.Max(0, delayUs));
+
+    /// <summary>동시 요청 한도에 걸려 보내지 못한 송신을 기록합니다.</summary>
+    public void OnSendSkipped() => Interlocked.Increment(ref _sendSkippedInFlight);
+
+    public void OnRequestStarted()
+    {
+        var current = Interlocked.Increment(ref _inFlight);
+        var observed = Volatile.Read(ref _maxInFlightObserved);
+        while (current > observed)
+        {
+            var previous = Interlocked.CompareExchange(ref _maxInFlightObserved, current, observed);
+            if (previous == observed)
+                break;
+
+            observed = previous;
+        }
+    }
+
+    public void OnRequestCompleted() => Interlocked.Decrement(ref _inFlight);
+
+    /// <summary>실행 시작부터 누적된 송신 지연 분포입니다.</summary>
+    public HistogramSnapshot TotalScheduleDelay => _scheduleDelay.SnapshotTotal();
+
+    public long SendSkippedInFlight => Volatile.Read(ref _sendSkippedInFlight);
+    public long MaxInFlightObserved => Volatile.Read(ref _maxInFlightObserved);
     public void OnSocketError() => Interlocked.Increment(ref _socketErrorTotal);
     public void OnProtocolError() => Interlocked.Increment(ref _protocolErrorTotal);
     public void OnRuntimeError() => Interlocked.Increment(ref _runtimeErrorTotal);
 
-    public ClientMetricsSnapshot Snapshot(string runId, long elapsedMs, bool resetLatency)
+    /// <summary>실행 시작부터 누적된 RTT 분포입니다. 창 스냅샷과 달리 초기화되지 않습니다.</summary>
+    public HistogramSnapshot TotalLatency => _rtt.SnapshotTotal();
+
+    /// <summary>현재 접속을 유지 중인 클라이언트 수입니다.</summary>
+    public long ActiveClients => Volatile.Read(ref _activeClients);
+
+    public ClientMetricsSnapshot Snapshot(string runId, long elapsedMs, bool resetLatency, string phase = "unknown")
     {
         var latency = _rtt.Snapshot(resetLatency);
         var totalSendSuccess = Volatile.Read(ref _totalSendSuccess);
@@ -102,7 +145,8 @@ public sealed class ClientMetricsCollector
             latency.MaxUs,
             Volatile.Read(ref _socketErrorTotal),
             Volatile.Read(ref _protocolErrorTotal),
-            Volatile.Read(ref _runtimeErrorTotal));
+            Volatile.Read(ref _runtimeErrorTotal),
+            phase);
     }
 
     private void ApplyState(ClientState state, int delta)
@@ -155,4 +199,5 @@ public sealed record ClientMetricsSnapshot(
     long RttMaxUs,
     long SocketErrorTotal,
     long ProtocolErrorTotal,
-    long RuntimeErrorTotal);
+    long RuntimeErrorTotal,
+    string Phase);

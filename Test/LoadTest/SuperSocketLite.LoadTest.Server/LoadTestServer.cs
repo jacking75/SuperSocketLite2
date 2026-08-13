@@ -10,6 +10,7 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
 {
     private ServerMetricsCollector? _metrics;
     private IDisposable? _metricsLoop;
+    private bool _stopped;
 
     public LoadTestServer()
         : base(new DefaultReceiveFilterFactory<ReceiveFilter, LoadTestRequestInfo>())
@@ -75,12 +76,39 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
         PacketHandlers.Handle(session, request, _metrics);
     }
 
+    /// <summary>
+    /// 서버와 계측을 멈춥니다.
+    /// <c>Program</c>이 명시적으로 부른 뒤 <c>using</c>이 <see cref="Dispose"/>에서 다시 부르므로 멱등이어야 합니다.
+    /// </summary>
     public new void Stop()
     {
+        if (_stopped)
+            return;
+
+        _stopped = true;
         base.Stop();
+
+        // 세션이 닫히는 데는 시간이 걸린다. 마지막 샘플이 정리 전에 찍히면
+        // 누수가 없는데도 활성 세션이 남은 것처럼 기록된다.
+        WaitForSessionsToDrain(TimeSpan.FromSeconds(5));
+
         _metricsLoop?.Dispose();
         _metricsLoop = null;
         _metrics?.Flush();
+    }
+
+    /// <summary>
+    /// 활성 세션이 0이 되거나 제한 시간이 지날 때까지 기다립니다.
+    /// 실제로 누수가 있으면 제한 시간이 지난 뒤 그대로 기록되므로 누수 검출은 그대로 동작합니다.
+    /// </summary>
+    private void WaitForSessionsToDrain(TimeSpan timeout)
+    {
+        if (_metrics is null)
+            return;
+
+        var deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
+        while (_metrics.ActiveSessions > 0 && Environment.TickCount64 < deadline)
+            Thread.Sleep(20);
     }
 
     public new void Dispose()

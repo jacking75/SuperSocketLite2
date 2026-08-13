@@ -14,6 +14,47 @@ internal static class BinaryPacketTests
         yield return new TestCase(nameof(RoundTripsPacketWithBody), RoundTripsPacketWithBody);
         yield return new TestCase(nameof(DecodeFailsWhenTotalSizeIsSmallerThanHeader), DecodeFailsWhenTotalSizeIsSmallerThanHeader);
         yield return new TestCase(nameof(ReceiveFilterRejectsHeaderTotalSizeSmallerThanHeader), ReceiveFilterRejectsHeaderTotalSizeSmallerThanHeader);
+        yield return new TestCase(nameof(CorrelationIdSurvivesEncodeDecodeRoundTrip), CorrelationIdSurvivesEncodeDecodeRoundTrip);
+        yield return new TestCase(nameof(CorrelationIdKeepsPayloadSizeWhenBodyIsLongEnough), CorrelationIdKeepsPayloadSizeWhenBodyIsLongEnough);
+        yield return new TestCase(nameof(CorrelationIdExpandsBodyThatIsTooShort), CorrelationIdExpandsBodyThatIsTooShort);
+        yield return new TestCase(nameof(CorrelationIdReadFailsOnShortBody), CorrelationIdReadFailsOnShortBody);
+    }
+
+    /// <summary>서버가 본문을 그대로 되돌려주므로 상관 ID가 왕복해야 응답을 요청에 짝지을 수 있다.</summary>
+    private static void CorrelationIdSurvivesEncodeDecodeRoundTrip()
+    {
+        const long correlationId = 1234567890123L;
+        var body = BinaryPacket.WithCorrelationId(new byte[32], correlationId);
+        var encoded = BinaryPacket.Encode(101, 0, body);
+
+        AssertEx.True(BinaryPacket.TryDecode(encoded, out var packet, out _), "Packet should decode.");
+        AssertEx.True(BinaryPacket.TryReadCorrelationId(packet!.Body, out var actual), "Correlation id should be readable.");
+        AssertEx.Equal(correlationId, actual);
+    }
+
+    /// <summary>페이로드 크기가 부하 특성이므로 본문이 충분히 길면 크기가 그대로여야 한다.</summary>
+    private static void CorrelationIdKeepsPayloadSizeWhenBodyIsLongEnough()
+    {
+        var body = BinaryPacket.WithCorrelationId(new byte[4096], 42);
+
+        AssertEx.Equal(4096, body.Length);
+        AssertEx.True(BinaryPacket.TryReadCorrelationId(body, out var actual), "Correlation id should be readable.");
+        AssertEx.Equal(42L, actual);
+    }
+
+    /// <summary>하트비트처럼 본문이 빈 패킷도 상관 ID를 실을 자리를 얻어야 한다.</summary>
+    private static void CorrelationIdExpandsBodyThatIsTooShort()
+    {
+        var body = BinaryPacket.WithCorrelationId([], 7);
+
+        AssertEx.Equal(BinaryPacket.CorrelationSize, body.Length);
+        AssertEx.True(BinaryPacket.TryReadCorrelationId(body, out var actual), "Correlation id should be readable.");
+        AssertEx.Equal(7L, actual);
+    }
+
+    private static void CorrelationIdReadFailsOnShortBody()
+    {
+        AssertEx.False(BinaryPacket.TryReadCorrelationId(new byte[3], out _), "A body shorter than the correlation field should fail.");
     }
 
     private static void EncodeWritesFiveByteLittleEndianHeader()

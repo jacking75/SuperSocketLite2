@@ -149,7 +149,21 @@ gc_heap_bytes, working_set_bytes, private_memory_bytes
 thread_count, threadpool_worker_available, threadpool_worker_max
 threadpool_io_available, threadpool_io_max, cpu_percent
 handler_latency_p50_us, handler_latency_p95_us, handler_latency_p99_us, handler_latency_max_us
+phase
 ```
+
+The `phase` column marks whether a row carries real load. The server does not know the client's
+schedule, so it infers the phase from how the active session count moves:
+
+```text
+idle      no sessions attached
+rampup    session count climbing
+steady    session count holding
+rampdown  session count falling
+```
+
+Analysis views average only `steady` rows. Including the idle tail is what makes a run's
+throughput look roughly half of what it actually sustained.
 
 ### `server_events.csv`
 
@@ -185,7 +199,68 @@ total_send_success, total_send_fail, total_receive, total_timeout
 send_per_sec, receive_per_sec, bytes_sent_per_sec, bytes_received_per_sec
 rtt_p50_us, rtt_p95_us, rtt_p99_us, rtt_max_us
 socket_error_total, protocol_error_total
+phase
 ```
+
+The RTT percentiles on these rows cover only the preceding one-second window, and that window
+holds too few samples for p99 to be stable. Use `client_summary.csv` for the run-wide figures.
+
+The client sets `phase` from its own connect schedule: `rampup` until the target client count is
+reached, `steady` afterwards, and `rampdown` once the run starts shutting down.
+
+### `client_summary.csv`
+
+Key/value rows written once when the run ends. This is the file to read first.
+
+```text
+timestamp_utc, run_id, machine_id, key, value
+```
+
+Important keys:
+
+```text
+clients, scenario, transport, duration_ms, operation_sampling
+pacing, max_in_flight
+total_connect_success, total_connect_fail, total_send_success, total_send_fail
+total_receive, total_timeout, socket_error_total, protocol_error_total, runtime_error_total
+send_success_rate, response_rate
+rtt_total_count, rtt_total_p50_us, rtt_total_p90_us, rtt_total_p95_us
+rtt_total_p99_us, rtt_total_p999_us, rtt_total_max_us
+target_send_rate_per_sec, steady_window_ms, steady_send_rate_per_sec, steady_rate_achievement
+send_schedule_delay_p50_us, send_schedule_delay_p99_us, send_schedule_delay_max_us
+send_skipped_in_flight, max_in_flight_observed
+```
+
+The `rtt_total_*` values come from a histogram that counts every response for the whole run.
+They are therefore unaffected by `--operation-sampling`: a run sampled at `0.01` writes 1% of
+the rows to `client_operations.csv` but still reports percentiles over 100% of the responses.
+
+`steady_rate_achievement` is the achieved send rate divided by the requested rate over the
+steady phase. A value well below `1.0` means the run did not apply the load it was asked to,
+so its latency figures describe a lighter test than intended.
+
+When achievement is low, `send_schedule_delay_p99_us` and `send_skipped_in_flight` say whether
+the load generator itself was the limit. Both near zero means the client kept its schedule and
+the shortfall came from somewhere else.
+
+## Send Pacing
+
+`--pacing` selects how load is applied. The default is `open`.
+
+```text
+open      send on a fixed schedule; waiting for a response does not hold up the next send
+closed    start the next delay only after the response arrives (the older behaviour)
+```
+
+Under closed-loop pacing a cycle costs `delay + round trip`, so a slower server produces less
+load — the offered load drops exactly when the server is under stress, and latency reads better
+than it is. Open-loop pacing fixes send times against the run's start, so a late send does not
+push the following ones back. Requests and responses are matched by a correlation id carried in
+the first 8 bytes of the body, so responses need not arrive in order.
+
+Open-loop applies to the TCP binary protocol only. `--transport udp` and `--protocol text-line`
+stay closed-loop regardless of the flag. The `pacing` key in `client_summary.csv` records what
+was actually used — match it on both sides when comparing runs.
 
 ### `client_operations.csv`
 
@@ -220,24 +295,35 @@ duckdb loadtest.duckdb -init Test\LoadTest\analysis\duckdb_loadtest.sql
 The script reads CSVs from `logs/loadtest/*/*.csv`, creates raw views, and creates analysis views for:
 
 ```text
-throughput
+run summary          run-wide percentiles and rate achievement
+throughput           steady phase only
+throughput (all)     every phase, for comparison
+phase breakdown      how long each phase lasted
 latency
 server handler latency
 memory trend
 error summary
 server event summary
 session leak check
+smoke verdict
 ```
 
 Run the common reports:
 
 ```sql
+SELECT * FROM analysis_run_summary;
 SELECT * FROM analysis_throughput;
-SELECT * FROM analysis_latency;
+SELECT * FROM analysis_phase_breakdown;
 SELECT * FROM analysis_memory_trend;
 SELECT * FROM analysis_error_summary;
 SELECT * FROM analysis_session_leak_check;
 ```
+
+Start with `analysis_run_summary`. It carries the run-wide percentiles and the rate achievement,
+which together tell you whether the run is worth comparing at all.
+
+Runs recorded before the `phase` column existed report `unknown` and are treated as
+load-bearing, so older results still appear in the aggregates.
 
 Session leak checks are most useful after clients have stopped and the server has had time to drain closed sessions.
 

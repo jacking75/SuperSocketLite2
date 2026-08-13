@@ -27,7 +27,7 @@ public sealed class ClientCsvWriters : IDisposable
             "closed_clients", "reconnecting_clients", "total_connect_success", "total_connect_fail", "total_disconnect",
             "total_send_success", "total_send_fail", "total_receive", "total_timeout", "send_per_sec", "receive_per_sec",
             "bytes_sent_per_sec", "bytes_received_per_sec", "rtt_p50_us", "rtt_p95_us", "rtt_p99_us", "rtt_max_us",
-            "socket_error_total", "protocol_error_total", "runtime_error_total", "dropped_operation_rows"));
+            "socket_error_total", "protocol_error_total", "runtime_error_total", "dropped_operation_rows", "phase"));
         _operations = new CsvMetricWriter(Path.Combine(outputDirectory, "client_operations.csv"), new CsvSchema(
             "timestamp_utc", "elapsed_ms", "run_id", "machine_id", "client_id", "operation_id", "operation_type", "packet_id",
             "payload_bytes", "send_start_ms", "response_end_ms", "rtt_us", "success", "error_type", "socket_error"));
@@ -77,7 +77,8 @@ public sealed class ClientCsvWriters : IDisposable
             sample.SocketErrorTotal,
             sample.ProtocolErrorTotal,
             sample.RuntimeErrorTotal,
-            DroppedOperationRows);
+            DroppedOperationRows,
+            sample.Phase);
     }
 
     public void WriteOperation(string runId, long elapsedMs, int clientId, long operationId, string operationType, int packetId, int payloadBytes, long sendStartMs, long responseEndMs, long rttUs, bool success, string errorType, string socketError)

@@ -24,19 +24,57 @@ CREATE OR REPLACE VIEW client_operations AS
 SELECT *
 FROM read_csv_auto('logs/loadtest/*/client_operations.csv', union_by_name = true);
 
+CREATE OR REPLACE VIEW client_summary AS
+SELECT *
+FROM read_csv_auto('logs/loadtest/*/client_summary.csv', union_by_name = true);
+
+-- The phase column marks rampup / steady / rampdown / idle. Runs recorded before the
+-- column existed report 'unknown', and those rows are treated as load-bearing so that
+-- older results stay comparable instead of disappearing from every aggregate.
 CREATE OR REPLACE VIEW normalized_client_samples AS
 SELECT
     *,
     COALESCE(json_extract_string(to_json(client_samples), '$.machine_id'), 'unknown') AS normalized_machine_id,
     COALESCE(TRY_CAST(json_extract_string(to_json(client_samples), '$.runtime_error_total') AS BIGINT), 0) AS normalized_runtime_error_total,
-    COALESCE(TRY_CAST(json_extract_string(to_json(client_samples), '$.dropped_operation_rows') AS BIGINT), 0) AS normalized_dropped_operation_rows
+    COALESCE(TRY_CAST(json_extract_string(to_json(client_samples), '$.dropped_operation_rows') AS BIGINT), 0) AS normalized_dropped_operation_rows,
+    COALESCE(json_extract_string(to_json(client_samples), '$.phase'), 'unknown') AS normalized_phase
 FROM client_samples;
+
+CREATE OR REPLACE VIEW normalized_server_samples AS
+SELECT
+    *,
+    COALESCE(json_extract_string(to_json(server_samples), '$.phase'), 'unknown') AS normalized_phase
+FROM server_samples;
 
 CREATE OR REPLACE VIEW normalized_client_operations AS
 SELECT
     *,
     COALESCE(json_extract_string(to_json(client_operations), '$.machine_id'), 'unknown') AS normalized_machine_id
 FROM client_operations;
+
+-- Rows that carry real load. Excludes ramp-up, drain, and idle tails so that averages
+-- are not diluted by the stretch where the server is running with no clients attached.
+CREATE OR REPLACE VIEW steady_client_samples AS
+SELECT *
+FROM normalized_client_samples
+WHERE normalized_phase IN ('steady', 'unknown');
+
+CREATE OR REPLACE VIEW steady_server_samples AS
+SELECT *
+FROM normalized_server_samples
+WHERE normalized_phase IN ('steady', 'unknown');
+
+-- Elapsed range of the steady phase per run and machine. client_operations.csv has no
+-- phase column, so per-operation rows are filtered by joining against this window.
+CREATE OR REPLACE VIEW client_steady_window AS
+SELECT
+    run_id,
+    normalized_machine_id AS machine_id,
+    min(elapsed_ms) AS steady_start_ms,
+    max(elapsed_ms) AS steady_end_ms
+FROM normalized_client_samples
+WHERE normalized_phase = 'steady'
+GROUP BY run_id, normalized_machine_id;
 
 -- One row per run, load-generator machine, and sample timestamp.
 -- This prevents server samples from being duplicated when multiple client
@@ -56,7 +94,8 @@ SELECT
     max(bytes_received_per_sec) AS bytes_received_per_sec,
     max(rtt_p99_us) AS rtt_p99_us,
     max(normalized_runtime_error_total) AS runtime_error_total,
-    max(normalized_dropped_operation_rows) AS dropped_operation_rows
+    max(normalized_dropped_operation_rows) AS dropped_operation_rows,
+    max(normalized_phase) AS phase
 FROM normalized_client_samples
 GROUP BY run_id, normalized_machine_id, floor(elapsed_ms / 1000) * 1000, elapsed_ms;
 
@@ -74,11 +113,13 @@ SELECT
     sum(bytes_received_per_sec) AS total_bytes_received_per_sec,
     max(rtt_p99_us) / 1000.0 AS worst_machine_rtt_p99_ms,
     max(runtime_error_total) AS max_runtime_error_total,
-    max(dropped_operation_rows) AS max_dropped_operation_rows
+    max(dropped_operation_rows) AS max_dropped_operation_rows,
+    max(phase) AS phase
 FROM distributed_client_samples
 GROUP BY run_id, elapsed_bucket_ms;
 
--- Throughput by run. Compares server-side request rate with client-side receive rate.
+-- Throughput by run, restricted to the steady phase. Averaging every row would fold in
+-- ramp-up and the idle tail after clients exit, which halves the reported rate.
 CREATE OR REPLACE VIEW analysis_throughput AS
 SELECT
     COALESCE(s.run_id, c.run_id) AS run_id,
@@ -89,6 +130,27 @@ SELECT
     avg(c.total_receive_per_sec) AS avg_client_receive_per_sec,
     avg(s.bytes_in_per_sec + s.bytes_out_per_sec) AS avg_server_network_bytes_per_sec,
     avg(c.total_bytes_sent_per_sec + c.total_bytes_received_per_sec) AS avg_client_network_bytes_per_sec
+FROM steady_server_samples s
+FULL OUTER JOIN (
+    SELECT *
+    FROM distributed_client_samples_by_elapsed
+    WHERE phase IN ('steady', 'unknown')
+) c
+    ON s.run_id = c.run_id
+    AND floor(s.elapsed_ms / 1000) * 1000 = c.elapsed_bucket_ms
+GROUP BY COALESCE(s.run_id, c.run_id)
+ORDER BY run_id;
+
+-- Same shape as analysis_throughput but over every sample, for comparison when you want
+-- to see what ramp-up and drain did to the run.
+CREATE OR REPLACE VIEW analysis_throughput_all_phases AS
+SELECT
+    COALESCE(s.run_id, c.run_id) AS run_id,
+    max(s.active_sessions) AS max_active_sessions,
+    avg(s.requests_per_sec) AS avg_server_rps,
+    max(s.requests_per_sec) AS max_server_rps,
+    avg(c.total_send_per_sec) AS avg_client_send_per_sec,
+    avg(c.total_receive_per_sec) AS avg_client_receive_per_sec
 FROM server_samples s
 FULL OUTER JOIN distributed_client_samples_by_elapsed c
     ON s.run_id = c.run_id
@@ -96,22 +158,95 @@ FULL OUTER JOIN distributed_client_samples_by_elapsed c
 GROUP BY COALESCE(s.run_id, c.run_id)
 ORDER BY run_id;
 
--- Client RTT latency distribution from sampled operations.
-CREATE OR REPLACE VIEW analysis_latency AS
+-- How each run divided its time. A run whose steady_samples is 0 produced no comparable
+-- measurement, which is worth seeing explicitly rather than inferring from empty averages.
+CREATE OR REPLACE VIEW analysis_phase_breakdown AS
 SELECT
     run_id,
-    normalized_machine_id AS machine_id,
-    operation_type,
+    'client' AS source,
+    normalized_phase AS phase,
+    count(*) AS samples,
+    min(elapsed_ms) AS first_elapsed_ms,
+    max(elapsed_ms) AS last_elapsed_ms
+FROM normalized_client_samples
+GROUP BY run_id, normalized_phase
+UNION ALL
+SELECT
+    run_id,
+    'server' AS source,
+    normalized_phase AS phase,
+    count(*) AS samples,
+    min(elapsed_ms) AS first_elapsed_ms,
+    max(elapsed_ms) AS last_elapsed_ms
+FROM normalized_server_samples
+GROUP BY run_id, normalized_phase
+ORDER BY run_id, source, phase;
+
+-- Client RTT distribution from sampled operations, limited to the steady phase.
+--
+-- These percentiles are computed from client_operations.csv, which is sampled. Under
+-- --operation-sampling below 1.0 they describe the sample, not the run. For the run-wide
+-- figures use analysis_run_summary, whose percentiles come from the full histogram the
+-- client keeps in memory and are unaffected by the sampling rate.
+CREATE OR REPLACE VIEW analysis_latency AS
+SELECT
+    o.run_id,
+    o.normalized_machine_id AS machine_id,
+    o.operation_type,
     count(*) AS sample_count,
-    quantile_cont(rtt_us, 0.50) / 1000.0 AS p50_ms,
-    quantile_cont(rtt_us, 0.95) / 1000.0 AS p95_ms,
-    quantile_cont(rtt_us, 0.99) / 1000.0 AS p99_ms,
-    max(rtt_us) / 1000.0 AS max_ms
-FROM normalized_client_operations
-WHERE success = true
-  AND rtt_us IS NOT NULL
-GROUP BY run_id, normalized_machine_id, operation_type
+    quantile_cont(o.rtt_us, 0.50) / 1000.0 AS p50_ms,
+    quantile_cont(o.rtt_us, 0.95) / 1000.0 AS p95_ms,
+    quantile_cont(o.rtt_us, 0.99) / 1000.0 AS p99_ms,
+    max(o.rtt_us) / 1000.0 AS max_ms
+FROM normalized_client_operations o
+LEFT JOIN client_steady_window w
+    ON o.run_id = w.run_id
+    AND o.normalized_machine_id = w.machine_id
+WHERE o.success = true
+  AND o.rtt_us IS NOT NULL
+  AND (w.steady_start_ms IS NULL OR o.elapsed_ms BETWEEN w.steady_start_ms AND w.steady_end_ms)
+GROUP BY o.run_id, o.normalized_machine_id, o.operation_type
 ORDER BY run_id, machine_id, operation_type;
+
+-- Run-wide summary pivoted from client_summary.csv. The rtt_total_* columns come from the
+-- client's cumulative histogram, so they hold for the whole run at any sampling rate.
+CREATE OR REPLACE VIEW analysis_run_summary AS
+SELECT
+    run_id,
+    COALESCE(json_extract_string(to_json(client_summary), '$.machine_id'), 'unknown') AS machine_id,
+    max(CASE WHEN key = 'clients' THEN TRY_CAST(value AS BIGINT) END) AS clients,
+    max(CASE WHEN key = 'scenario' THEN value END) AS scenario,
+    max(CASE WHEN key = 'transport' THEN value END) AS transport,
+    max(CASE WHEN key = 'duration_ms' THEN TRY_CAST(value AS BIGINT) END) AS duration_ms,
+    max(CASE WHEN key = 'steady_window_ms' THEN TRY_CAST(value AS BIGINT) END) AS steady_window_ms,
+    max(CASE WHEN key = 'total_send_success' THEN TRY_CAST(value AS BIGINT) END) AS total_send_success,
+    max(CASE WHEN key = 'total_receive' THEN TRY_CAST(value AS BIGINT) END) AS total_receive,
+    max(CASE WHEN key = 'total_timeout' THEN TRY_CAST(value AS BIGINT) END) AS total_timeout,
+    max(CASE WHEN key = 'total_connect_fail' THEN TRY_CAST(value AS BIGINT) END) AS total_connect_fail,
+    max(CASE WHEN key = 'total_send_fail' THEN TRY_CAST(value AS BIGINT) END) AS total_send_fail,
+    max(CASE WHEN key = 'socket_error_total' THEN TRY_CAST(value AS BIGINT) END) AS socket_error_total,
+    max(CASE WHEN key = 'response_rate' THEN TRY_CAST(value AS DOUBLE) END) AS response_rate,
+    max(CASE WHEN key = 'target_send_rate_per_sec' THEN TRY_CAST(value AS DOUBLE) END) AS target_send_rate_per_sec,
+    max(CASE WHEN key = 'steady_send_rate_per_sec' THEN TRY_CAST(value AS DOUBLE) END) AS steady_send_rate_per_sec,
+    max(CASE WHEN key = 'steady_rate_achievement' THEN TRY_CAST(value AS DOUBLE) END) AS steady_rate_achievement,
+    max(CASE WHEN key = 'pacing' THEN value END) AS pacing,
+    max(CASE WHEN key = 'max_in_flight' THEN TRY_CAST(value AS BIGINT) END) AS max_in_flight,
+    -- When rate achievement is low these three say whether the load generator was the limit.
+    max(CASE WHEN key = 'send_schedule_delay_p99_us' THEN TRY_CAST(value AS BIGINT) END) AS send_delay_p99_us,
+    max(CASE WHEN key = 'send_skipped_in_flight' THEN TRY_CAST(value AS BIGINT) END) AS send_skipped_in_flight,
+    max(CASE WHEN key = 'max_in_flight_observed' THEN TRY_CAST(value AS BIGINT) END) AS max_in_flight_observed,
+    max(CASE WHEN key = 'operation_sampling' THEN TRY_CAST(value AS DOUBLE) END) AS operation_sampling,
+    max(CASE WHEN key = 'dropped_client_operation_rows' THEN TRY_CAST(value AS BIGINT) END) AS dropped_operation_rows,
+    max(CASE WHEN key = 'rtt_total_count' THEN TRY_CAST(value AS BIGINT) END) AS rtt_total_count,
+    max(CASE WHEN key = 'rtt_total_p50_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_p50_ms,
+    max(CASE WHEN key = 'rtt_total_p90_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_p90_ms,
+    max(CASE WHEN key = 'rtt_total_p95_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_p95_ms,
+    max(CASE WHEN key = 'rtt_total_p99_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_p99_ms,
+    max(CASE WHEN key = 'rtt_total_p999_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_p999_ms,
+    max(CASE WHEN key = 'rtt_total_max_us' THEN TRY_CAST(value AS BIGINT) END) / 1000.0 AS rtt_max_ms
+FROM client_summary
+GROUP BY run_id, COALESCE(json_extract_string(to_json(client_summary), '$.machine_id'), 'unknown')
+ORDER BY run_id, machine_id;
 
 -- Client summary by load-generator machine. This keeps distributed client runs
 -- distinguishable when multiple machines share one run_id.
@@ -131,9 +266,10 @@ SELECT
     max(protocol_error_total) AS protocol_error_total,
     max(normalized_runtime_error_total) AS runtime_error_total,
     max(normalized_dropped_operation_rows) AS dropped_operation_rows,
-    avg(send_per_sec) AS avg_send_per_sec,
-    avg(receive_per_sec) AS avg_receive_per_sec,
-    max(rtt_p99_us) / 1000.0 AS max_rtt_p99_ms
+    avg(CASE WHEN normalized_phase IN ('steady', 'unknown') THEN send_per_sec END) AS avg_steady_send_per_sec,
+    avg(CASE WHEN normalized_phase IN ('steady', 'unknown') THEN receive_per_sec END) AS avg_steady_receive_per_sec,
+    max(CASE WHEN normalized_phase IN ('steady', 'unknown') THEN rtt_p99_us END) / 1000.0 AS max_steady_rtt_p99_ms,
+    count(*) FILTER (WHERE normalized_phase = 'steady') AS steady_samples
 FROM normalized_client_samples
 GROUP BY run_id, normalized_machine_id
 ORDER BY run_id, machine_id;
@@ -145,15 +281,16 @@ SELECT *
 FROM distributed_client_samples_by_elapsed
 ORDER BY run_id, elapsed_bucket_ms;
 
--- Server handler latency distribution from periodic sample histograms.
+-- Server handler latency distribution from periodic sample histograms, steady phase only.
 CREATE OR REPLACE VIEW analysis_server_handler_latency AS
 SELECT
     run_id,
     max(handler_latency_p50_us) / 1000.0 AS max_handler_p50_ms,
     max(handler_latency_p95_us) / 1000.0 AS max_handler_p95_ms,
     max(handler_latency_p99_us) / 1000.0 AS max_handler_p99_ms,
-    max(handler_latency_max_us) / 1000.0 AS max_handler_max_ms
-FROM server_samples
+    max(handler_latency_max_us) / 1000.0 AS max_handler_max_ms,
+    count(*) AS steady_samples
+FROM steady_server_samples
 GROUP BY run_id
 ORDER BY run_id;
 
@@ -229,8 +366,9 @@ CREATE OR REPLACE VIEW analysis_smoke_verdict AS
 WITH latency AS (
     SELECT
         run_id,
-        max(p99_ms) AS max_p99_ms
-    FROM analysis_latency
+        max(rtt_p99_ms) AS max_p99_ms,
+        min(steady_rate_achievement) AS min_rate_achievement
+    FROM analysis_run_summary
     GROUP BY run_id
 ),
 errors AS (
@@ -254,6 +392,7 @@ SELECT
     COALESCE(leaks.final_active_sessions, 0) AS final_active_sessions,
     COALESCE(leaks.connected_minus_closed, 0) AS connected_minus_closed,
     latency.max_p99_ms,
+    latency.min_rate_achievement,
     COALESCE(errors.client_connect_fail, 0) = 0
         AND COALESCE(errors.client_timeout, 0) = 0
         AND COALESCE(errors.client_socket_errors, 0) = 0
@@ -264,14 +403,21 @@ SELECT
         AND COALESCE(errors.server_protocol_errors, 0) = 0
         AND COALESCE(leaks.final_active_sessions, 0) = 0
         AND COALESCE(leaks.connected_minus_closed, 0) = 0
-        AND COALESCE(latency.max_p99_ms, 0) < 50.0 AS passed
+        AND COALESCE(latency.max_p99_ms, 0) < 50.0
+        -- Runs recorded before the summary carried this figure report NULL and are not
+        -- failed on it; a run that did record it must have driven at least 95% of the
+        -- requested load, otherwise the latency numbers describe a lighter test than asked for.
+        AND COALESCE(latency.min_rate_achievement, 1.0) >= 0.95 AS passed
 FROM errors
 FULL OUTER JOIN latency ON errors.run_id = latency.run_id
 FULL OUTER JOIN leaks ON COALESCE(errors.run_id, latency.run_id) = leaks.run_id
 ORDER BY run_id;
 
 -- Example ad-hoc queries:
---   SELECT * FROM analysis_throughput;
+--   SELECT * FROM analysis_run_summary;        -- run-wide percentiles and rate achievement
+--   SELECT * FROM analysis_throughput;         -- steady phase only
+--   SELECT * FROM analysis_throughput_all_phases;
+--   SELECT * FROM analysis_phase_breakdown;    -- how long each phase lasted
 --   SELECT * FROM analysis_latency;
 --   SELECT * FROM analysis_memory_trend;
 --   SELECT * FROM analysis_error_summary;

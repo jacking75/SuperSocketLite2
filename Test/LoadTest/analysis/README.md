@@ -17,6 +17,7 @@ logs/loadtest/<run-id>/server_samples.csv
 logs/loadtest/<run-id>/server_events.csv
 logs/loadtest/<run-id>/client_samples.csv
 logs/loadtest/<run-id>/client_operations.csv
+logs/loadtest/<run-id>/client_summary.csv
 ```
 
 The `read_csv_auto` views use `union_by_name = true`, so runs with schema additions can still be analyzed together when column names match.
@@ -36,12 +37,16 @@ server_samples
 server_events
 client_samples
 client_operations
+client_summary
 ```
 
 It also creates analysis views:
 
 ```text
+analysis_run_summary
 analysis_throughput
+analysis_throughput_all_phases
+analysis_phase_breakdown
 analysis_latency
 analysis_client_machine_summary
 analysis_distributed_client_throughput
@@ -53,9 +58,27 @@ analysis_session_leak_check
 analysis_smoke_verdict
 ```
 
+## Steady-Phase Filtering
+
+Sample rows carry a `phase` column: `rampup`, `steady`, `rampdown`, or `idle`. Aggregate views
+average only `steady` rows.
+
+This matters more than it sounds. A server left running past its clients records a long idle
+tail, and averaging it in halves the reported throughput. On a local 100-client run the same
+data reads as 483 requests/sec over the steady phase and 206 requests/sec over every row.
+
+`analysis_throughput_all_phases` keeps the unfiltered figures when you want to see what ramp-up
+and drain cost. `analysis_phase_breakdown` shows how many samples each phase produced; a run
+with zero steady samples produced no comparable measurement.
+
+Runs recorded before the column existed report `unknown` and are treated as load-bearing, so
+older results still appear in the aggregates rather than silently vanishing.
+
 ## Common Queries
 
 ```sql
+SELECT * FROM analysis_run_summary;
+SELECT * FROM analysis_phase_breakdown;
 SELECT * FROM analysis_throughput;
 SELECT * FROM analysis_latency;
 SELECT * FROM analysis_client_machine_summary;
@@ -65,6 +88,19 @@ SELECT * FROM analysis_error_summary;
 SELECT * FROM analysis_session_leak_check;
 SELECT * FROM analysis_smoke_verdict;
 ```
+
+Start with `analysis_run_summary`. Its `rtt_*_ms` columns come from the client's cumulative
+histogram rather than from sampled rows, so they hold for the whole run at any
+`--operation-sampling` value, and `steady_rate_achievement` tells you whether the run actually
+applied the load it was asked to.
+
+Two runs are only comparable if their `pacing` matches. Under `closed` pacing the client waits
+for each response before starting the next delay, so a slower server receives less load and its
+latency reads better than it is; `open` pacing sends on a fixed schedule instead.
+
+When `steady_rate_achievement` is low, `send_delay_p99_us` and `send_skipped_in_flight` say
+whether the load generator was the limit. Both near zero means the client held its schedule and
+the shortfall came from elsewhere.
 
 For one run:
 

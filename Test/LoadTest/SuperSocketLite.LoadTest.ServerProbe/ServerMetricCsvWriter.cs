@@ -43,7 +43,8 @@ public sealed class ServerMetricCsvWriter : IDisposable
         "handler_latency_p95_us",
         "handler_latency_p99_us",
         "handler_latency_max_us",
-        "dropped_metric_rows");
+        "dropped_metric_rows",
+        "phase");
 
     private static readonly CsvSchema EventSchema = new(
         "timestamp_utc",
@@ -157,7 +158,8 @@ public sealed class ServerMetricCsvWriter : IDisposable
                 sample.HandlerLatencyP95Us,
                 sample.HandlerLatencyP99Us,
                 sample.HandlerLatencyMaxUs,
-                sample.DroppedMetricRows);
+                sample.DroppedMetricRows,
+                sample.Phase);
             return;
         }
 

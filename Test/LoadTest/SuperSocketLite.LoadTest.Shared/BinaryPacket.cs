@@ -6,6 +6,37 @@ public sealed record BinaryPacket(short PacketId, sbyte Value1, byte[] Body)
 {
     public const int HeaderSize = 5;
 
+    /// <summary>
+    /// 본문 앞부분에 상관 ID를 싣는 데 쓰는 바이트 수입니다.
+    /// 서버가 본문을 그대로 돌려주므로 응답에서 어떤 요청에 대한 것인지 되찾을 수 있습니다.
+    /// </summary>
+    public const int CorrelationSize = sizeof(long);
+
+    /// <summary>
+    /// 본문 앞 <see cref="CorrelationSize"/>바이트에 상관 ID를 써 넣은 본문을 만듭니다.
+    /// 본문이 그보다 짧으면 늘리고, 길면 앞부분만 덮어써서 페이로드 크기를 유지합니다.
+    /// </summary>
+    public static byte[] WithCorrelationId(ReadOnlySpan<byte> body, long correlationId)
+    {
+        var result = new byte[Math.Max(body.Length, CorrelationSize)];
+        body.CopyTo(result);
+        BinaryPrimitives.WriteInt64LittleEndian(result.AsSpan(0, CorrelationSize), correlationId);
+        return result;
+    }
+
+    /// <summary>응답 본문에서 상관 ID를 읽습니다. 본문이 짧으면 실패합니다.</summary>
+    public static bool TryReadCorrelationId(ReadOnlySpan<byte> body, out long correlationId)
+    {
+        if (body.Length < CorrelationSize)
+        {
+            correlationId = 0;
+            return false;
+        }
+
+        correlationId = BinaryPrimitives.ReadInt64LittleEndian(body.Slice(0, CorrelationSize));
+        return true;
+    }
+
     public static byte[] Encode(short packetId, sbyte value1, ReadOnlySpan<byte> body)
     {
         var totalSize = checked(HeaderSize + body.Length);

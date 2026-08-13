@@ -37,4 +37,5 @@ public sealed record ServerMetricsSnapshot(
     long HandlerLatencyP95Us,
     long HandlerLatencyP99Us,
     long HandlerLatencyMaxUs,
-    long DroppedMetricRows);
+    long DroppedMetricRows,
+    string Phase);

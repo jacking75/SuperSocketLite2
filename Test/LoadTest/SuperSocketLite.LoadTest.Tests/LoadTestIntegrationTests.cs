@@ -23,6 +23,125 @@ internal static class LoadTestIntegrationTests
         yield return new TestCase(nameof(UdpClientRecordsReceiveTimeouts), UdpClientRecordsReceiveTimeouts);
         yield return new TestCase(nameof(UdpLossSimulationRecordsSendFailures), UdpLossSimulationRecordsSendFailures);
         yield return new TestCase(nameof(ReconnectStormDoesNotCrashAndDrainsSessions), ReconnectStormDoesNotCrashAndDrainsSessions);
+        yield return new TestCase(nameof(OpenLoopKeepsSendingWhenResponsesAreSlow), OpenLoopKeepsSendingWhenResponsesAreSlow);
+        yield return new TestCase(nameof(OpenLoopRespectsInFlightLimit), OpenLoopRespectsInFlightLimit);
+    }
+
+    /// <summary>
+    /// 열린 루프가 존재하는 이유를 확인하는 시험이다.
+    /// 응답 처리를 느리게 만들면 닫힌 루프는 송신까지 함께 느려지지만,
+    /// 열린 루프는 예정된 일정대로 계속 보내야 한다.
+    /// </summary>
+    private static void OpenLoopKeepsSendingWhenResponsesAreSlow()
+    {
+        var openSends = RunWithSlowResponses("open");
+        var closedSends = RunWithSlowResponses("closed");
+
+        AssertEx.True(
+            openSends >= closedSends * 2,
+            $"열린 루프는 느린 응답에도 부하를 유지해야 한다. open={openSends}, closed={closedSends}");
+    }
+
+    private static long RunWithSlowResponses(string pacing)
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "pacing-" + pacing + "-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 20,
+                // 응답을 읽기 전에 매번 멈춘다. 닫힌 루프에서는 이 지연이 곧 송신 주기가 된다.
+                SlowReceiverDelay = TimeSpan.FromMilliseconds(200),
+                Pacing = pacing,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var samples = File.ReadAllLines(Path.Combine(clientOutput, "client_samples.csv"));
+        return ParseColumnAsLong(samples, "total_send_success", samples[^1]);
+    }
+
+    /// <summary>
+    /// 동시 요청 한도는 지켜져야 한다. 한도를 넘겨 보내는 대신 건너뛰고 그 사실을 남긴다.
+    /// 부하가 조용히 사라지면 결과를 잘못 읽게 되기 때문이다.
+    /// </summary>
+    private static void OpenLoopRespectsInFlightLimit()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "inflight-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 50,
+                SlowReceiverDelay = TimeSpan.FromMilliseconds(200),
+                Pacing = "open",
+                MaxInFlight = 2,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var observed = ReadSummaryValue(clientOutput, "max_in_flight_observed");
+        var skipped = ReadSummaryValue(clientOutput, "send_skipped_in_flight");
+
+        AssertEx.True(observed <= 2, $"동시 요청은 한도 2를 넘지 않아야 한다. 관측값={observed}");
+        AssertEx.True(skipped > 0, "한도에 걸려 건너뛴 송신은 기록되어야 한다.");
+    }
+
+    private static double ReadSummaryValue(string clientOutput, string key)
+    {
+        var lines = File.ReadAllLines(Path.Combine(clientOutput, "client_summary.csv"));
+        foreach (var line in lines.Skip(1))
+        {
+            var parts = line.Split(',');
+            if (parts.Length >= 5 && parts[3] == key)
+                return double.Parse(parts[4], System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        throw new InvalidOperationException($"client_summary.csv에 '{key}' 항목이 없다.");
     }
 
     private static void OneTcpClientRecordsEchoOperation()

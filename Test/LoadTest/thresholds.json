@@ -1,0 +1,11 @@
+{
+  "maxRttP99IncreaseRatio": 0.1,
+  "maxRttP999IncreaseRatio": 0.25,
+  "minThroughputRatio": 0.95,
+  "maxMemoryGrowthIncreaseMb": 50,
+  "maxErrorRate": 0.001,
+  "minRateAchievement": 0.95,
+  "requireZeroServerExceptions": true,
+  "requireZeroSessionLeak": true,
+  "requireNoLocalResourceExhaustion": true
+}

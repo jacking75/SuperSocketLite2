@@ -470,6 +470,103 @@ UDP와 text-line은 `--pacing open`을 지정해도 항상 닫힌 루프로 동�
 `steady_rate_achievement`가 `1.0`보다 크게 낮으면 요청한 만큼 부하를 걸지 못한 실행입니다.
 이때의 지연 시간 수치는 의도한 것보다 가벼운 테스트의 결과이므로 비교 대상으로 쓰면 안 됩니다.
 
+## 자동화
+
+서버와 클라이언트를 손으로 띄우는 대신 스크립트 하나로 끝낼 수 있습니다.
+
+### 한 번 실행하기 (`run-loadtest.ps1`)
+
+서버 기동 → 리슨 확인 → 클라이언트 실행 → 서버 정리 → 리포트까지 한 번에 합니다.
+
+```powershell
+Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
+```
+
+리슨이 열릴 때까지 기다린 뒤에 클라이언트를 띄웁니다.
+고정 시간 대기로는 기동이 느린 날 클라이언트가 먼저 붙어 실패하고,
+반대로 서버 실행 시간이 끝난 뒤 클라이언트가 도는 일도 생깁니다.
+실제로 그 때문에 정상 동작을 결함으로 오인한 적이 있어 준비 확인을 넣었습니다.
+
+주요 파라미터입니다.
+
+| 파라미터 | 기본값 | 설명 |
+| --- | --- | --- |
+| `-RunId` | `run` | 실행 식별자입니다. `-Repeat`가 2 이상이면 뒤에 번호가 붙습니다. |
+| `-Repeat` | `1` | 같은 조건을 몇 번 반복할지입니다. 비교용 실행은 3회 이상을 권장합니다. |
+| `-Clients` | `100` | 동시 클라이언트 수입니다. |
+| `-Duration` | `00:00:30` | 실행 시간입니다. |
+| `-Scenario` | `echo` | 시나리오입니다. |
+| `-Pacing` | `open` | 송신 페이싱입니다. |
+| `-Port` | `2012` | 서버 포트입니다. |
+| `-ExtraClientArgs` | 없음 | 클라이언트에 그대로 넘길 추가 인자입니다. |
+| `-SkipReport` | 꺼짐 | 리포트를 만들지 않습니다. |
+
+### 시나리오 매트릭스 (`run-matrix.ps1`)
+
+정상 부하와 이상 상황을 차례로 훑고 하나의 리포트로 모읍니다.
+
+```powershell
+Test\LoadTest\run-matrix.ps1 -Prefix nightly -Clients 200 -Duration 00:01:00
+```
+
+기본 매트릭스는 `echo`, `game-like`, `burst`, `mixed-huge`, `abort`, `reconnect-storm` 여섯 조합입니다.
+조합마다 포트를 다르게 잡아 앞선 실행의 `TIME_WAIT` 소켓과 부딪히지 않게 합니다.
+
+### 리포트와 회귀 판정 (`LoadTest.Report`)
+
+CSV를 읽어 파일 하나로 열리는 HTML 리포트를 만들고 기준 실행과 견줍니다.
+
+```powershell
+# 기준 실행 3회
+Test\LoadTest\run-loadtest.ps1 -RunId base -Repeat 3 -Clients 500 -Duration 00:02:00
+
+# 변경 후 3회
+Test\LoadTest\run-loadtest.ps1 -RunId cand -Repeat 3 -Clients 500 -Duration 00:02:00
+
+# 비교와 판정
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Report -c Release -- `
+  --baseline base --run cand --fail-on-regression
+```
+
+`--baseline`과 `--run`은 **접두사**입니다. `base01`, `base02`, `base03`이 한 묶음으로 모입니다.
+
+**꼬리 지연은 실행마다 크게 흔들리므로 지표별 중앙값으로 비교합니다.**
+로컬 측정에서 p99가 실행 간 44%, p99.9가 124%까지 차이 난 적이 있습니다.
+한 번의 실행으로 회귀를 판정하면 그 변동을 성능 변화로 오인합니다.
+다만 서버 예외와 세션 누수는 중앙값 대신 최악값을 남깁니다. 한 번이라도 일어난 사고가 묻히면 안 되기 때문입니다.
+
+판정이 불합격이고 `--fail-on-regression`을 주면 종료 코드 1을 반환합니다.
+
+#### 임계값
+
+`Test\LoadTest\thresholds.json`이 기본값입니다. `--thresholds`로 다른 파일을 줄 수 있습니다.
+
+| 키 | 기본값 | 의미 |
+| --- | --- | --- |
+| `maxRttP99IncreaseRatio` | `0.10` | 기준 대비 p99 증가 상한입니다. |
+| `maxRttP999IncreaseRatio` | `0.25` | p99.9는 흔들림이 커서 느슨하게 둡니다. |
+| `minThroughputRatio` | `0.95` | 기준 대비 처리량 하한입니다. |
+| `maxMemoryGrowthIncreaseMb` | `50` | 기준 대비 메모리 증가 상한(MB)입니다. |
+| `maxErrorRate` | `0.001` | 오류율 상한입니다. |
+| `minRateAchievement` | `0.95` | 목표 레이트 달성률 하한입니다. |
+| `requireZeroServerExceptions` | `true` | 서버 예외가 있으면 불합격입니다. |
+| `requireZeroSessionLeak` | `true` | 종료 후 활성 세션이 남으면 불합격입니다. |
+| `requireNoLocalResourceExhaustion` | `true` | 부하 발생기 자원 고갈이 있으면 불합격입니다. |
+
+`dotnet run --project ...Report -- --print-thresholds`로 기본값을 새로 뽑을 수 있습니다.
+
+#### 비교 전에 확인할 것
+
+- **페이싱이 같아야 합니다.** 닫힌 루프는 응답을 기다렸다 보내므로 부하가 덜 걸리고 지연도 낮게 나옵니다. 다르면 판정이 "보류"로 표시됩니다.
+- **목표 달성률이 하한을 넘어야 합니다.** 요청한 것보다 가벼운 부하를 건 실행의 지연 수치는 비교 대상이 아닙니다.
+- **`local_resource_exhaustion`이 0이어야 합니다.** 부하 발생기가 한계에 닿았다면 그 수치는 서버 성능을 말해 주지 않습니다.
+
+### 결과 보관
+
+실행 결과는 `logs\loadtest\<run-id>-server`, `logs\loadtest\<run-id>-client`에 남습니다.
+기준으로 삼을 실행은 이름을 알아볼 수 있게 붙여 둡니다(예: `v0.91-base01`).
+`logs\`는 `.gitignore` 대상이므로 오래 보관하려면 저장소 밖으로 옮깁니다.
+
 ## DuckDB 분석
 
 CSV 파일을 `logs\loadtest` 아래에 둔 상태에서 다음 명령을 실행합니다.

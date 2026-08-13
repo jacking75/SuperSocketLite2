@@ -5,6 +5,7 @@
     <ProjectReference Include="..\SuperSocketLite.LoadTest.Client\SuperSocketLite.LoadTest.Client.csproj" />
     <ProjectReference Include="..\SuperSocketLite.LoadTest.ServerProbe\SuperSocketLite.LoadTest.ServerProbe.csproj" />
     <ProjectReference Include="..\SuperSocketLite.LoadTest.Server\SuperSocketLite.LoadTest.Server.csproj" />
+    <ProjectReference Include="..\SuperSocketLite.LoadTest.Report\SuperSocketLite.LoadTest.Report.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

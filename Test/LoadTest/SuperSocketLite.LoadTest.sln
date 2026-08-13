@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperSocketLite", "..\..\Su
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperSocketLite.LoadTest.Tests", "SuperSocketLite.LoadTest.Tests\SuperSocketLite.LoadTest.Tests.csproj", "{149647EF-3E5F-487A-829E-04D10D7C5042}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SuperSocketLite.LoadTest.Report", "SuperSocketLite.LoadTest.Report\SuperSocketLite.LoadTest.Report.csproj", "{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{149647EF-3E5F-487A-829E-04D10D7C5042}.Release|x64.Build.0 = Release|Any CPU
 		{149647EF-3E5F-487A-829E-04D10D7C5042}.Release|x86.ActiveCfg = Release|Any CPU
 		{149647EF-3E5F-487A-829E-04D10D7C5042}.Release|x86.Build.0 = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|x64.Build.0 = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Debug|x86.Build.0 = Debug|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|x64.ActiveCfg = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|x64.Build.0 = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|x86.ActiveCfg = Release|Any CPU
+		{A76C25CF-C5F8-4BBA-96DC-863A885EB2B0}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

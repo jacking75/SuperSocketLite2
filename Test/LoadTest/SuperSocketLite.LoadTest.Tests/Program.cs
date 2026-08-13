@@ -13,6 +13,7 @@ internal static class Program
         tests.AddRange(SharedPrimitiveTests.Cases());
         tests.AddRange(MetricsCollectorTests.Cases());
         tests.AddRange(ScenarioScheduleTests.Cases());
+        tests.AddRange(ReportTests.Cases());
         tests.AddRange(LoadTestIntegrationTests.Cases());
 
         var failed = 0;

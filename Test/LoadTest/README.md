@@ -6,6 +6,43 @@ For build commands and Korean usage instructions, see [BUILD_AND_USAGE.md](BUILD
 
 The current commands below document the intended workflow from the stability test plan. They require the load test server and client implementations to support the listed options.
 
+## Running a Test
+
+The scripts drive server startup, load, cleanup, and reporting in one step:
+
+```powershell
+Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
+Test\LoadTest\run-matrix.ps1 -Prefix nightly -Clients 200 -Duration 00:01:00
+```
+
+The runner waits for the listener before starting clients. A fixed sleep either races a slow
+startup or, worse, lets the client run after the server's duration already expired — which once
+made working code look broken.
+
+To compare against a baseline:
+
+```powershell
+Test\LoadTest\run-loadtest.ps1 -RunId base -Repeat 3 -Clients 500 -Duration 00:02:00
+# apply the change
+Test\LoadTest\run-loadtest.ps1 -RunId cand -Repeat 3 -Clients 500 -Duration 00:02:00
+
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Report -c Release -- `
+  --baseline base --run cand --fail-on-regression
+```
+
+`--baseline` and `--run` are prefixes, so `base01`, `base02`, `base03` form one group. Tail
+latency swings between runs — p99 by 44% and p99.9 by 124% in local measurements — so the
+comparison uses the **median per metric** across the group. Server exceptions and leaked
+sessions keep the worst value instead: a fault that happened once must not be averaged away.
+
+A failing verdict returns exit code 1 with `--fail-on-regression`, and the run writes a
+self-contained HTML report with the verdict, metrics, and time series.
+
+Thresholds live in `thresholds.json`; `--print-thresholds` prints the defaults.
+
+Two runs are only comparable when their `pacing` matches — closed-loop applies less load and
+therefore reports lower latency. The verdict marks that case inconclusive rather than guessing.
+
 ## Smoke Test
 
 Use the smoke test before longer runs. It should complete quickly and verify basic connectivity, CSV output, and low local latency.

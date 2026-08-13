@@ -1,4 +1,3 @@
-using System;
 using MsILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace SuperSocketLite.SocketBase.Logging;

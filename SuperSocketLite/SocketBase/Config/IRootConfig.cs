@@ -1,4 +1,4 @@
-﻿namespace SuperSocketLite.SocketBase.Config;
+namespace SuperSocketLite.SocketBase.Config;
 
 /// <summary>
 /// The root configuration interface

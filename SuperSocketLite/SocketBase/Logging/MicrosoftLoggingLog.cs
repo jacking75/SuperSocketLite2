@@ -1,4 +1,3 @@
-using System;
 // Needed for the LoggerExtensions.Log(level, exception, template, args) extension methods.
 using Microsoft.Extensions.Logging;
 using MsLogLevel = Microsoft.Extensions.Logging.LogLevel;

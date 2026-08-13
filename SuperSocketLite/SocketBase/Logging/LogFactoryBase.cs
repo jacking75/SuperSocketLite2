@@ -1,7 +1,3 @@
-using System;
-using System.IO;
-
-
 namespace SuperSocketLite.SocketBase.Logging;
 
 /// <summary>

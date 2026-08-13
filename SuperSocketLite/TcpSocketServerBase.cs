@@ -1,6 +1,4 @@
-﻿using System;
 using System.Net.Sockets;
-using System.Threading;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
 

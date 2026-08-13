@@ -1,5 +1,3 @@
-﻿using System;
-
 namespace SuperSocketLite.SocketBase.Protocol;
 
 /// <summary>

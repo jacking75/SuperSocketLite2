@@ -1,6 +1,4 @@
-﻿using System;
 using System.Buffers;
-using System.Text;
 using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;

@@ -1,4 +1,3 @@
-﻿
 namespace SuperSocketLite.SocketBase.Protocol;
 
 /// <summary>

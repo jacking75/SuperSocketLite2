@@ -1,4 +1,3 @@
-﻿using System;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
 using System.Net.Sockets;

@@ -1,4 +1,4 @@
-﻿using SuperSocketLite.SocketBase.Config;
+using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Protocol;
 
 

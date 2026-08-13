@@ -1,4 +1,4 @@
-﻿using System.Net.Sockets;
+using System.Net.Sockets;
 using SuperSocketLite.SocketBase;
 
 namespace SuperSocketLite.SocketEngine;

@@ -1,9 +1,4 @@
-﻿using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
 
@@ -200,12 +195,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     }
 
 
-    private System.Threading.Timer? m_CollectSendSessionTimer = null;
+    private Timer? m_CollectSendSessionTimer = null;
 
     private void StartCollectSendSessionTimer()
     {
         int interval = Config.CollectSendIntervalMillSec;
-        m_CollectSendSessionTimer = new System.Threading.Timer(CollectSendSession, new object(), interval, interval);
+        m_CollectSendSessionTimer = new Timer(CollectSendSession, new object(), interval, interval);
 
         if (Logger.IsInfoEnabled)
         {
@@ -230,7 +225,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                     return;
                 }
 
-                System.Threading.Tasks.Parallel.ForEach(sessionSource, s =>
+                Parallel.ForEach(sessionSource, s =>
                 {
                     var session = s.Value;
                     var sendData = session.GetCollectSendData();
@@ -261,12 +256,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
      
 
 
-    private System.Threading.Timer? m_ClearIdleSessionTimer = null;
+    private Timer? m_ClearIdleSessionTimer = null;
 
     private void StartClearSessionTimer()
     {
         int interval = Config.ClearIdleSessionInterval * 1000;//in milliseconds
-        m_ClearIdleSessionTimer = new System.Threading.Timer(ClearIdleSession, new object(), interval, interval);
+        m_ClearIdleSessionTimer = new Timer(ClearIdleSession, new object(), interval, interval);
     }
 
     /// <summary>
@@ -291,7 +286,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
                 var timeOutSessions = sessionSource.Where(s => nowTicks - s.Value.LastActiveTimeTicks >= idleTimeOutMillSec).Select(s => s.Value);
 
-                System.Threading.Tasks.Parallel.ForEach(timeOutSessions, s =>
+                Parallel.ForEach(timeOutSessions, s =>
                     {
                         if (Logger.IsInfoEnabled)
                         {
@@ -331,14 +326,14 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     
 
-    private System.Threading.Timer? m_SessionSnapshotTimer = null;
+    private Timer? m_SessionSnapshotTimer = null;
 
     private KeyValuePair<string, TAppSession>[]? m_SessionsSnapshot = new KeyValuePair<string, TAppSession>[0];
 
     private void StartSessionSnapshotTimer()
     {
         int interval = Math.Max(Config.SessionSnapshotInterval, 1) * 1000;//in milliseconds
-        m_SessionSnapshotTimer = new System.Threading.Timer(TakeSessionSnapshot, new object(), interval, interval);
+        m_SessionSnapshotTimer = new Timer(TakeSessionSnapshot, new object(), interval, interval);
     }
 
     private void TakeSessionSnapshot(object? state)

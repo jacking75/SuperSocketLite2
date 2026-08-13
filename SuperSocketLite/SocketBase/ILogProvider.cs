@@ -1,4 +1,4 @@
-﻿using SuperSocketLite.SocketBase.Logging;
+using SuperSocketLite.SocketBase.Logging;
 
 
 namespace SuperSocketLite.SocketBase;

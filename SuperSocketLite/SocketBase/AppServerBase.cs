@@ -212,22 +212,15 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
             TextEncoding = new ASCIIEncoding();
     }
 
-    internal abstract IReceiveFilterFactory<TRequestInfo>? CreateDefaultReceiveFilterFactory();
-
     private bool SetupFinal()
     {
         //Check receiveFilterFactory
         if (ReceiveFilterFactory == null)
         {
-            ReceiveFilterFactory = CreateDefaultReceiveFilterFactory()!;
+            if (Logger.IsErrorEnabled)
+                Logger.Error("receiveFilterFactory is required!");
 
-            if (ReceiveFilterFactory == null)
-            {
-                if (Logger.IsErrorEnabled)
-                    Logger.Error("receiveFilterFactory is required!");
-
-                return false;
-            }
+            return false;
         }
 
         var plainConfig = Config as ServerConfig;

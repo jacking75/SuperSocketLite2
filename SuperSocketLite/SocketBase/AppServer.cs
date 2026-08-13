@@ -5,46 +5,6 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>AppServer class</summary>
-public class AppServer : AppServer<AppSession>
-{
-    public AppServer()
-        : base()
-    {
-
-    }
-
-    public AppServer(IReceiveFilterFactory<StringRequestInfo> receiveFilterFactory)
-        : base(receiveFilterFactory)
-    {
-
-    }
-}
-
-/// <summary>AppServer class</summary>
-/// <typeparam name="TAppSession">The type of the app session.</typeparam>
-public class AppServer<TAppSession> : AppServer<TAppSession, StringRequestInfo>
-    where TAppSession : AppSession<TAppSession, StringRequestInfo>, IAppSession, new()
-{
-    public AppServer()
-        : base()
-    {
-
-    }
-
-    public AppServer(IReceiveFilterFactory<StringRequestInfo> receiveFilterFactory)
-        : base(receiveFilterFactory)
-    {
-
-    }
-
-    internal override IReceiveFilterFactory<StringRequestInfo> CreateDefaultReceiveFilterFactory()
-    {
-        return new CommandLineReceiveFilterFactory(TextEncoding);
-    }
-}
-
-
 /// <summary>AppServer basic class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
@@ -62,11 +22,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         : base(protocol)
     {
 
-    }
-
-    internal override IReceiveFilterFactory<TRequestInfo>? CreateDefaultReceiveFilterFactory()
-    {
-        return null;
     }
 
     /// <summary>Starts this AppServer instance.</summary>

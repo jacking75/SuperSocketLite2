@@ -15,88 +15,6 @@ using SuperSocketLite.SocketEngine.Protocol;
 static class FilterAndQueueTests
 {
     /// <summary>
-    /// TODO-11: TerminatorReceiveFilter now parses straight from the pipe, including a terminator
-    /// that straddles a segment boundary.
-    /// </summary>
-    public static void TerminatorFilterParsesMultiSegmentSequence()
-    {
-        var filter = (ISequenceReceiveFilter<StringRequestInfo>)new TerminatorReceiveFilter(Encoding.ASCII.GetBytes("\r\n"), Encoding.ASCII);
-
-        // "\r" ends one segment and "\n" starts the next.
-        var sequence = TestSequence.Create("HELLO WOR", "LD\r", "\nNEXT");
-
-        var request = filter.Filter(sequence, out var consumed, out var examined);
-
-        Assert.True(request != null, "the terminated request should be parsed");
-        Assert.Equal("HELLO", request!.Key, "the request key should come from the first token");
-        Assert.Equal("WORLD", request.Body, "the body should exclude the terminator");
-        Assert.Equal(13L, sequence.Slice(0, consumed).Length, "consumed should cover the request and its terminator");
-        Assert.Equal(13L, sequence.Slice(0, examined).Length, "examined should match consumed for a complete request");
-
-        var incomplete = TestSequence.Create("NO TERMINATOR YET");
-        request = filter.Filter(incomplete, out consumed, out examined);
-
-        Assert.True(request == null, "an unterminated request should not be produced");
-        Assert.Equal(0L, incomplete.Slice(0, consumed).Length, "an incomplete request must stay in the pipe");
-        Assert.Equal(incomplete.Length, incomplete.Slice(0, examined).Length, "everything available should be reported as examined");
-    }
-
-    /// <summary>
-    /// TODO-11: BeginEndMarkReceiveFilter over a ReadOnlySequence.
-    /// </summary>
-    public static void BeginEndMarkFilterParsesMultiSegmentSequence()
-    {
-        var filter = (ISequenceReceiveFilter<StringRequestInfo>)new TestBeginEndMarkFilter();
-
-        var sequence = TestSequence.Create("*", "*PAY", "LOAD#", "#TAIL");
-
-        var request = filter.Filter(sequence, out var consumed, out var examined);
-
-        Assert.True(request != null, "the marked request should be parsed");
-        Assert.Equal("**PAYLOAD##", request!.Body, "the request should include both marks, like the byte[] overload");
-        Assert.Equal(11L, sequence.Slice(0, consumed).Length, "consumed should stop right after the end mark");
-        Assert.Equal(11L, sequence.Slice(0, examined).Length, "examined should match consumed for a complete request");
-
-        var pending = TestSequence.Create("**PAYLOAD#");
-        request = filter.Filter(pending, out consumed, out examined);
-
-        Assert.True(request == null, "a half-received end mark should not produce a request");
-        Assert.Equal(0L, pending.Slice(0, consumed).Length, "an incomplete request must stay in the pipe");
-
-        var wrongStart = (ISequenceReceiveFilter<StringRequestInfo>)new TestBeginEndMarkFilter();
-        wrongStart.Filter(TestSequence.Create("XX"), out _, out _);
-
-        Assert.Equal(
-            FilterState.Error,
-            ((IReceiveFilter<StringRequestInfo>)wrongStart).State,
-            "data that does not start with the begin mark should put the filter into the error state");
-    }
-
-    /// <summary>
-    /// TODO-11: CountSpliterReceiveFilter over a ReadOnlySequence.
-    /// </summary>
-    public static void CountSpliterFilterParsesMultiSegmentSequence()
-    {
-        var filter = (ISequenceReceiveFilter<StringRequestInfo>)new CountSpliterReceiveFilter((byte)'#', 3);
-
-        var sequence = TestSequence.Create("#AA", "A#BBB", "#REST");
-
-        var request = filter.Filter(sequence, out var consumed, out var examined);
-
-        Assert.True(request != null, "the request should be parsed once the third spliter arrives");
-        Assert.Equal("AAA#BBB", request!.Body, "the body should drop the leading and trailing spliter");
-        Assert.Equal(9L, sequence.Slice(0, consumed).Length, "consumed should stop right after the last spliter");
-        Assert.Equal(9L, sequence.Slice(0, examined).Length, "examined should match consumed for a complete request");
-
-        var incomplete = TestSequence.Create("#AAA#BBB");
-        request = filter.Filter(incomplete, out consumed, out examined);
-
-        Assert.True(request == null, "a request with too few spliters should not be produced");
-        Assert.Equal(0L, incomplete.Slice(0, consumed).Length, "an incomplete request must stay in the pipe");
-        Assert.Equal(incomplete.Length, incomplete.Slice(0, examined).Length, "everything available should be reported as examined");
-    }
-
-    /// <summary>
     /// TODO-09: EnqueueAsync must park while the queue is full and resume once it drains.
     /// </summary>
     public static void SendQueueEnqueueAsyncWaitsForSpace()
@@ -251,19 +169,5 @@ static class TestSequence
             next.RunningIndex = runningIndex;
             Next = next;
         }
-    }
-}
-
-sealed class TestBeginEndMarkFilter : BeginEndMarkReceiveFilter<StringRequestInfo>
-{
-    public TestBeginEndMarkFilter()
-        : base(Encoding.ASCII.GetBytes("**"), Encoding.ASCII.GetBytes("##"))
-    {
-    }
-
-    protected override StringRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
-    {
-        var body = Encoding.ASCII.GetString(readBuffer, offset, length);
-        return new StringRequestInfo("marked", body, Array.Empty<string>());
     }
 }

@@ -2,6 +2,11 @@
 [Bb]in/
 [Oo]bj/
 
+# 위 bin/ 규칙은 .NET 빌드 산출물용이다. 저장소에 포함된 스킬에도 bin/ 폴더가
+# 있으므로(archify의 CLI 진입점) 그 경로만 되살린다.
+!.claude/skills/**/bin/
+!.claude/skills/**/bin/**
+
 # Visual Studio / Rider / VS Code local state
 .vs/
 .idea/

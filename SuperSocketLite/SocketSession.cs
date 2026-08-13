@@ -28,13 +28,19 @@ abstract partial class SocketSession : ISocketSession
 
     //0x00 0x00 0x00 0x00
     //1st byte: Closed(Y/N) - 0x01
-    //2nd byte: N/A
-    //3th byte: CloseReason
+    //2nd, 3th byte: N/A
     //Last byte: 0000 0000 - normal state
     //0000 0001: in sending
     //0000 0010: in receiving
     //0001 0000: in closing
     private int _state = 0;
+
+    private const int NoCloseReason = -1;
+
+    // The close reason is kept out of _state on purpose. It used to be packed in as
+    // ((int)reason + 1) * 256, which the reader undid with a division - and that division picked
+    // up the Closed bit (0x01000000) as soon as it was set, yielding a bogus reason.
+    private int _closeReasonCode = NoCloseReason;
 
     private ReuseLockBaseBuffer? CollectSendBuffer = null;
 
@@ -44,63 +50,30 @@ abstract partial class SocketSession : ISocketSession
     private Task? _receiveProcessingTask;
     private int _receiveProcessingTaskObserved;
 
-    private void AddStateFlag(int stateValue)
-    {
-        AddStateFlag(stateValue, false);
-    }
-
-    private bool AddStateFlag(int stateValue, bool notClosing)
-    {
-        while(true)
-        {
-            var oldState = _state;
-
-            if (notClosing)
-            {
-                // don't update the state if the connection has entered the closing procedure
-                if (oldState >= SocketState.InClosing)
-                {
-                    return false;
-                }
-            }
-
-            var newState = _state | stateValue;
-
-            if(Interlocked.CompareExchange(ref _state, newState, oldState) == oldState)
-                return true;
-        }
-    }
-
-    private bool TryAddStateFlag(int stateValue)
+    /// <summary>Sets the flag unless the connection has already entered the closing procedure.</summary>
+    private bool AddStateFlagIfNotClosing(int stateValue)
     {
         while (true)
         {
             var oldState = _state;
-            var newState = _state | stateValue;
 
-            //Already marked
-            if (oldState == newState)
-            {
+            if (oldState >= SocketState.InClosing)
                 return false;
-            }
 
-            var compareState = Interlocked.CompareExchange(ref _state, newState, oldState);
-
-            if (compareState == oldState)
+            if (Interlocked.CompareExchange(ref _state, oldState | stateValue, oldState) == oldState)
                 return true;
         }
     }
 
+    /// <summary>Sets the flag; false when it was already set (this caller did not win it).</summary>
+    private bool TryAddStateFlag(int stateValue)
+    {
+        return (Interlocked.Or(ref _state, stateValue) & stateValue) != stateValue;
+    }
+
     private void RemoveStateFlag(int stateValue)
     {
-        while(true)
-        {
-            var oldState = _state;
-            var newState = _state & (~stateValue);
-
-            if(Interlocked.CompareExchange(ref _state, newState, oldState) == oldState)
-                return;
-        }
+        Interlocked.And(ref _state, ~stateValue);
     }
 
     private bool CheckState(int stateValue)
@@ -538,7 +511,7 @@ abstract partial class SocketSession : ISocketSession
         if (CheckState(SocketState.InSending))
         {
             //Set closing reason only, don't close the socket directly
-            AddStateFlag(GetCloseReasonValue(reason));
+            TrySetCloseReason(reason);
             return;
         }
 
@@ -554,7 +527,7 @@ abstract partial class SocketSession : ISocketSession
         if (Interlocked.CompareExchange(ref _client, null, client) == client)
         {
             if (setCloseReason)
-                AddStateFlag(GetCloseReasonValue(reason));
+                TrySetCloseReason(reason);
 
             client.SafeClose();
 
@@ -583,7 +556,7 @@ abstract partial class SocketSession : ISocketSession
     // return false if the connection has entered the closing procedure or has closed already
     protected bool OnReceiveStarted()
     {
-        if (AddStateFlag(SocketState.InReceiving, true))
+        if (AddStateFlagIfNotClosing(SocketState.InReceiving))
             return true;
 
         // the connection is in closing
@@ -609,21 +582,21 @@ abstract partial class SocketSession : ISocketSession
         return false;
     }
 
-    private const int CloseReasonMagic = 256;
-
-    private int GetCloseReasonValue(CloseReason reason)
+    /// <summary>Records the reason of the first close attempt; later attempts are ignored.</summary>
+    private void TrySetCloseReason(CloseReason reason)
     {
-        return ((int)reason + 1) * CloseReasonMagic;
+        Interlocked.CompareExchange(ref _closeReasonCode, (int)reason, NoCloseReason);
     }
 
-    private CloseReason GetCloseReasonFromState()
+    private CloseReason GetCloseReason()
     {
-        return (CloseReason)(_state / CloseReasonMagic - 1);
+        var code = Volatile.Read(ref _closeReasonCode);
+        return code == NoCloseReason ? CloseReason.Unknown : (CloseReason)code;
     }
 
     private void FireCloseEvent()
     {
-        OnClosed(GetCloseReasonFromState());
+        OnClosed(GetCloseReason());
     }
 
     private void ValidateClosed(CloseReason closeReason, bool forceClose)
@@ -653,7 +626,7 @@ abstract partial class SocketSession : ISocketSession
                         if (forceClose || _sendQueue.Count == 0)
                         {
                             if (client != null)// the socket instance is not closed yet, do it now
-                                InternalClose(client, GetCloseReasonFromState(), false);
+                                InternalClose(client, GetCloseReason(), false);
                             else// The UDP mode, the socket instance always is null, fire the closed event directly
                                 FireCloseEvent();
 

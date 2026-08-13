@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VS Code 저장소 전체 분석</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif; color: #1f2937; background: #f7f9fb; line-height: 1.65; }
+    main { max-width: 960px; margin: 0 auto; padding: 44px 24px 64px; }
+    h1 { margin: 0 0 12px; font-size: 34px; letter-spacing: 0; }
+    h2 { margin: 34px 0 12px; font-size: 24px; letter-spacing: 0; }
+    p { margin: 0 0 12px; }
+    a { color: #156f6b; }
+    code, pre { font-family: Consolas, "Cascadia Mono", monospace; }
+    pre { overflow: auto; padding: 16px; border: 1px solid #d8e0ea; border-radius: 8px; background: #ffffff; }
+    table { width: 100%; border-collapse: collapse; background: #ffffff; }
+    th, td { padding: 11px 12px; border: 1px solid #d8e0ea; vertical-align: top; }
+    th { background: #edf5f4; text-align: left; }
+    .lead { color: #64748b; max-width: 820px; }
+    .note { padding: 14px 16px; border: 1px solid #d8e0ea; border-radius: 8px; background: #ffffff; }
+    .back { display: inline-block; margin-bottom: 20px; text-decoration: none; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">← 문서 목록</a>
+  <h1>VS Code 저장소 전체 분석</h1>
+  <p class="lead">
+    VS Code C# 언어 서버가 루트 통합 솔루션 <code>SuperSocketLite2.slnx</code>를 로드하도록 설정하는 방법을 설명합니다.
+    이 솔루션에는 라이브러리, 템플릿, 테스트, 튜토리얼을 포함한 C# 프로젝트 33개가 등록되어 있습니다.
+  </p>
+
+  <h2>1. 설정이 필요한 이유</h2>
+  <p>
+    확인한 C# 확장의 standalone 모드는 기본 솔루션을 자동 선택할 때 <code>.sln</code> 파일을 검색합니다.
+    이 저장소의 통합 솔루션은 루트의 <code>.slnx</code>이고 하위 디렉터리에는 여러 <code>.sln</code>이 있으므로,
+    기본 솔루션을 지정하지 않으면 원하는 통합 솔루션이 자동으로 선택되지 않을 수 있습니다.
+  </p>
+  <p>
+    솔루션이 선택되지 않은 상태에서 C# 파일을 열면 Roslyn은 해당 파일들을 임시 <code>Canonical.csproj</code>에 넣어 분석합니다.
+    이 방식은 파일 단위 편집에는 사용할 수 있지만 저장소 전체의 프로젝트 관계와 모든 소스 파일을 제공하지 않습니다.
+  </p>
+
+  <h2>2. 작업 영역 설정</h2>
+  <p>저장소 루트에 <code>.vscode/settings.json</code>을 만들고 다음 내용을 저장합니다.</p>
+  <pre><code>{
+  "dotnet.defaultSolution": "SuperSocketLite2.slnx"
+}</code></pre>
+  <div class="note">
+    <code>.vscode/</code>는 현재 <code>.gitignore</code> 대상입니다. 따라서 이 설정은 저장소를 사용하는 각 컴퓨터에서
+    로컬로 만들어야 합니다. 저장소 전체 대신 핵심 라이브러리만 분석하려면 값으로
+    <code>SuperSocketLite/SuperSocketLite.sln</code>을 사용할 수 있습니다.
+  </div>
+
+  <h2>3. 설정 적용</h2>
+  <ol>
+    <li>VS Code에서 <code>C:\github_dev\SuperSocketLite2</code>처럼 저장소 루트를 작업 영역으로 엽니다.</li>
+    <li>작업 영역을 신뢰한 상태인지 확인합니다. 제한 모드에서는 C# 확장이 limited mode로 실행됩니다.</li>
+    <li>명령 팔레트에서 <code>개발자: 창 다시 로드</code>를 실행합니다.</li>
+    <li>솔루션과 NuGet 복원이 끝날 때까지 기다린 뒤 F12를 다시 실행합니다.</li>
+  </ol>
+
+  <h2>4. 정상 로드 확인</h2>
+  <p><code>보기 → 출력</code>에서 출력 채널을 <code>C#</code>으로 바꾸고 로드 메시지를 확인합니다.</p>
+  <table>
+    <thead>
+      <tr><th>로그 상태</th><th>의미</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>SuperSocketLite2.slnx</code>와 여러 프로젝트를 로드</td><td>저장소 전체 분석이 활성화된 정상 상태입니다.</td></tr>
+      <tr><td><code>Canonical.csproj</code>만 로드</td><td>통합 솔루션이 선택되지 않아 열어 본 파일만 분석하는 상태입니다.</td></tr>
+      <tr><td><code>limited mode</code></td><td>작업 영역 신뢰가 허용되지 않은 상태입니다.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>5. F12가 일부 심볼에서만 동작하는 경우</h2>
+  <table>
+    <thead>
+      <tr><th>현상</th><th>가능한 이유</th><th>확인 방법</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>같은 파일의 정의는 이동되지만 다른 파일은 이동되지 않음</td>
+        <td>임시 <code>Canonical.csproj</code>가 열린 파일만 알고 있습니다.</td>
+        <td>C# 출력 로그에서 실제 통합 솔루션이 로드됐는지 확인합니다.</td>
+      </tr>
+      <tr>
+        <td><code>Task</code>, <code>Socket</code> 등은 이동되지만 저장소 타입은 실패함</td>
+        <td>.NET 참조 어셈블리는 로드됐지만 저장소 프로젝트는 로드되지 않았습니다.</td>
+        <td><code>dotnet.defaultSolution</code>과 창 재로드 여부를 확인합니다.</td>
+      </tr>
+      <tr>
+        <td>인터페이스 메서드의 선언으로만 이동함</td>
+        <td>F12는 정적 타입 기준 정의를 반환합니다.</td>
+        <td>VS Code의 구현으로 이동 기능으로 실제 구현 후보를 확인합니다.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>6. 솔루션 등록 확인</h2>
+  <p>터미널에서 다음 명령을 실행하면 통합 솔루션에 포함된 프로젝트를 확인할 수 있습니다.</p>
+  <pre><code>dotnet sln SuperSocketLite2.slnx list</code></pre>
+  <p>현재 통합 솔루션에는 C# 프로젝트 33개가 등록되어 있습니다.</p>
+</main>
+</body>
+</html>

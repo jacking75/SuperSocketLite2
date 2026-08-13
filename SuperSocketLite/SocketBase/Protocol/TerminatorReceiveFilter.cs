@@ -18,10 +18,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// <summary>
     /// Gets the session assosiated with the Receive filter.
     /// </summary>
-    protected IAppSession? Session
-    {
-        get { return _session; }
-    }
+    protected IAppSession? Session => _session;
 
     /// <summary>
     /// Null RequestInfo
@@ -241,10 +238,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     
     private int _offsetDelta;
 
-    int IOffsetAdapter.OffsetDelta
-    {
-        get { return _offsetDelta; }
-    }
+    int IOffsetAdapter.OffsetDelta => _offsetDelta;
 }
 
 /// <summary>

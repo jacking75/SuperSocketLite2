@@ -543,30 +543,18 @@ abstract partial class SocketSession : ISocketSession
     /// <summary>
     /// Gets whether the session has nothing left to send.
     /// </summary>
-    public bool IsSendIdle
-    {
-        get { return _sendQueue == null || (_sendQueue.Count == 0 && !CheckState(SocketState.InSending)); }
-    }
+    public bool IsSendIdle => _sendQueue == null || (_sendQueue.Count == 0 && !CheckState(SocketState.InSending));
 
     private Socket? _client;
     /// <summary>
     /// Gets or sets the client.
     /// </summary>
     /// <value>The client.</value>
-    public Socket? Client
-    {
-        get { return _client; }
-    }
+    public Socket? Client => _client;
 
-    protected bool IsInClosingOrClosed
-    {
-        get { return _state >= SocketState.InClosing; }
-    }
+    protected bool IsInClosingOrClosed => _state >= SocketState.InClosing;
 
-    protected bool IsClosed
-    {
-        get { return _state >= SocketState.Closed; }
-    }
+    protected bool IsClosed => _state >= SocketState.Closed;
 
     /// <summary>
     /// Gets the local end point.

@@ -25,10 +25,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>
     /// Gets the app server instance assosiated with the session.
     /// </summary>
-    IAppServer IAppSession.AppServer
-    {
-        get { return this.AppServer; }
-    }
+    IAppServer IAppSession.AppServer => this.AppServer;
 
     /// <summary>
     /// Gets or sets the charset which is used for transfering text message.
@@ -91,26 +88,17 @@ public string? CurrentCommand { get; set; }
     /// <summary>
     /// Gets the local listening endpoint.
     /// </summary>
-    public IPEndPoint? LocalEndPoint
-    {
-        get { return SocketSession.LocalEndPoint; }
-    }
+    public IPEndPoint? LocalEndPoint => SocketSession.LocalEndPoint;
 
     /// <summary>
     /// Gets the remote endpoint of client.
     /// </summary>
-    public IPEndPoint? RemoteEndPoint
-    {
-        get { return SocketSession.RemoteEndPoint; }
-    }
+    public IPEndPoint? RemoteEndPoint => SocketSession.RemoteEndPoint;
 
     /// <summary>
     /// Gets the logger.
     /// </summary>
-    public ILog Logger
-    {
-        get { return AppServer.Logger; }
-    }
+    public ILog Logger => AppServer.Logger;
 
     /// <summary>
     /// Gets this session's identity for structured logging.
@@ -175,10 +163,7 @@ public string? CurrentCommand { get; set; }
     /// <summary>
     /// Gets the config of the server.
     /// </summary>
-    public IServerConfig Config
-    {
-        get { return AppServer.Config; }
-    }
+    public IServerConfig Config => AppServer.Config;
 
     IReceiveFilter<TRequestInfo> _receiveFilter = null!;
 

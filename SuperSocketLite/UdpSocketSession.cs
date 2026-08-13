@@ -23,10 +23,7 @@ class UdpSocketSession : SocketSession
         RemoteEndPoint = remoteEndPoint;
     }
 
-    public override IPEndPoint LocalEndPoint
-    {
-        get { return (IPEndPoint)_serverSocket.LocalEndPoint!; }
-    }
+    public override IPEndPoint LocalEndPoint => (IPEndPoint)_serverSocket.LocalEndPoint!;
 
     /// <summary>
     /// Updates the remote end point of the client.

@@ -18,10 +18,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// <summary>
     /// Gets the size of the fixed size Receive filter.
     /// </summary>
-    public int Size
-    {
-        get { return _size; }
-    }
+    public int Size => _size;
 
     /// <summary>
     /// Null RequestInfo
@@ -140,18 +137,12 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// <value>
     /// The size of the rest buffer.
     /// </value>
-    public virtual int LeftBufferSize
-    {
-        get { return _parsedLength; }
-    }
+    public virtual int LeftBufferSize => _parsedLength;
 
     /// <summary>
     /// Gets the next Receive filter.
     /// </summary>
-    public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter
-    {
-        get { return null; }
-    }
+    public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
 
     private int _offsetDelta;
@@ -159,10 +150,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// <summary>
     /// Gets the offset delta.
     /// </summary>
-    int IOffsetAdapter.OffsetDelta
-    {
-        get { return _offsetDelta; }
-    }
+    int IOffsetAdapter.OffsetDelta => _offsetDelta;
 
     /// <summary>
     /// Gets the filter state.

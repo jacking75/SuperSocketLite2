@@ -14,10 +14,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <summary>
     /// Gets the buffer segments which can help you parse your request info conviniently.
     /// </summary>
-    protected ArraySegmentList BufferSegments
-    {
-        get { return _bufferSegments; }
-    }
+    protected ArraySegmentList BufferSegments => _bufferSegments;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReceiveFilterBase&lt;TRequestInfo&gt;"/> class.
@@ -65,10 +62,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <value>
     /// The size of the rest buffer.
     /// </value>
-    public int LeftBufferSize
-    {
-        get { return _bufferSegments.Count; }
-    }
+    public int LeftBufferSize => _bufferSegments.Count;
 
     /// <summary>
     /// Gets or sets the next Receive filter.

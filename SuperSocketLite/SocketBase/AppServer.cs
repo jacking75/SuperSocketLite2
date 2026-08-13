@@ -186,13 +186,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// <summary>
     /// Gets the total session count.
     /// </summary>
-    public override int SessionCount
-    {
-        get
-        {
-            return _sessionDict.Count;
-        }
-    }
+    public override int SessionCount => _sessionDict.Count;
 
 
     private Timer? _collectSendSessionTimer = null;
@@ -312,15 +306,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     }
 
     private KeyValuePair<string, TAppSession>[]? SessionSource
-    {
-        get
-        {
-            if (Config.DisableSessionSnapshot)
-                return _sessionDict.ToArray();
-            else
-                return _sessionsSnapshot;
-        }
-    }
+        => Config.DisableSessionSnapshot ? _sessionDict.ToArray() : _sessionsSnapshot;
 
     
 

@@ -155,18 +155,12 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <value>
     /// The size of the rest buffer.
     /// </value>
-    public int LeftBufferSize
-    {
-        get { return _total; }
-    }
+    public int LeftBufferSize => _total;
 
     /// <summary>
     /// Gets the next Receive filter.
     /// </summary>
-    public IReceiveFilter<TRequestInfo>? NextReceiveFilter
-    {
-        get { return null; }
-    }
+    public IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
     private void InternalReset()
     {

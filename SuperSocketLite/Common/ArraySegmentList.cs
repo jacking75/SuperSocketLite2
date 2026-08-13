@@ -37,10 +37,7 @@ public class ArraySegmentList
     /// <summary>
     /// Gets the total number of bytes held by all segments.
     /// </summary>
-    public int Count
-    {
-        get { return _count; }
-    }
+    public int Count => _count;
 
     /// <summary>
     /// Adds the segment to the list.

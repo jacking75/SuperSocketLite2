@@ -10,10 +10,7 @@ abstract class SocketListenerBase : ISocketListener
 {
     public ListenerInfo Info { get; private set; }
 
-    public IPEndPoint EndPoint
-    {
-        get { return Info.EndPoint; }
-    }
+    public IPEndPoint EndPoint => Info.EndPoint;
 
     protected SocketListenerBase(ListenerInfo info)
     {

@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Text;
@@ -38,13 +38,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <value>
     /// The state.
     /// </value>
-    public ServerState State
-    {
-        get
-        {
-            return (ServerState)_stateCode;
-        }
-    }
+    public ServerState State => (ServerState)_stateCode;
 
     /// <summary>
     /// Gets or sets the receive filter factory.
@@ -57,10 +51,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <summary>
     /// Gets the Receive filter factory.
     /// </summary>
-    object IAppServer.ReceiveFilterFactory
-    {
-        get { return this.ReceiveFilterFactory; }
-    }
+    object IAppServer.ReceiveFilterFactory => this.ReceiveFilterFactory;
        
 
     private ISocketServerFactory _socketServerFactory = null!;
@@ -91,10 +82,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <summary>
     /// Gets the total handled requests number.
     /// </summary>
-    protected long TotalHandledRequests
-    {
-        get { return _totalHandledRequests; }
-    }
+    protected long TotalHandledRequests => _totalHandledRequests;
 
     private ListenerInfo[]? _listeners;
 
@@ -104,10 +92,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <value>
     /// The listeners.
     /// </value>
-    public ListenerInfo[]? Listeners
-    {
-        get { return _listeners; }
-    }
+    public ListenerInfo[]? Listeners => _listeners;
 
     /// <summary>
     /// Gets the started time of this server instance, in UTC.
@@ -592,10 +577,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <summary>
     /// Gets the name of the server instance.
     /// </summary>
-    public string Name
-    {
-        get { return _name; }
-    }
+    public string Name => _name;
 
     private ISocketServer _socketServer = null!;
 
@@ -827,10 +809,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return handler((TAppSession)session, buffer, offset, length);
     }
 
-    internal bool HasRawDataReceivedHandler
-    {
-        get { return _rawDataReceivedHandler != null; }
-    }
+    internal bool HasRawDataReceivedHandler => _rawDataReceivedHandler != null;
 
     private RequestHandler<TAppSession, TRequestInfo>? _requestHandler;
 
@@ -913,10 +892,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <value>
     /// The server's connection filters
     /// </value>
-    public IEnumerable<IConnectionFilter>? ConnectionFilters
-    {
-        get { return _connectionFilters; }
-    }
+    public IEnumerable<IConnectionFilter>? ConnectionFilters => _connectionFilters;
 
     /// <summary>
     /// Executes the connection filters.

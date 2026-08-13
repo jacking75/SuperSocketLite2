@@ -37,8 +37,5 @@ public class StringRequestInfo : RequestInfo<string>
     /// <summary>
     /// Gets the <see cref="System.String"/> at the specified index.
     /// </summary>
-    public string this[int index]
-    {
-        get { return Parameters[index]; }
-    }
+    public string this[int index] => Parameters[index];
 }

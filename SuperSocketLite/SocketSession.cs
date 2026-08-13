@@ -19,9 +19,7 @@ static class SocketState
     public const int InSendingReceivingMask = -4;// ~(InSending | InReceiving); 0xf0 0xff 0xff 0xff
 }
 
-/// <summary>
-/// Socket Session, all application session should base on this class
-/// </summary>
+/// <summary>Socket Session, all application session should base on this class</summary>
 abstract partial class SocketSession : ISocketSession
 {
     public IAppSession AppSession { get; private set; } = null!;
@@ -188,37 +186,23 @@ abstract partial class SocketSession : ISocketSession
         _pipeReader  = _receivePipe.Reader;
     }
 
-    /// <summary>
-    /// Gets or sets the session ID.
-    /// </summary>
-    /// <value>The session ID.</value>
+    /// <summary>Gets or sets the session ID.</summary>
     public string SessionID { get; private set; }
 
 
-    /// <summary>
-    /// Gets or sets the config.
-    /// </summary>
-    /// <value>
-    /// The config.
-    /// </value>
+    /// <summary>Gets or sets the config.</summary>
     public IServerConfig Config { get; set; } = null!;
 
-    /// <summary>
-    /// Starts this session.
-    /// </summary>
+    /// <summary>Starts this session.</summary>
     public abstract void Start();
 
-    /// <summary>
-    /// Says the welcome information when a client connectted.
-    /// </summary>
+    /// <summary>Says the welcome information when a client connectted.</summary>
     protected virtual void StartSession()
     {
         AppSession.StartSession();
     }
 
-    /// <summary>
-    /// Called when [close].
-    /// </summary>
+    /// <summary>Called when [close].</summary>
     protected virtual void OnClosed(CloseReason reason)
     {
         //Already closed
@@ -234,9 +218,7 @@ abstract partial class SocketSession : ISocketSession
         }
     }
 
-    /// <summary>
-    /// Occurs when [closed].
-    /// </summary>
+    /// <summary>Occurs when [closed].</summary>
     public Action<ISocketSession, CloseReason>? Closed { get; set; }
 
     public bool CollectSend(byte[] source, int pos, int count)
@@ -255,11 +237,7 @@ abstract partial class SocketSession : ISocketSession
     }
 
 
-    /// <summary>
-    /// Tries to send array segment.
-    /// </summary>
-    /// <param name="segments">The segments.</param>
-    /// <returns></returns>
+    /// <summary>Tries to send array segment.</summary>
     public bool TrySend(IList<ArraySegment<byte>> segments)
     {
         if (IsClosed)
@@ -275,11 +253,7 @@ abstract partial class SocketSession : ISocketSession
         return true;
     }
 
-    /// <summary>
-    /// Tries to send array segment.
-    /// </summary>
-    /// <param name="segment">The segment.</param>
-    /// <returns></returns>
+    /// <summary>Tries to send array segment.</summary>
     public bool TrySend(ArraySegment<byte> segment)
     {
         if (IsClosed)
@@ -300,10 +274,7 @@ abstract partial class SocketSession : ISocketSession
         AppSession?.AppServer?.RecordSendQueueFull();
     }
 
-    /// <summary>
-    /// Tries to send memory.
-    /// </summary>
-    /// <param name="memory">The memory.</param>
+    /// <summary>Tries to send memory.</summary>
     /// <remarks>
     /// An array-backed memory is sent without copying, so the caller must not modify it until the
     /// data has been sent. Any other memory is copied into a pooled buffer.
@@ -318,10 +289,7 @@ abstract partial class SocketSession : ISocketSession
         return TrySendCopied(memory.Span);
     }
 
-    /// <summary>
-    /// Tries to send span. The data is always copied into a pooled buffer.
-    /// </summary>
-    /// <param name="span">The span.</param>
+    /// <summary>Tries to send span. The data is always copied into a pooled buffer.</summary>
     public bool TrySend(ReadOnlySpan<byte> span)
     {
         return TrySendCopied(span);
@@ -355,9 +323,7 @@ abstract partial class SocketSession : ISocketSession
         return true;
     }
 
-    /// <summary>
-    /// Queues <paramref name="data"/>, waiting asynchronously when the sending queue is full.
-    /// </summary>
+    /// <summary>Queues <paramref name="data"/>, waiting asynchronously when the sending queue is full.</summary>
     /// <param name="data">The data to send. Array-backed memory is sent without copying.</param>
     /// <param name="cancellationToken">Cancels the wait for queue space.</param>
     /// <returns>false if the session is closed or was closed while waiting.</returns>
@@ -417,16 +383,10 @@ abstract partial class SocketSession : ISocketSession
         return true;
     }
 
-    /// <summary>
-    /// Sends in async mode.
-    /// </summary>
-    /// <param name="items">The items.</param>
+    /// <summary>Sends in async mode.</summary>
     protected abstract void SendAsync(IList<ArraySegment<byte>> items);
 
-    /// <summary>
-    /// Sends in sync mode.
-    /// </summary>
-    /// <param name="items">The items.</param>
+    /// <summary>Sends in sync mode.</summary>
     protected abstract void SendSync(IList<ArraySegment<byte>> items);
 
     private void Send(IList<ArraySegment<byte>> items)
@@ -471,9 +431,7 @@ abstract partial class SocketSession : ISocketSession
         Send(_sendBatch);
     }
 
-    /// <summary>
-    /// Returns the pooled buffers of the batch that has just finished sending.
-    /// </summary>
+    /// <summary>Returns the pooled buffers of the batch that has just finished sending.</summary>
     /// <remarks>
     /// Only called from the batch-completion points (<see cref="OnSendingCompleted"/> /
     /// <see cref="OnSendError"/>), never while the socket may still be reading the arrays. If the
@@ -540,32 +498,21 @@ abstract partial class SocketSession : ISocketSession
         }
     }
 
-    /// <summary>
-    /// Gets whether the session has nothing left to send.
-    /// </summary>
+    /// <summary>Gets whether the session has nothing left to send.</summary>
     public bool IsSendIdle => _sendQueue == null || (_sendQueue.Count == 0 && !CheckState(SocketState.InSending));
 
     private Socket? _client;
-    /// <summary>
-    /// Gets or sets the client.
-    /// </summary>
-    /// <value>The client.</value>
+    /// <summary>Gets or sets the client.</summary>
     public Socket? Client => _client;
 
     protected bool IsInClosingOrClosed => _state >= SocketState.InClosing;
 
     protected bool IsClosed => _state >= SocketState.Closed;
 
-    /// <summary>
-    /// Gets the local end point.
-    /// </summary>
-    /// <value>The local end point.</value>
+    /// <summary>Gets the local end point.</summary>
     public virtual IPEndPoint? LocalEndPoint { get; protected set; }
 
-/// <summary>
-    /// Gets the remote end point.
-    /// </summary>
-    /// <value>The remote end point.</value>
+/// <summary>Gets the remote end point.</summary>
     public virtual IPEndPoint? RemoteEndPoint { get; protected set; }
 
     protected virtual bool TryValidateClosedBySocket(out Socket? socket)
@@ -649,10 +596,7 @@ abstract partial class SocketSession : ISocketSession
         RemoveStateFlag(SocketState.InReceiving);
     }
 
-    /// <summary>
-    /// Validates the socket is not in the sending or receiving operation.
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Validates the socket is not in the sending or receiving operation.</summary>
     private bool ValidateNotInSendingReceiving()
     {
         var oldState = _state;

@@ -4,22 +4,14 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
 
-/// <summary>
-/// ReceiveFilterFactory for CountSpliterReceiveFilter
-/// </summary>
+/// <summary>ReceiveFilterFactory for CountSpliterReceiveFilter</summary>
 /// <typeparam name="TRequestFilter">The type of the Receive filter.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public class CountSpliterReceiveFilterFactory<TRequestFilter, TRequestInfo> : IReceiveFilterFactory<TRequestInfo>
     where TRequestFilter : CountSpliterReceiveFilter<TRequestInfo>, new()
     where TRequestInfo : IRequestInfo
 {
-    /// <summary>
-    /// Creates the filter.
-    /// </summary>
-    /// <param name="appServer">The app server.</param>
-    /// <param name="appSession">The app session.</param>
-    /// <param name="remoteEndPoint">The remote end point.</param>
-    /// <returns></returns>
+    /// <summary>Creates the filter.</summary>
     public IReceiveFilter<TRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         var config = appServer.Config;
@@ -31,9 +23,7 @@ public class CountSpliterReceiveFilterFactory<TRequestFilter, TRequestInfo> : IR
     }
 }
 
-/// <summary>
-/// ReceiveFilterFactory for CountSpliterReceiveFilter
-/// </summary>
+/// <summary>ReceiveFilterFactory for CountSpliterReceiveFilter</summary>
 /// <typeparam name="TRequestFilter">The type of the Receive filter.</typeparam>
 public class CountSpliterReceiveFilterFactory<TRequestFilter> : CountSpliterReceiveFilterFactory<TRequestFilter, StringRequestInfo>
     where TRequestFilter : CountSpliterReceiveFilter<StringRequestInfo>, new()
@@ -41,33 +31,20 @@ public class CountSpliterReceiveFilterFactory<TRequestFilter> : CountSpliterRece
 
 }
 
-/// <summary>
-/// receiveFilterFactory for CountSpliterRequestFilter
-/// </summary>
+/// <summary>receiveFilterFactory for CountSpliterRequestFilter</summary>
 public class  CountSpliterReceiveFilterFactory : IReceiveFilterFactory<StringRequestInfo>
 {
     private readonly byte _spliter;
 
     private readonly int _spliterCount;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CountSpliterReceiveFilterFactory"/> class.
-    /// </summary>
-    /// <param name="spliter">The spliter.</param>
-    /// <param name="count">The count.</param>
     public CountSpliterReceiveFilterFactory(byte spliter, int count)
     {
         _spliter = spliter;
         _spliterCount = count;
     }
 
-    /// <summary>
-    /// Creates the filter.
-    /// </summary>
-    /// <param name="appServer">The app server.</param>
-    /// <param name="appSession">The app session.</param>
-    /// <param name="remoteEndPoint">The remote end point.</param>
-    /// <returns></returns>
+    /// <summary>Creates the filter.</summary>
     public IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
         return new CountSpliterReceiveFilter(_spliter, _spliterCount);

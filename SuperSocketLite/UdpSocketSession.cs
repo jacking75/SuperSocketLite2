@@ -25,10 +25,7 @@ class UdpSocketSession : SocketSession
 
     public override IPEndPoint LocalEndPoint => (IPEndPoint)_serverSocket.LocalEndPoint!;
 
-    /// <summary>
-    /// Updates the remote end point of the client.
-    /// </summary>
-    /// <param name="remoteEndPoint">The remote end point.</param>
+    /// <summary>Updates the remote end point of the client.</summary>
     internal void UpdateRemoteEndPoint(IPEndPoint remoteEndPoint)
     {
         this.RemoteEndPoint = remoteEndPoint;
@@ -63,9 +60,7 @@ class UdpSocketSession : SocketSession
             OnSendingCompleted(this, e);
     }
 
-    /// <summary>
-    /// Posts the segment at the current position.
-    /// </summary>
+    /// <summary>Posts the segment at the current position.</summary>
     /// <returns>true when it completed synchronously and the caller must process the completion.</returns>
     private bool PostCurrentSegment(SocketAsyncEventArgs e, IList<ArraySegment<byte>> queue)
     {

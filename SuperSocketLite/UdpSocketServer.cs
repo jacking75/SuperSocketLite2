@@ -17,11 +17,6 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
     private IRequestHandler<TRequestInfo>? _requestHandler;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="UdpSocketServer&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="appServer">The app server.</param>
-    /// <param name="listeners">The listeners.</param>
     public UdpSocketServer(IAppServer appServer, ListenerInfo[] listeners)
         : base(appServer, listeners)
     {
@@ -32,12 +27,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         _receiveFilterFactory = (IReceiveFilterFactory<TRequestInfo>)appServer.ReceiveFilterFactory;
     }
 
-    /// <summary>
-    /// Called when [new client accepted].
-    /// </summary>
-    /// <param name="listener">The listener.</param>
-    /// <param name="client">The client.</param>
-    /// <param name="state">The state.</param>
+    /// <summary>Called when [new client accepted].</summary>
     protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object? state)
     {
         var packet = state as UdpReceivePacket;

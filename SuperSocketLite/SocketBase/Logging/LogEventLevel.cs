@@ -1,8 +1,6 @@
 namespace SuperSocketLite.SocketBase.Logging;
 
-/// <summary>
-/// Severity of a log entry.
-/// </summary>
+/// <summary>Severity of a log entry.</summary>
 /// <remarks>
 /// Deliberately named <c>LogEventLevel</c> rather than <c>LogLevel</c> so that it does not collide
 /// by simple name with <c>Microsoft.Extensions.Logging.LogLevel</c> in files that use both

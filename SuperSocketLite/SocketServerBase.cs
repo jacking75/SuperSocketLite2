@@ -96,9 +96,7 @@ abstract class SocketServerBase : ISocketServer, IDisposable
 
     protected abstract ISocketListener CreateListener(ListenerInfo listenerInfo);
 
-    /// <summary>
-    /// Stops accepting new connections while leaving the existing sessions running.
-    /// </summary>
+    /// <summary>Stops accepting new connections while leaving the existing sessions running.</summary>
     internal void StopListeners()
     {
         IsStopped = true;

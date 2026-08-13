@@ -4,9 +4,7 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
 
-/// <summary>
-/// ReceiveFilter for the protocol that each request has bengin and end mark
-/// </summary>
+/// <summary>ReceiveFilter for the protocol that each request has bengin and end mark</summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
@@ -16,31 +14,16 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
 
     private bool _foundBegin = false;
 
-    /// <summary>
-    /// Null request info
-    /// </summary>
+    /// <summary>Null request info</summary>
     protected TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BeginEndMarkReceiveFilter&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="beginMark">The begin mark.</param>
-    /// <param name="endMark">The end mark.</param>
     protected BeginEndMarkReceiveFilter(byte[] beginMark, byte[] endMark)
     {
         _beginSearchState = new SearchMarkState<byte>(beginMark);
         _endSearchState = new SearchMarkState<byte>(endMark);
     }
 
-    /// <summary>
-    /// Filters the specified session.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <param name="rest">The rest.</param>
-    /// <returns></returns>
+    /// <summary>Filters the specified session.</summary>
     public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         rest = 0;
@@ -150,9 +133,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
         }
     }
 
-    /// <summary>
-    /// Zero-copy parse straight from the receive pipe.
-    /// </summary>
+    /// <summary>Zero-copy parse straight from the receive pipe.</summary>
     /// <param name="buffer">The received data available from PipeReader.</param>
     /// <param name="consumed">The position up to which data was consumed.</param>
     /// <param name="examined">The position up to which data was examined.</param>
@@ -207,18 +188,10 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
         return NullRequestInfo;
     }
 
-    /// <summary>
-    /// Processes the matched request.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Processes the matched request.</summary>
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
 
-    /// <summary>
-    /// Resets this instance.
-    /// </summary>
+    /// <summary>Resets this instance.</summary>
     public override void Reset()
     {
         _beginSearchState.Matched = 0;

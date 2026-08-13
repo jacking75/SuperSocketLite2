@@ -3,24 +3,15 @@ using SuperSocketLite.Common;
 
 namespace SuperSocketLite.SocketBase.Config;
 
-/// <summary>
-/// Root configuration model
-/// </summary>
+/// <summary>Root configuration model</summary>
 [Serializable]
 public class RootConfig : IRootConfig
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RootConfig"/> class.
-    /// </summary>
-    /// <param name="rootConfig">The root config.</param>
     public RootConfig(IRootConfig rootConfig)
     {
         rootConfig.CopyPropertiesTo(this);
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RootConfig"/> class.
-    /// </summary>
     public RootConfig()
     {
         int maxWorkingThread, maxCompletionPortThreads;
@@ -36,23 +27,15 @@ public class RootConfig : IRootConfig
 
     
 
-    /// <summary>
-    /// Gets/Sets the max working threads.
-    /// </summary>
+    /// <summary>Gets/Sets the max working threads.</summary>
     public int MaxWorkingThreads { get; set; }
 
-    /// <summary>
-    /// Gets/sets the min working threads.
-    /// </summary>
+    /// <summary>Gets/sets the min working threads.</summary>
     public int MinWorkingThreads { get; set; }
 
-    /// <summary>
-    /// Gets/sets the max completion port threads.
-    /// </summary>
+    /// <summary>Gets/sets the max completion port threads.</summary>
     public int MaxCompletionPortThreads { get; set; }
 
-    /// <summary>
-    /// Gets/sets the min completion port threads.
-    /// </summary>
+    /// <summary>Gets/sets the min completion port threads.</summary>
     public int MinCompletionPortThreads { get; set; }
 }

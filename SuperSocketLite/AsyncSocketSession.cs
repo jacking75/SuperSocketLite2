@@ -313,9 +313,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             StartReceive();
     }
 
-    /// <summary>
-    /// Handles one completed receive without posting the next one.
-    /// </summary>
+    /// <summary>Handles one completed receive without posting the next one.</summary>
     /// <returns>
     /// <c>true</c> when the caller should post the next receive; <c>false</c> when receiving has
     /// been terminated or when a pending flush will restart it through

@@ -2,9 +2,7 @@ using MsILoggerFactory = Microsoft.Extensions.Logging.ILoggerFactory;
 
 namespace SuperSocketLite.SocketBase.Logging;
 
-/// <summary>
-/// Adapts a <c>Microsoft.Extensions.Logging.ILoggerFactory</c> to <see cref="ILogFactory"/>.
-/// </summary>
+/// <summary>Adapts a <c>Microsoft.Extensions.Logging.ILoggerFactory</c> to <see cref="ILogFactory"/>.</summary>
 /// <remarks>
 /// <para>
 /// This is the recommended way to plug any modern logging library into the server: configure the
@@ -26,20 +24,13 @@ public sealed class MicrosoftLoggingLogFactory : ILogFactory
 {
     private readonly MsILoggerFactory _loggerFactory;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MicrosoftLoggingLogFactory"/> class.
-    /// </summary>
     /// <param name="loggerFactory">The logger factory to create loggers from.</param>
     public MicrosoftLoggingLogFactory(MsILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
     }
 
-    /// <summary>
-    /// Gets the log by name.
-    /// </summary>
-    /// <param name="name">The name.</param>
-    /// <returns></returns>
+    /// <summary>Gets the log by name.</summary>
     public ILog GetLog(string name)
     {
         return new MicrosoftLoggingLog(_loggerFactory.CreateLogger(name));

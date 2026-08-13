@@ -25,11 +25,8 @@ class UdpSocketListener : SocketListenerBase
 
     }
 
-    /// <summary>
-    /// Starts to listen
-    /// </summary>
+    /// <summary>Starts to listen</summary>
     /// <param name="config">The server config.</param>
-    /// <returns></returns>
     public override bool Start(IServerConfig config)
     {
         try
@@ -126,9 +123,7 @@ class UdpSocketListener : SocketListenerBase
         }
     }
 
-    /// <summary>
-    /// Handles a single completed ReceiveFrom operation.
-    /// </summary>
+    /// <summary>Handles a single completed ReceiveFrom operation.</summary>
     /// <returns><c>true</c> when the next receive should be posted; otherwise <c>false</c>.</returns>
     private bool ProcessReceivedFrom(SocketAsyncEventArgs e)
     {

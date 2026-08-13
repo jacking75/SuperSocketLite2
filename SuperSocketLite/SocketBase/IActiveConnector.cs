@@ -3,45 +3,22 @@ using System.Net;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// Active connect result model
-/// </summary>
+/// <summary>Active connect result model</summary>
 public class ActiveConnectResult
 {
-    /// <summary>
-    /// Gets or sets a value indicating whether the conecting is sucessfull
-    /// </summary>
-    /// <value>
-    ///   <c>true</c> if result; otherwise, <c>false</c>.
-    /// </value>
+    /// <summary>Gets or sets a value indicating whether the conecting is sucessfull</summary>
     public bool Result { get; set; }
 
-    /// <summary>
-    /// Gets or sets the connected session.
-    /// </summary>
-    /// <value>
-    /// The connected session.
-    /// </value>
+    /// <summary>Gets or sets the connected session.</summary>
     public IAppSession? Session { get; set; }
 }
 
-/// <summary>
-/// The inerface to connect the remote endpoint actively
-/// </summary>
+/// <summary>The inerface to connect the remote endpoint actively</summary>
 public interface IActiveConnector
 {
-    /// <summary>
-    /// Connect the target endpoint actively.
-    /// </summary>
-    /// <param name="targetEndPoint">The target end point.</param>
-    /// <returns></returns>
+    /// <summary>Connect the target endpoint actively.</summary>
     Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint);
 
-    /// <summary>
-    /// Connect the target endpoint actively.
-    /// </summary>
-    /// <param name="targetEndPoint">The target end point.</param>
-    /// <param name="localEndPoint">The local end point.</param>
-    /// <returns></returns>
+    /// <summary>Connect the target endpoint actively.</summary>
     Task<ActiveConnectResult> ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint);
 }

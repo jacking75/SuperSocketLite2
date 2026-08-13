@@ -1,18 +1,9 @@
-﻿namespace SuperSocketLite.Common;
+namespace SuperSocketLite.Common;
 
-/// <summary>
-/// Thread pool extension class
-/// </summary>
+/// <summary>Thread pool extension class</summary>
 public static class ThreadPoolEx
 {
-    /// <summary>
-    /// Resets the thread pool.
-    /// </summary>
-    /// <param name="maxWorkingThreads">The max working threads.</param>
-    /// <param name="maxCompletionPortThreads">The max completion port threads.</param>
-    /// <param name="minWorkingThreads">The min working threads.</param>
-    /// <param name="minCompletionPortThreads">The min completion port threads.</param>
-    /// <returns></returns>
+    /// <summary>Resets the thread pool.</summary>
     public static bool ResetThreadPool(int? maxWorkingThreads, int? maxCompletionPortThreads, int? minWorkingThreads, int? minCompletionPortThreads)
     {
         if (maxWorkingThreads.HasValue || maxCompletionPortThreads.HasValue)

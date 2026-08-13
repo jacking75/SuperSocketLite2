@@ -14,9 +14,7 @@ namespace SuperSocketLite.SocketBase.Logging;
 /// </remarks>
 public abstract class LogFactoryBase : ILogFactory
 {
-    /// <summary>
-    /// Gets the resolved config file path.
-    /// </summary>
+    /// <summary>Gets the resolved config file path.</summary>
     /// <remarks>
     /// A relative path is searched for in the application base directory and then in its
     /// <c>Config</c> subdirectory; if it is found in neither, the value is returned unchanged so the
@@ -24,10 +22,6 @@ public abstract class LogFactoryBase : ILogFactory
     /// </remarks>
     protected string ConfigFile { get; }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LogFactoryBase"/> class.
-    /// </summary>
-    /// <param name="configFile">The config file.</param>
     protected LogFactoryBase(string configFile)
     {
         if (Path.IsPathRooted(configFile))
@@ -55,10 +49,6 @@ public abstract class LogFactoryBase : ILogFactory
         ConfigFile = configFile;
     }
 
-    /// <summary>
-    /// Gets the log by name.
-    /// </summary>
-    /// <param name="name">The name.</param>
-    /// <returns></returns>
+    /// <summary>Gets the log by name.</summary>
     public abstract ILog GetLog(string name);
 }

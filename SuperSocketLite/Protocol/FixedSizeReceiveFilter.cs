@@ -4,9 +4,7 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
 
-/// <summary>
-/// FixedSizeReceiveFilter
-/// </summary>
+/// <summary>FixedSizeReceiveFilter</summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFilter<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
@@ -15,20 +13,12 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
 
     private int _size;
 
-    /// <summary>
-    /// Gets the size of the fixed size Receive filter.
-    /// </summary>
+    /// <summary>Gets the size of the fixed size Receive filter.</summary>
     public int Size => _size;
 
-    /// <summary>
-    /// Null RequestInfo
-    /// </summary>
+    /// <summary>Null RequestInfo</summary>
     protected readonly static TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FixedSizeReceiveFilter&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="size">The size.</param>
     protected FixedSizeReceiveFilter(int size)
     {
         _size = size;
@@ -39,22 +29,12 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
         OnInitialized(appServer, session);
     }
 
-    /// <summary>
-    /// Called after the filter is initialized for a session.
-    /// </summary>
+    /// <summary>Called after the filter is initialized for a session.</summary>
     protected virtual void OnInitialized(IAppServer appServer, IAppSession session)
     {
     }
 
-    /// <summary>
-    /// Filters the specified session.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <param name="rest">The rest.</param>
-    /// <returns></returns>
+    /// <summary>Filters the specified session.</summary>
     public virtual TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         rest = _parsedLength + length - _size;
@@ -108,14 +88,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
         return requestInfo;
     }
 
-    /// <summary>
-    /// Filters the buffer after the server receive the enough size of data.
-    /// </summary>
-    /// <param name="buffer">The buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <returns></returns>
+    /// <summary>Filters the buffer after the server receive the enough size of data.</summary>
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied);
 
     /// <summary>
@@ -124,40 +97,24 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// Override for zero-allocation processing.
     /// </summary>
     /// <param name="buffer">The buffer as ReadOnlySpan.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <returns></returns>
     protected virtual TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
     {
         return ProcessMatchedRequest(buffer.ToArray(), 0, buffer.Length, toBeCopied);
     }
 
-    /// <summary>
-    /// Gets the size of the rest buffer.
-    /// </summary>
-    /// <value>
-    /// The size of the rest buffer.
-    /// </value>
+    /// <summary>Gets the size of the rest buffer.</summary>
     public virtual int LeftBufferSize => _parsedLength;
 
-    /// <summary>
-    /// Gets the next Receive filter.
-    /// </summary>
+    /// <summary>Gets the next Receive filter.</summary>
     public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
 
     private int _offsetDelta;
 
-    /// <summary>
-    /// Gets the offset delta.
-    /// </summary>
+    /// <summary>Gets the offset delta.</summary>
     int IOffsetAdapter.OffsetDelta => _offsetDelta;
 
-    /// <summary>
-    /// Gets the filter state.
-    /// </summary>
-    /// <value>
-    /// The filter state.
-    /// </value>
+    /// <summary>Gets the filter state.</summary>
     public FilterState State { get; protected set; }
 
     private void InternalReset()
@@ -166,9 +123,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
         _offsetDelta = 0;
     }
 
-    /// <summary>
-    /// Resets this instance.
-    /// </summary>
+    /// <summary>Resets this instance.</summary>
     public virtual void Reset()
     {
         InternalReset();

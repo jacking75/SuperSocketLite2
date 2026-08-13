@@ -17,11 +17,8 @@ abstract class SocketListenerBase : ISocketListener
         Info = info;
     }
 
-    /// <summary>
-    /// Starts to listen
-    /// </summary>
+    /// <summary>Starts to listen</summary>
     /// <param name="config">The server config.</param>
-    /// <returns></returns>
     public abstract bool Start(IServerConfig config);
 
     public abstract void Stop();
@@ -51,9 +48,7 @@ abstract class SocketListenerBase : ISocketListener
             handler(this, socket, state);
     }
 
-    /// <summary>
-    /// Occurs when [stopped].
-    /// </summary>
+    /// <summary>Occurs when [stopped].</summary>
     public event EventHandler? Stopped;
 
     protected void OnStopped()

@@ -1,14 +1,8 @@
 namespace SuperSocketLite.SocketBase.Logging;
 
-/// <summary>
-/// LogFactory Interface
-/// </summary>
+/// <summary>LogFactory Interface</summary>
 public interface ILogFactory
 {
-    /// <summary>
-    /// Gets the log by name.
-    /// </summary>
-    /// <param name="name">The name.</param>
-    /// <returns></returns>
+    /// <summary>Gets the log by name.</summary>
     ILog GetLog(string name);
 }

@@ -8,13 +8,8 @@ namespace SuperSocketLite.Common;
 /// </summary>
 public static class PropertyCopier
 {
-    /// <summary>
-    /// Copies the properties of one object to another object.
-    /// </summary>
+    /// <summary>Copies the properties of one object to another object.</summary>
     /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="target">The target.</param>
-    /// <returns></returns>
     public static T CopyPropertiesTo<T>(this T source, T target)
     {
         var sourcePropertiesDict = source!.GetType()

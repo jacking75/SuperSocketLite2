@@ -22,31 +22,16 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
 
     private readonly int _spliterCount;
 
-    /// <summary>
-    /// Null request info instance
-    /// </summary>
+    /// <summary>Null request info instance</summary>
     protected static readonly TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="spliter">The spliter.</param>
-    /// <param name="spliterCount">The spliter count.</param>
     protected CountSpliterReceiveFilter(byte spliter, int spliterCount)
     {
         _spliter = spliter;
         _spliterCount = spliterCount;
     }
 
-    /// <summary>
-    /// Filters the specified session.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <param name="rest">The rest.</param>
-    /// <returns></returns>
+    /// <summary>Filters the specified session.</summary>
     public TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         int parsedLen = 0;
@@ -105,9 +90,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         return requestInfo;
     }
 
-    /// <summary>
-    /// Zero-copy parse straight from the receive pipe.
-    /// </summary>
+    /// <summary>Zero-copy parse straight from the receive pipe.</summary>
     /// <param name="buffer">The received data available from PipeReader.</param>
     /// <param name="consumed">The position up to which data was consumed.</param>
     /// <param name="examined">The position up to which data was examined.</param>
@@ -140,26 +123,13 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         return ProcessMatchedRequest(data.Array!, data.Offset, data.Count);
     }
 
-    /// <summary>
-    /// Processes the matched request.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Processes the matched request.</summary>
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length);
 
-    /// <summary>
-    /// Gets the size of the rest buffer.
-    /// </summary>
-    /// <value>
-    /// The size of the rest buffer.
-    /// </value>
+    /// <summary>Gets the size of the rest buffer.</summary>
     public int LeftBufferSize => _total;
 
-    /// <summary>
-    /// Gets the next Receive filter.
-    /// </summary>
+    /// <summary>Gets the next Receive filter.</summary>
     public IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
     private void InternalReset()
@@ -168,26 +138,17 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         _spliterFoundCount = 0;
     }
 
-    /// <summary>
-    /// Resets this instance.
-    /// </summary>
+    /// <summary>Resets this instance.</summary>
     public void Reset()
     {
         InternalReset();
         OffsetDelta = 0;
     }
 
-    /// <summary>
-    /// Gets the offset delta relative original receiving offset which will be used for next round receiving.
-    /// </summary>
+    /// <summary>Gets the offset delta relative original receiving offset which will be used for next round receiving.</summary>
     public int OffsetDelta { get; private set; }
 
-    /// <summary>
-    /// Gets the filter state.
-    /// </summary>
-    /// <value>
-    /// The filter state.
-    /// </value>
+    /// <summary>Gets the filter state.</summary>
     public FilterState State { get; protected set; }
 }
 
@@ -205,36 +166,18 @@ public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequest
 
     private readonly char _spliter;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter"/> class.
-    /// </summary>
-    /// <param name="spliter">The spliter.</param>
-    /// <param name="spliterCount">The spliter count.</param>
     public CountSpliterReceiveFilter(byte spliter, int spliterCount)
         : this(spliter, spliterCount, Encoding.ASCII)
     {
         
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter"/> class.
-    /// </summary>
-    /// <param name="spliter">The spliter.</param>
-    /// <param name="spliterCount">The spliter count.</param>
-    /// <param name="encoding">The encoding.</param>
     public CountSpliterReceiveFilter(byte spliter, int spliterCount, Encoding encoding)
         : this(spliter, spliterCount, encoding, 0)
     {
 
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter"/> class.
-    /// </summary>
-    /// <param name="spliter">The spliter.</param>
-    /// <param name="spliterCount">The spliter count.</param>
-    /// <param name="encoding">The encoding.</param>
-    /// <param name="keyIndex">Index of the key.</param>
     public CountSpliterReceiveFilter(byte spliter, int spliterCount, Encoding encoding, int keyIndex)
         : base(spliter, spliterCount)
     {
@@ -243,13 +186,7 @@ public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequest
         _spliter = (char)spliter;
     }
 
-    /// <summary>
-    /// Processes the matched request.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Processes the matched request.</summary>
     protected override StringRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
     {
         //ignore the first and the last spliter

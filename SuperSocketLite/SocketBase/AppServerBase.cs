@@ -10,60 +10,38 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// AppServer base class
-/// </summary>
+/// <summary>AppServer base class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, IActiveConnector, IDisposable
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
-    /// <summary>
-    /// Gets the server's config.
-    /// </summary>
+    /// <summary>Gets the server's config.</summary>
     public IServerConfig Config { get; private set; } = null!;
 
     //Server instance name
     private string _name = null!;
 
-    /// <summary>
-    /// the current state's code
-    /// </summary>
+    /// <summary>the current state's code</summary>
     private int _stateCode = ServerStateConst.NotInitialized;
 
-    /// <summary>
-    /// Gets the current state of the work item.
-    /// </summary>
-    /// <value>
-    /// The state.
-    /// </value>
+    /// <summary>Gets the current state of the work item.</summary>
     public ServerState State => (ServerState)_stateCode;
 
-    /// <summary>
-    /// Gets or sets the receive filter factory.
-    /// </summary>
-    /// <value>
-    /// The receive filter factory.
-    /// </value>
+    /// <summary>Gets or sets the receive filter factory.</summary>
     public virtual IReceiveFilterFactory<TRequestInfo> ReceiveFilterFactory { get; protected set; } = null!;
 
-    /// <summary>
-    /// Gets the Receive filter factory.
-    /// </summary>
+    /// <summary>Gets the Receive filter factory.</summary>
     object IAppServer.ReceiveFilterFactory => this.ReceiveFilterFactory;
        
 
     private ISocketServerFactory _socketServerFactory = null!;
 
-    /// <summary>
-    /// Gets the root config.
-    /// </summary>
+    /// <summary>Gets the root config.</summary>
     protected IRootConfig RootConfig { get; private set; } = null!;
 
-    /// <summary>
-    /// Gets the logger assosiated with this object.
-    /// </summary>
+    /// <summary>Gets the logger assosiated with this object.</summary>
     public ILog Logger { get; private set; } = null!;
              
     // 0 = not configured, 1 = configured.
@@ -79,27 +57,15 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     private long _totalHandledRequests = 0;
 
-    /// <summary>
-    /// Gets the total handled requests number.
-    /// </summary>
+    /// <summary>Gets the total handled requests number.</summary>
     protected long TotalHandledRequests => _totalHandledRequests;
 
     private ListenerInfo[]? _listeners;
 
-    /// <summary>
-    /// Gets or sets the listeners inforamtion.
-    /// </summary>
-    /// <value>
-    /// The listeners.
-    /// </value>
+    /// <summary>Gets or sets the listeners inforamtion.</summary>
     public ListenerInfo[]? Listeners => _listeners;
 
-    /// <summary>
-    /// Gets the started time of this server instance, in UTC.
-    /// </summary>
-    /// <value>
-    /// The started time.
-    /// </value>
+    /// <summary>Gets the started time of this server instance, in UTC.</summary>
     public DateTime StartedTime { get; private set; }
 
     // Metrics
@@ -121,9 +87,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     private KeyValuePair<string, object?> ServerTag => new("server", Name);
 
-    /// <summary>
-    /// Records bytes received for metrics.
-    /// </summary>
+    /// <summary>Records bytes received for metrics.</summary>
     /// <param name="count">The number of bytes received.</param>
     public void RecordBytesReceived(int count)
     {
@@ -131,9 +95,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         s_TotalBytesReceivedCounter.Add(count, ServerTag);
     }
 
-    /// <summary>
-    /// Records bytes sent for metrics.
-    /// </summary>
+    /// <summary>Records bytes sent for metrics.</summary>
     /// <param name="count">The number of bytes sent.</param>
     public void RecordBytesSent(int count)
     {
@@ -141,27 +103,21 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         s_TotalBytesSentCounter.Add(count, ServerTag);
     }
 
-    /// <summary>
-    /// Records a connection that was refused because the connection limit was reached.
-    /// </summary>
+    /// <summary>Records a connection that was refused because the connection limit was reached.</summary>
     public void RecordSessionRejected()
     {
         Interlocked.Increment(ref _totalSessionsRejected);
         s_SessionsRejectedCounter.Add(1, ServerTag);
     }
 
-    /// <summary>
-    /// Records a send that was dropped because the session's sending queue was full.
-    /// </summary>
+    /// <summary>Records a send that was dropped because the session's sending queue was full.</summary>
     public void RecordSendQueueFull()
     {
         Interlocked.Increment(ref _totalSendQueueFull);
         s_SendQueueFullCounter.Add(1, ServerTag);
     }
 
-    /// <summary>
-    /// Records a failed send.
-    /// </summary>
+    /// <summary>Records a failed send.</summary>
     public void RecordSendError()
     {
         Interlocked.Increment(ref _totalSendErrors);
@@ -172,73 +128,41 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     private long _totalSendQueueFull = 0;
     private long _totalSendErrors = 0;
 
-    /// <summary>
-    /// Gets the total bytes received.
-    /// </summary>
+    /// <summary>Gets the total bytes received.</summary>
     public long TotalBytesReceived => _totalBytesReceived;
 
-    /// <summary>
-    /// Gets the total bytes sent.
-    /// </summary>
+    /// <summary>Gets the total bytes sent.</summary>
     public long TotalBytesSent => _totalBytesSent;
 
-    /// <summary>
-    /// Gets the number of connections refused because the connection limit was reached.
-    /// </summary>
+    /// <summary>Gets the number of connections refused because the connection limit was reached.</summary>
     public long TotalSessionsRejected => _totalSessionsRejected;
 
-    /// <summary>
-    /// Gets the number of sends dropped because the sending queue was full.
-    /// </summary>
+    /// <summary>Gets the number of sends dropped because the sending queue was full.</summary>
     public long TotalSendQueueFull => _totalSendQueueFull;
 
-    /// <summary>
-    /// Gets the number of sends that failed with a socket error.
-    /// </summary>
+    /// <summary>Gets the number of sends that failed with a socket error.</summary>
     public long TotalSendErrors => _totalSendErrors;
 
 
-    /// <summary>
-    /// Gets or sets the log factory.
-    /// </summary>
-    /// <value>
-    /// The log factory.
-    /// </value>
+    /// <summary>Gets or sets the log factory.</summary>
     public ILogFactory LogFactory { get; private set; } = null!;
 
 
-    /// <summary>
-    /// Gets the default text encoding.
-    /// </summary>
-    /// <value>
-    /// The text encoding.
-    /// </value>
+    /// <summary>Gets the default text encoding.</summary>
     public Encoding TextEncoding { get; private set; } = null!;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServerBase&lt;TAppSession, TRequestInfo&gt;"/> class.
-    /// </summary>
     public AppServerBase()
     {
 
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServerBase&lt;TAppSession, TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="receiveFilterFactory">The Receive filter factory.</param>
     public AppServerBase(IReceiveFilterFactory<TRequestInfo> receiveFilterFactory)
     {
         this.ReceiveFilterFactory = receiveFilterFactory;
     }
 
             
-    /// <summary>
-    /// Setups the specified root config.
-    /// </summary>
-    /// <param name="rootConfig">The root config.</param>
-    /// <param name="config">The config.</param>
-    /// <returns></returns>
+    /// <summary>Setups the specified root config.</summary>
     protected virtual bool Setup(IRootConfig rootConfig, IServerConfig config)
     {
         return true;
@@ -348,10 +272,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return SetupSocketServer();
     }
 
-    /// <summary>
-    /// Setups with the specified port.
-    /// </summary>
-    /// <param name="port">The port.</param>
+    /// <summary>Setups with the specified port.</summary>
     /// <returns>return setup result</returns>
     public bool Setup(int port)
     {
@@ -368,30 +289,15 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    /// <summary>
-    /// Setups with the specified config.
-    /// </summary>
+    /// <summary>Setups with the specified config.</summary>
     /// <param name="config">The server config.</param>
-    /// <param name="socketServerFactory">The socket server factory.</param>
-    /// <param name="receiveFilterFactory">The receive filter factory.</param>
-    /// <param name="logFactory">The log factory.</param>
-    /// <param name="connectionFilters">The connection filters.</param>
-    /// <returns></returns>
     public bool Setup(IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
         return Setup(new RootConfig(), config, socketServerFactory, receiveFilterFactory, logFactory, connectionFilters);
     }
 
-    /// <summary>
-    /// Setups the specified root config, this method used for programming setup
-    /// </summary>
-    /// <param name="rootConfig">The root config.</param>
+    /// <summary>Setups the specified root config, this method used for programming setup</summary>
     /// <param name="config">The server config.</param>
-    /// <param name="socketServerFactory">The socket server factory.</param>
-    /// <param name="receiveFilterFactory">The Receive filter factory.</param>
-    /// <param name="logFactory">The log factory.</param>
-    /// <param name="connectionFilters">The connection filters.</param>
-    /// <returns></returns>
     public bool Setup(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
         TrySetInitializedState();
@@ -418,15 +324,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>
-    /// Setups with the specified ip and port.
-    /// </summary>
-    /// <param name="ip">The ip.</param>
-    /// <param name="port">The port.</param>
-    /// <param name="socketServerFactory">The socket server factory.</param>
-    /// <param name="receiveFilterFactory">The Receive filter factory.</param>
-    /// <param name="logFactory">The log factory.</param>
-    /// <param name="connectionFilters">The connection filters.</param>
+    /// <summary>Setups with the specified ip and port.</summary>
     /// <returns>return setup result</returns>
     public bool Setup(string ip, int port, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
@@ -459,20 +357,13 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    /// <summary>
-    /// Creates the logger for the AppServer.
-    /// </summary>
-    /// <param name="loggerName">Name of the logger.</param>
-    /// <returns></returns>
+    /// <summary>Creates the logger for the AppServer.</summary>
     protected virtual ILog CreateLogger(string loggerName)
     {
         return LogFactory.GetLog(loggerName);
     }
 
-    /// <summary>
-    /// Setups the socket server.instance
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Setups the socket server.instance</summary>
     private bool SetupSocketServer()
     {
         try
@@ -499,11 +390,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
            return IPAddress.Parse(ip);
     }
 
-    /// <summary>
-    /// Setups the listeners base on server configuration
-    /// </summary>
-    /// <param name="config">The config.</param>
-    /// <returns></returns>
+    /// <summary>Setups the listeners base on server configuration</summary>
     private bool SetupListeners(IServerConfig config)
     {
         var listeners = new List<ListenerInfo>();
@@ -574,9 +461,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         }
     }
 
-    /// <summary>
-    /// Gets the name of the server instance.
-    /// </summary>
+    /// <summary>Gets the name of the server instance.</summary>
     public string Name => _name;
 
     private ISocketServer _socketServer = null!;
@@ -607,12 +492,8 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>
-    /// Starts this server instance.
-    /// </summary>
-    /// <returns>
-    /// return true if start successfull, else false
-    /// </returns>
+    /// <summary>Starts this server instance.</summary>
+    /// <returns>return true if start successfull, else false</returns>
     public virtual bool Start()
     {
         var origStateCode = Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Starting, ServerStateConst.NotStarted);
@@ -661,17 +542,13 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>
-    /// Called when [started].
-    /// </summary>
+    /// <summary>Called when [started].</summary>
     protected virtual void OnStarted()
     {
 
     }
 
-    /// <summary>
-    /// Called when [stopped].
-    /// </summary>
+    /// <summary>Called when [stopped].</summary>
     protected virtual void OnStopped()
     {
 
@@ -748,9 +625,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
             Logger.Info(string.Format("The drain timeout of {0} elapsed before every session finished sending; the remaining sessions will be closed.", drainTimeout));
     }
 
-    /// <summary>
-    /// Stops this server instance.
-    /// </summary>
+    /// <summary>Stops this server instance.</summary>
     public virtual void Stop()
     {
         if (Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Stopping, ServerStateConst.Running)
@@ -793,13 +668,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         remove { _rawDataReceivedHandler -= value; }
     }
 
-    /// <summary>
-    /// Called when [raw data received].
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="buffer">The buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
+    /// <summary>Called when [raw data received].</summary>
     internal bool OnRawDataReceived(IAppSession session, byte[] buffer, int offset, int length)
     {
         var handler = _rawDataReceivedHandler;
@@ -813,9 +682,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     private RequestHandler<TAppSession, TRequestInfo>? _requestHandler;
 
-    /// <summary>
-    /// Occurs when a full request item received.
-    /// </summary>
+    /// <summary>Occurs when a full request item received.</summary>
     public virtual event RequestHandler<TAppSession, TRequestInfo> NewRequestReceived
     {
         add { _requestHandler += value; }
@@ -823,11 +690,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    /// <summary>
-    /// Executes the command.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="requestInfo">The request info.</param>
+    /// <summary>Executes the command.</summary>
     protected virtual void ExecuteCommand(TAppSession session, TRequestInfo requestInfo)
     {
         session.CurrentCommand = requestInfo.Key;
@@ -866,39 +729,22 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    /// <summary>
-    /// Executes the command for the session.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="requestInfo">The request info.</param>
+    /// <summary>Executes the command for the session.</summary>
     internal void ExecuteCommand(IAppSession session, TRequestInfo requestInfo)
     {
         this.ExecuteCommand((TAppSession)session, requestInfo);
     }
 
-    /// <summary>
-    /// Executes the command.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="requestInfo">The request info.</param>
+    /// <summary>Executes the command.</summary>
     void IRequestHandler<TRequestInfo>.ExecuteCommand(IAppSession session, TRequestInfo requestInfo)
     {
         this.ExecuteCommand((TAppSession)session, requestInfo);
     }
 
-    /// <summary>
-    /// Gets or sets the server's connection filter
-    /// </summary>
-    /// <value>
-    /// The server's connection filters
-    /// </value>
+    /// <summary>Gets or sets the server's connection filter</summary>
     public IEnumerable<IConnectionFilter>? ConnectionFilters => _connectionFilters;
 
-    /// <summary>
-    /// Executes the connection filters.
-    /// </summary>
-    /// <param name="remoteAddress">The remote address.</param>
-    /// <returns></returns>
+    /// <summary>Executes the connection filters.</summary>
     private bool ExecuteConnectionFilters(IPEndPoint? remoteAddress)
     {
         if (_connectionFilters == null)
@@ -918,11 +764,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>
-    /// Creates the app session.
-    /// </summary>
-    /// <param name="socketSession">The socket session.</param>
-    /// <returns></returns>
+    /// <summary>Creates the app session.</summary>
     IAppSession IAppServer.CreateAppSession(ISocketSession socketSession)
     {
         if (!ExecuteConnectionFilters(socketSession.RemoteEndPoint))
@@ -935,21 +777,14 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return appSession;
     }
 
-    /// <summary>
-    /// create a new TAppSession instance, you can override it to create the session instance in your own way
-    /// </summary>
-    /// <param name="socketSession">the socket session.</param>
+    /// <summary>create a new TAppSession instance, you can override it to create the session instance in your own way</summary>
     /// <returns>the new created session instance</returns>
     protected virtual TAppSession CreateAppSession(ISocketSession socketSession)
     {
         return new TAppSession();
     }
 
-    /// <summary>
-    /// Registers the new created app session into the appserver's session container.
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <returns></returns>
+    /// <summary>Registers the new created app session into the appserver's session container.</summary>
     bool IAppServer.RegisterSession(IAppSession session)
     {
         var appSession = (session as TAppSession)!;
@@ -966,12 +801,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>
-    /// Registers the session into session container.
-    /// </summary>
-    /// <param name="sessionID">The session ID.</param>
-    /// <param name="appSession">The app session.</param>
-    /// <returns></returns>
+    /// <summary>Registers the session into session container.</summary>
     protected virtual bool RegisterSession(string sessionID, TAppSession appSession)
     {
         return true;
@@ -980,19 +810,14 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     private SessionHandler<TAppSession>? _newSessionConnected;
 
-    /// <summary>
-    /// The action which will be executed after a new session connect
-    /// </summary>
+    /// <summary>The action which will be executed after a new session connect</summary>
     public event SessionHandler<TAppSession> NewSessionConnected
     {
         add { _newSessionConnected += value; }
         remove { _newSessionConnected -= value; }
     }
 
-    /// <summary>
-    /// Called when [new session connected].
-    /// </summary>
-    /// <param name="session">The session.</param>
+    /// <summary>Called when [new session connected].</summary>
     /// <remarks>
     /// By default the handler runs on the thread pool, which means a fast client's first request
     /// can be delivered before it. Set <c>ServerConfig.SyncSessionConnectedEvent</c> to raise it
@@ -1025,11 +850,8 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         Task.Run(() => handler(session));
     }
 
-    /// <summary>
-    /// Called when [socket session closed].
-    /// </summary>
+    /// <summary>Called when [socket session closed].</summary>
     /// <param name="session">The socket session.</param>
-    /// <param name="reason">The reason.</param>
     private void OnSocketSessionClosed(ISocketSession session, CloseReason reason)
     {
         s_ActiveConnectionsCounter?.Add(-1, new KeyValuePair<string, object?>("server", Name));
@@ -1040,20 +862,15 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
     private SessionHandler<TAppSession, CloseReason>? _sessionClosed;
-    /// <summary>
-    /// Gets/sets the session closed event handler.
-    /// </summary>
+    /// <summary>Gets/sets the session closed event handler.</summary>
     public event SessionHandler<TAppSession, CloseReason> SessionClosed
     {
         add { _sessionClosed += value; }
         remove { _sessionClosed -= value; }
     }
 
-    /// <summary>
-    /// Called when [session closed].
-    /// </summary>
+    /// <summary>Called when [session closed].</summary>
     /// <param name="session">The appSession.</param>
-    /// <param name="reason">The reason.</param>
     protected virtual void OnSessionClosed(TAppSession session, CloseReason reason)
     {
         var handler = _sessionClosed;
@@ -1066,51 +883,32 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         session.OnSessionClosed(reason);
     }
 
-    /// <summary>
-    /// Gets the app session by ID.
-    /// </summary>
-    /// <param name="sessionID">The session ID.</param>
-    /// <returns></returns>
+    /// <summary>Gets the app session by ID.</summary>
     public abstract TAppSession? GetSessionByID(string sessionID);
 
-    /// <summary>
-    /// Gets the app session by ID.
-    /// </summary>
-    /// <param name="sessionID"></param>
-    /// <returns></returns>
+    /// <summary>Gets the app session by ID.</summary>
     IAppSession? IAppServer.GetSessionByID(string sessionID)
     {
         return this.GetSessionByID(sessionID);
     }
 
-    /// <summary>
-    /// Gets the matched sessions from sessions snapshot.
-    /// </summary>
+    /// <summary>Gets the matched sessions from sessions snapshot.</summary>
     /// <param name="critera">The prediction critera.</param>
     public virtual IEnumerable<TAppSession>? GetSessions(Func<TAppSession, bool> critera)
     {
         throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// Gets all sessions in sessions snapshot.
-    /// </summary>
+    /// <summary>Gets all sessions in sessions snapshot.</summary>
     public virtual IEnumerable<TAppSession>? GetAllSessions()
     {
         throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// Gets the total session count.
-    /// </summary>
+    /// <summary>Gets the total session count.</summary>
     public abstract int SessionCount { get; }
 
-    /// <summary>
-    /// Connect the remote endpoint actively.
-    /// </summary>
-    /// <param name="targetEndPoint">The target end point.</param>
-    /// <param name="localEndPoint">The local end point.</param>
-    /// <returns></returns>
+    /// <summary>Connect the remote endpoint actively.</summary>
     /// <exception cref="System.Exception">This server cannot support active connect.</exception>
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
@@ -1122,11 +920,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return activeConnector.ActiveConnect(targetEndPoint, localEndPoint);
     }
 
-    /// <summary>
-    /// Connect the remote endpoint actively.
-    /// </summary>
-    /// <param name="targetEndPoint">The target end point.</param>
-    /// <returns></returns>
+    /// <summary>Connect the remote endpoint actively.</summary>
     /// <exception cref="System.Exception">This server cannot support active connect.</exception>
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint)
     {
@@ -1135,9 +929,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     
 
-    /// <summary>
-    /// Releases unmanaged and - optionally - managed resources
-    /// </summary>
+    /// <summary>Releases unmanaged and - optionally - managed resources</summary>
     public void Dispose()
     {
         if (_stateCode == ServerStateConst.Running)

@@ -7,9 +7,7 @@ namespace SuperSocketLite.Common;
 /// </summary>
 public class ArraySegmentList
 {
-    /// <summary>
-    /// One appended segment, tagged with the logical range [From, To] it occupies in the list.
-    /// </summary>
+    /// <summary>One appended segment, tagged with the logical range [From, To] it occupies in the list.</summary>
     private sealed class Segment
     {
         public Segment(byte[] array, int offset, int count)
@@ -34,28 +32,16 @@ public class ArraySegmentList
 
     private int _count;
 
-    /// <summary>
-    /// Gets the total number of bytes held by all segments.
-    /// </summary>
+    /// <summary>Gets the total number of bytes held by all segments.</summary>
     public int Count => _count;
 
-    /// <summary>
-    /// Adds the segment to the list.
-    /// </summary>
-    /// <param name="array">The array.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
+    /// <summary>Adds the segment to the list.</summary>
     public void AddSegment(byte[] array, int offset, int length)
     {
         AddSegment(array, offset, length, false);
     }
 
-    /// <summary>
-    /// Adds the segment to the list.
-    /// </summary>
-    /// <param name="array">The array.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
+    /// <summary>Adds the segment to the list.</summary>
     /// <param name="toBeCopied">if set to <c>true</c> the range is copied instead of referenced.</param>
     public void AddSegment(byte[] array, int offset, int length, bool toBeCopied)
     {
@@ -73,30 +59,20 @@ public class ArraySegmentList
         _segments.Add(segment);
     }
 
-    /// <summary>
-    /// Clears all the segements.
-    /// </summary>
+    /// <summary>Clears all the segements.</summary>
     public void ClearSegements()
     {
         _segments.Clear();
         _count = 0;
     }
 
-    /// <summary>
-    /// Read all data in this list to the array data.
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Read all data in this list to the array data.</summary>
     public byte[] ToArrayData()
     {
         return ToArrayData(0, _count);
     }
 
-    /// <summary>
-    /// Read the data in specific range to the array data.
-    /// </summary>
-    /// <param name="startIndex">The start index.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Read the data in specific range to the array data.</summary>
     public byte[] ToArrayData(int startIndex, int length)
     {
         var result = new byte[length];
@@ -130,9 +106,7 @@ public class ArraySegmentList
         return result;
     }
 
-    /// <summary>
-    /// Copies a range of this list into the target array.
-    /// </summary>
+    /// <summary>Copies a range of this list into the target array.</summary>
     /// <param name="to">The target array.</param>
     /// <param name="srcIndex">The start index in this list.</param>
     /// <param name="toIndex">The start index in the target array.</param>
@@ -178,10 +152,7 @@ public class ArraySegmentList
         return copied;
     }
 
-    /// <summary>
-    /// Drops the last <paramref name="trimSize"/> bytes from the list.
-    /// </summary>
-    /// <param name="trimSize">Size of the trim.</param>
+    /// <summary>Drops the last <paramref name="trimSize"/> bytes from the list.</summary>
     public void TrimEnd(int trimSize)
     {
         if (trimSize <= 0)
@@ -221,9 +192,7 @@ public class ArraySegmentList
         _count -= removedLen;
     }
 
-    /// <summary>
-    /// Binary searches for the segment holding the given logical index.
-    /// </summary>
+    /// <summary>Binary searches for the segment holding the given logical index.</summary>
     private Segment? QuickSearchSegment(int index, out int segmentIndex)
     {
         int from = 0;

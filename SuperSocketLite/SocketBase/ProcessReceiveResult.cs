@@ -1,8 +1,6 @@
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// Result of processing data from a PipeReader.
-/// </summary>
+/// <summary>Result of processing data from a PipeReader.</summary>
 public readonly struct ProcessReceiveResult
 {
     public ProcessReceiveResult(SequencePosition consumed, SequencePosition examined)
@@ -11,13 +9,9 @@ public readonly struct ProcessReceiveResult
         Examined = examined;
     }
 
-    /// <summary>
-    /// Gets the position up to which data was consumed.
-    /// </summary>
+    /// <summary>Gets the position up to which data was consumed.</summary>
     public SequencePosition Consumed { get; }
 
-    /// <summary>
-    /// Gets the position up to which data was examined.
-    /// </summary>
+    /// <summary>Gets the position up to which data was examined.</summary>
     public SequencePosition Examined { get; }
 }

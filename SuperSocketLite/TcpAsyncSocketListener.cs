@@ -5,9 +5,7 @@ using SuperSocketLite.SocketBase.Config;
 
 namespace SuperSocketLite.SocketEngine;
 
-/// <summary>
-/// Tcp socket listener in async mode
-/// </summary>
+/// <summary>Tcp socket listener in async mode</summary>
 class TcpAsyncSocketListener : SocketListenerBase
 {
     private int _listenBackLog;
@@ -23,11 +21,8 @@ class TcpAsyncSocketListener : SocketListenerBase
         _listenBackLog = info.BackLog;
     }
 
-    /// <summary>
-    /// Starts to listen
-    /// </summary>
+    /// <summary>Starts to listen</summary>
     /// <param name="config">The server config.</param>
-    /// <returns></returns>
     public override bool Start(IServerConfig config)
     {
         var listenSocket = new Socket(this.Info.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
@@ -109,9 +104,7 @@ class TcpAsyncSocketListener : SocketListenerBase
         }
     }
 
-    /// <summary>
-    /// Returns true for socket error codes that indicate the listener was intentionally stopped.
-    /// </summary>
+    /// <summary>Returns true for socket error codes that indicate the listener was intentionally stopped.</summary>
     private static bool IsStopError(int errorCode) =>
         errorCode == 995      // OperationAborted
         || errorCode == 10004 // Interrupted

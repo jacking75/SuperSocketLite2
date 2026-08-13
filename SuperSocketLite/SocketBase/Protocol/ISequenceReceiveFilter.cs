@@ -10,9 +10,7 @@ namespace SuperSocketLite.SocketBase.Protocol;
 public interface ISequenceReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    /// <summary>
-    /// Filters received data from a ReadOnlySequence.
-    /// </summary>
+    /// <summary>Filters received data from a ReadOnlySequence.</summary>
     /// <param name="buffer">The received data available from PipeReader.</param>
     /// <param name="consumed">The position up to which data was consumed.</param>
     /// <param name="examined">The position up to which data was examined.</param>

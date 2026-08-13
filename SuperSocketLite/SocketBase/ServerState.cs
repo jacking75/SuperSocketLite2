@@ -1,38 +1,24 @@
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// Server's state enum class
-/// </summary>
+/// <summary>Server's state enum class</summary>
 public enum ServerState : int
 {
-    /// <summary>
-    /// Not initialized
-    /// </summary>
+    /// <summary>Not initialized</summary>
     NotInitialized = ServerStateConst.NotInitialized,
 
-    /// <summary>
-    /// In initializing
-    /// </summary>
+    /// <summary>In initializing</summary>
     Initializing = ServerStateConst.Initializing,
 
-    /// <summary>
-    /// Has been initialized, but not started
-    /// </summary>
+    /// <summary>Has been initialized, but not started</summary>
     NotStarted = ServerStateConst.NotStarted,
 
-    /// <summary>
-    /// In starting
-    /// </summary>
+    /// <summary>In starting</summary>
     Starting = ServerStateConst.Starting,
 
-    /// <summary>
-    /// In running
-    /// </summary>
+    /// <summary>In running</summary>
     Running = ServerStateConst.Running,
 
-    /// <summary>
-    /// In stopping
-    /// </summary>
+    /// <summary>In stopping</summary>
     Stopping = ServerStateConst.Stopping,
 }
 

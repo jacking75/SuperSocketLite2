@@ -1,8 +1,6 @@
 namespace SuperSocketLite.SocketBase.Protocol;
 
-/// <summary>
-/// Basic request info parser, which parse request info by separating
-/// </summary>
+/// <summary>Basic request info parser, which parse request info by separating</summary>
 public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
 {
     private readonly string _spliter;
@@ -10,24 +8,15 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
 
     private const string OneSpace = " ";
 
-    /// <summary>
-    /// The default singlegton instance
-    /// </summary>
+    /// <summary>The default singlegton instance</summary>
     public static readonly BasicRequestInfoParser DefaultInstance = new();
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BasicRequestInfoParser"/> class.
-    /// </summary>
     public BasicRequestInfoParser()
         : this(OneSpace, OneSpace)
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BasicRequestInfoParser"/> class.
-    /// </summary>
     /// <param name="spliter">The spliter between command name and command parameters.</param>
-    /// <param name="parameterSpliter">The parameter spliter.</param>
     public BasicRequestInfoParser(string spliter, string parameterSpliter)
     {
         _spliter = spliter;
@@ -36,11 +25,7 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
 
     
 
-    /// <summary>
-    /// Parses the request info.
-    /// </summary>
-    /// <param name="source">The source.</param>
-    /// <returns></returns>
+    /// <summary>Parses the request info.</summary>
     public StringRequestInfo ParseRequestInfo(string source)
     {
         int pos = source.IndexOf(_spliter);

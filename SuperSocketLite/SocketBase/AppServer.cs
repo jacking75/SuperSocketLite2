@@ -5,24 +5,15 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// AppServer class
-/// </summary>
+/// <summary>AppServer class</summary>
 public class AppServer : AppServer<AppSession>
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer"/> class.
-    /// </summary>
     public AppServer()
         : base()
     {
 
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer"/> class.
-    /// </summary>
-    /// <param name="receiveFilterFactory">The Receive filter factory.</param>
     public AppServer(IReceiveFilterFactory<StringRequestInfo> receiveFilterFactory)
         : base(receiveFilterFactory)
     {
@@ -30,26 +21,17 @@ public class AppServer : AppServer<AppSession>
     }
 }
 
-/// <summary>
-/// AppServer class
-/// </summary>
+/// <summary>AppServer class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 public class AppServer<TAppSession> : AppServer<TAppSession, StringRequestInfo>
     where TAppSession : AppSession<TAppSession, StringRequestInfo>, IAppSession, new()
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer&lt;TAppSession&gt;"/> class.
-    /// </summary>
     public AppServer()
         : base()
     {
 
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer&lt;TAppSession&gt;"/> class.
-    /// </summary>
-    /// <param name="receiveFilterFactory">The Receive filter factory.</param>
     public AppServer(IReceiveFilterFactory<StringRequestInfo> receiveFilterFactory)
         : base(receiveFilterFactory)
     {
@@ -63,28 +45,19 @@ public class AppServer<TAppSession> : AppServer<TAppSession, StringRequestInfo>
 }
 
 
-/// <summary>
-/// AppServer basic class
-/// </summary>
+/// <summary>AppServer basic class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppSession, TRequestInfo>
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer&lt;TAppSession, TRequestInfo&gt;"/> class.
-    /// </summary>
     public AppServer()
         : base()
     {
         
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppServer&lt;TAppSession, TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="protocol">The protocol.</param>
     protected AppServer(IReceiveFilterFactory<TRequestInfo> protocol)
         : base(protocol)
     {
@@ -96,10 +69,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return null;
     }
 
-    /// <summary>
-    /// Starts this AppServer instance.
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Starts this AppServer instance.</summary>
     public override bool Start()
     {
         if (!base.Start())
@@ -121,12 +91,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     private ConcurrentDictionary<string, TAppSession> _sessionDict = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Registers the session into the session container.
-    /// </summary>
-    /// <param name="sessionID">The session ID.</param>
-    /// <param name="appSession">The app session.</param>
-    /// <returns></returns>
+    /// <summary>Registers the session into the session container.</summary>
     protected override bool RegisterSession(string sessionID, TAppSession appSession)
     {
         if (_sessionDict.TryAdd(sessionID, appSession))
@@ -142,11 +107,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return false;
     }
 
-    /// <summary>
-    /// Gets the app session by ID.
-    /// </summary>
-    /// <param name="sessionID">The session ID.</param>
-    /// <returns></returns>
+    /// <summary>Gets the app session by ID.</summary>
     public override TAppSession? GetSessionByID(string sessionID)
     {
         if (string.IsNullOrEmpty(sessionID))
@@ -157,11 +118,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return targetSession;
     }
 
-    /// <summary>
-    /// Called when [socket session closed].
-    /// </summary>
-    /// <param name="session">The session.</param>
-    /// <param name="reason">The reason.</param>
+    /// <summary>Called when [socket session closed].</summary>
     protected override void OnSessionClosed(TAppSession session, CloseReason reason)
     {
         string sessionID = session.SessionID;
@@ -183,9 +140,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         base.OnSessionClosed(session, reason);
     }
 
-    /// <summary>
-    /// Gets the total session count.
-    /// </summary>
+    /// <summary>Gets the total session count.</summary>
     public override int SessionCount => _sessionDict.Count;
 
 
@@ -202,10 +157,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         }
     }
 
-    /// <summary>
-    /// 세션들의 데이터를 모아서 보내기
-    /// </summary>
-    /// <param name="state">The state.</param>
+    /// <summary>세션들의 데이터를 모아서 보내기</summary>
     private void CollectSendSession(object? state)
     {
         if (Monitor.TryEnter(state!))
@@ -258,10 +210,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         _clearIdleSessionTimer = new Timer(ClearIdleSession, new object(), interval, interval);
     }
 
-    /// <summary>
-    /// Clears the idle session.
-    /// </summary>
-    /// <param name="state">The state.</param>
+    /// <summary>Clears the idle session.</summary>
     private void ClearIdleSession(object? state)
     {
         if (Monitor.TryEnter(state!))
@@ -335,11 +284,8 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     
 
-    /// <summary>
-    /// Gets the matched sessions from sessions snapshot.
-    /// </summary>
+    /// <summary>Gets the matched sessions from sessions snapshot.</summary>
     /// <param name="critera">The prediction critera.</param>
-    /// <returns></returns>
     public override IEnumerable<TAppSession>? GetSessions(Func<TAppSession, bool> critera)
     {
         var sessionSource = SessionSource;
@@ -350,10 +296,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return sessionSource.Select(p => p.Value).Where(critera);
     }
 
-    /// <summary>
-    /// Gets all sessions in sessions snapshot.
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Gets all sessions in sessions snapshot.</summary>
     public override IEnumerable<TAppSession>? GetAllSessions()
     {
         var sessionSource = SessionSource;
@@ -364,9 +307,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return sessionSource.Select(p => p.Value);
     }
 
-    /// <summary>
-    /// Stops this instance.
-    /// </summary>
+    /// <summary>Stops this instance.</summary>
     public override void Stop()
     {
         base.Stop();

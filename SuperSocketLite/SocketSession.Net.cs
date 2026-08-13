@@ -11,18 +11,10 @@ abstract partial class SocketSession
     private const string GeneralSocketErrorMessage = "Unexpected socket error: {0}";
     private const string CallerInformation = "caller: {0}, file path: {1}, line number: {2}";
 
-    /// <summary>
-    /// Gets this session's identity for structured logging.
-    /// </summary>
+    /// <summary>Gets this session's identity for structured logging.</summary>
     private LogSessionContext SessionLogContext => new(SessionID, RemoteEndPoint);
 
-    /// <summary>
-    /// Logs the error, skip the ignored exception
-    /// </summary>
-    /// <param name="exception">The exception.</param>
-    /// <param name="caller">The caller.</param>
-    /// <param name="callerFilePath">The caller file path.</param>
-    /// <param name="callerLineNumber">The caller line number.</param>
+    /// <summary>Logs the error, skip the ignored exception</summary>
     protected void LogError(Exception exception, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = -1)
     {
         int socketErrorCode;
@@ -36,14 +28,7 @@ abstract partial class SocketSession
         Write(message, exception, caller, callerFilePath, callerLineNumber);
     }
 
-    /// <summary>
-    /// Logs the error, skip the ignored exception
-    /// </summary>
-    /// <param name="message">The message.</param>
-    /// <param name="exception">The exception.</param>
-    /// <param name="caller">The caller.</param>
-    /// <param name="callerFilePath">The caller file path.</param>
-    /// <param name="callerLineNumber">The caller line number.</param>
+    /// <summary>Logs the error, skip the ignored exception</summary>
     protected void LogError(string message, Exception exception, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = -1)
     {
         //This exception is ignored, needn't log it
@@ -53,13 +38,7 @@ abstract partial class SocketSession
         Write(message, exception, caller, callerFilePath, callerLineNumber);
     }
 
-    /// <summary>
-    /// Logs the socket error, skip the ignored error
-    /// </summary>
-    /// <param name="socketErrorCode">The socket error code.</param>
-    /// <param name="caller">The caller.</param>
-    /// <param name="callerFilePath">The caller file path.</param>
-    /// <param name="callerLineNumber">The caller line number.</param>
+    /// <summary>Logs the socket error, skip the ignored error</summary>
     protected void LogError(int socketErrorCode, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = -1)
     {
         if (!Config.LogAllSocketException)

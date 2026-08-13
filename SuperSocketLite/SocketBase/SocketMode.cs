@@ -1,17 +1,11 @@
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// Socket server running mode
-/// </summary>
+/// <summary>Socket server running mode</summary>
 public enum SocketMode
 {
-    /// <summary>
-    /// Tcp mode
-    /// </summary>
+    /// <summary>Tcp mode</summary>
     Tcp,
 
-    /// <summary>
-    /// Udp mode
-    /// </summary>
+    /// <summary>Udp mode</summary>
     Udp
 }

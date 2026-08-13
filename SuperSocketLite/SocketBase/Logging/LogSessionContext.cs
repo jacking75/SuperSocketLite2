@@ -13,15 +13,10 @@ namespace SuperSocketLite.SocketBase.Logging;
 /// </remarks>
 public readonly struct LogSessionContext
 {
-    /// <summary>
-    /// An entry that is not tied to any session.
-    /// </summary>
+    /// <summary>An entry that is not tied to any session.</summary>
     public static readonly LogSessionContext None = default;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LogSessionContext"/> struct.
-    /// </summary>
-    /// <param name="sessionId">The session ID.</param>
+    /// <summary>Initializes a new instance of the <see cref="LogSessionContext"/> struct.</summary>
     /// <param name="remoteEndPoint">The remote end point of the session.</param>
     public LogSessionContext(string? sessionId, IPEndPoint? remoteEndPoint)
     {
@@ -29,19 +24,13 @@ public readonly struct LogSessionContext
         RemoteEndPoint = remoteEndPoint;
     }
 
-    /// <summary>
-    /// Gets the session ID, or null when the entry is not tied to a session.
-    /// </summary>
+    /// <summary>Gets the session ID, or null when the entry is not tied to a session.</summary>
     public string? SessionId { get; }
 
-    /// <summary>
-    /// Gets the remote end point of the session, or null when it is unknown.
-    /// </summary>
+    /// <summary>Gets the remote end point of the session, or null when it is unknown.</summary>
     public IPEndPoint? RemoteEndPoint { get; }
 
-    /// <summary>
-    /// Gets whether this context carries no session identity at all.
-    /// </summary>
+    /// <summary>Gets whether this context carries no session identity at all.</summary>
     public bool IsEmpty => SessionId == null && RemoteEndPoint == null;
 
     /// <summary>

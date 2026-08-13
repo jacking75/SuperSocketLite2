@@ -4,77 +4,47 @@ using System.Net.Sockets;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// CloseReason enum
-/// </summary>
+/// <summary>CloseReason enum</summary>
 public enum CloseReason : int
 {
-    /// <summary>
-    /// The socket is closed for unknown reason
-    /// </summary>
+    /// <summary>The socket is closed for unknown reason</summary>
     Unknown = 0,
 
-    /// <summary>
-    /// Close for server shutdown
-    /// </summary>
+    /// <summary>Close for server shutdown</summary>
     ServerShutdown = 1,
 
-    /// <summary>
-    /// The client close the socket
-    /// </summary>
+    /// <summary>The client close the socket</summary>
     ClientClosing = 2,
 
-    /// <summary>
-    /// The server side close the socket
-    /// </summary>
+    /// <summary>The server side close the socket</summary>
     ServerClosing = 3,
 
-    /// <summary>
-    /// Application error
-    /// </summary>
+    /// <summary>Application error</summary>
     ApplicationError = 4,
 
-    /// <summary>
-    /// The socket is closed for a socket error
-    /// </summary>
+    /// <summary>The socket is closed for a socket error</summary>
     SocketError = 5,
 
-    /// <summary>
-    /// The socket is closed by server for timeout
-    /// </summary>
+    /// <summary>The socket is closed by server for timeout</summary>
     TimeOut = 6,
 
-    /// <summary>
-    /// Protocol error 
-    /// </summary>
+    /// <summary>Protocol error</summary>
     ProtocolError = 7,
 
-    /// <summary>
-    /// SuperSocket internal error
-    /// </summary>
+    /// <summary>SuperSocket internal error</summary>
     InternalError = 8,
 }
 
-/// <summary>
-/// The interface for socket session
-/// </summary>
+/// <summary>The interface for socket session</summary>
 public interface ISocketSession : ISessionBase
 {
-    /// <summary>
-    /// Initializes the specified app session.
-    /// </summary>
-    /// <param name="appSession">The app session.</param>
+    /// <summary>Initializes the specified app session.</summary>
     void Initialize(IAppSession appSession);
 
-    /// <summary>
-    /// Starts this instance.
-    /// </summary>
+    /// <summary>Starts this instance.</summary>
     void Start();
 
-    /// <summary>
-    /// Closes the socket session for the specified reason.
-    /// </summary>
-    /// <param name="reason">The reason.</param>
+    /// <summary>Closes the socket session for the specified reason.</summary>
     void Close(CloseReason reason);
 
 
@@ -86,27 +56,16 @@ public interface ISocketSession : ISessionBase
     void CommitCollectSend(int size);
     
 
-    /// <summary>
-    /// Tries to send array segment.
-    /// </summary>
-    /// <param name="segments">The segments.</param>
+    /// <summary>Tries to send array segment.</summary>
     bool TrySend(IList<ArraySegment<byte>> segments);
 
-    /// <summary>
-    /// Tries to send array segment.
-    /// </summary>
-    /// <param name="segment">The segment.</param>
+    /// <summary>Tries to send array segment.</summary>
     bool TrySend(ArraySegment<byte> segment);
 
-    /// <summary>
-    /// Tries to send memory.
-    /// </summary>
-    /// <param name="memory">The memory.</param>
+    /// <summary>Tries to send memory.</summary>
     bool TrySend(ReadOnlyMemory<byte> memory);
 
-    /// <summary>
-    /// Tries to send a copy of the data, so the caller may reuse its buffer immediately.
-    /// </summary>
+    /// <summary>Tries to send a copy of the data, so the caller may reuse its buffer immediately.</summary>
     /// <param name="data">The data to send.</param>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     /// <remarks>
@@ -120,9 +79,7 @@ public interface ISocketSession : ISessionBase
         return TrySend(new ArraySegment<byte>(data.ToArray()));
     }
 
-    /// <summary>
-    /// Queues the data, waiting asynchronously when the sending queue is full.
-    /// </summary>
+    /// <summary>Queues the data, waiting asynchronously when the sending queue is full.</summary>
     /// <param name="data">The data to send. Array-backed memory is sent without copying.</param>
     /// <param name="cancellationToken">Cancels the wait for queue space.</param>
     /// <returns>false if the session is closed or was closed while waiting.</returns>
@@ -144,24 +101,16 @@ public interface ISocketSession : ISessionBase
     /// </summary>
     bool IsSendIdle => true;
 
-    /// <summary>
-    /// Gets the client socket.
-    /// </summary>
+    /// <summary>Gets the client socket.</summary>
     Socket? Client { get; }
 
-    /// <summary>
-    /// Gets the local listening endpoint.
-    /// </summary>
+    /// <summary>Gets the local listening endpoint.</summary>
     IPEndPoint? LocalEndPoint { get; }
 
-    /// <summary>
-    /// Occurs when [closed].
-    /// </summary>
+    /// <summary>Occurs when [closed].</summary>
     Action<ISocketSession, CloseReason>? Closed { get; set; }
 
-    /// <summary>
-    /// Gets the app session assosiated with this socket session.
-    /// </summary>
+    /// <summary>Gets the app session assosiated with this socket session.</summary>
     IAppSession AppSession { get; }
 
 

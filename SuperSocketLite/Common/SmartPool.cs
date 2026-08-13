@@ -20,9 +20,7 @@ public sealed class SmartPool<T>
     // 0 = nobody is growing the pool, 1 = one thread is inside Grow().
     private int _isIncreasing;
 
-    /// <summary>
-    /// Initializes the pool and creates its initial <paramref name="minPoolSize"/> items.
-    /// </summary>
+    /// <summary>Initializes the pool and creates its initial <paramref name="minPoolSize"/> items.</summary>
     /// <param name="minPoolSize">How many items to create up front.</param>
     /// <param name="maxPoolSize">The upper bound on the number of items the pool will ever create.</param>
     /// <param name="itemCreator">Creates one new pooled item.</param>
@@ -33,10 +31,7 @@ public sealed class SmartPool<T>
         Grow(minPoolSize);
     }
 
-    /// <summary>
-    /// Returns an item to the pool.
-    /// </summary>
-    /// <param name="item">The item.</param>
+    /// <summary>Returns an item to the pool.</summary>
     public void Push(T item)
     {
         _stack.Push(item);
@@ -46,7 +41,6 @@ public sealed class SmartPool<T>
     /// Tries to take one item from the pool, growing it when it is empty and has not reached
     /// <c>maxPoolSize</c> yet.
     /// </summary>
-    /// <param name="item">The item.</param>
     /// <returns>false when the pool is exhausted at its maximum size.</returns>
     public bool TryGet(out T item)
     {

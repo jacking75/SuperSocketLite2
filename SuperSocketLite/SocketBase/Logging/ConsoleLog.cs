@@ -1,8 +1,6 @@
 namespace SuperSocketLite.SocketBase.Logging;
 
-/// <summary>
-/// Console Log. The default log used when no <see cref="ILogFactory"/> is supplied.
-/// </summary>
+/// <summary>Console Log. The default log used when no <see cref="ILogFactory"/> is supplied.</summary>
 /// <remarks>
 /// Every entry is written as a single line so that line-oriented log collectors see one event per
 /// line. An exception is appended after the message rather than on its own line.
@@ -11,10 +9,6 @@ public class ConsoleLog : ILog
 {
     private readonly string _name;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ConsoleLog"/> class.
-    /// </summary>
-    /// <param name="name">The name.</param>
     public ConsoleLog(string name)
     {
         _name = name;

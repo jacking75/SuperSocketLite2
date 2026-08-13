@@ -4,9 +4,7 @@ using SuperSocketLite.Common;
 
 namespace SuperSocketLite.SocketBase.Protocol;
 
-/// <summary>
-/// Terminator Receive filter
-/// </summary>
+/// <summary>Terminator Receive filter</summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
@@ -15,22 +13,14 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 
     private IAppSession? _session;
 
-    /// <summary>
-    /// Gets the session assosiated with the Receive filter.
-    /// </summary>
+    /// <summary>Gets the session assosiated with the Receive filter.</summary>
     protected IAppSession? Session => _session;
 
-    /// <summary>
-    /// Null RequestInfo
-    /// </summary>
+    /// <summary>Null RequestInfo</summary>
     protected static readonly TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     private int _parsedLengthInBuffer = 0;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TerminatorReceiveFilter&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="terminator">The terminator.</param>
     protected TerminatorReceiveFilter(byte[] terminator)
     {
         _searchState = new SearchMarkState<byte>(terminator);
@@ -41,13 +31,9 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         _session = session;
     }
 
-    /// <summary>
-    /// Filters received data of the specific session into request info.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
+    /// <summary>Filters received data of the specific session into request info.</summary>
     /// <param name="offset">The offset of the current received data in this read buffer.</param>
     /// <param name="length">The length of the current received data.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
     /// <returns>return the parsed TRequestInfo</returns>
     public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
@@ -210,9 +196,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         base.Reset();
     }
 
-    /// <summary>
-    /// Resets this instance.
-    /// </summary>
+    /// <summary>Resets this instance.</summary>
     public override void Reset()
     {
         InternalReset();
@@ -226,13 +210,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         return ProcessMatchedRequest(targetData, 0, length);
     }
 
-    /// <summary>
-    /// Resolves the specified data to TRequestInfo.
-    /// </summary>
-    /// <param name="data">The data.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Resolves the specified data to TRequestInfo.</summary>
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length);
 
     
@@ -241,30 +219,17 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     int IOffsetAdapter.OffsetDelta => _offsetDelta;
 }
 
-/// <summary>
-/// TerminatorRequestFilter
-/// </summary>
+/// <summary>TerminatorRequestFilter</summary>
 public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo>
 {
     private readonly Encoding _encoding;
     private readonly IRequestInfoParser<StringRequestInfo> _requestParser;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TerminatorReceiveFilter"/> class.
-    /// </summary>
-    /// <param name="terminator">The terminator.</param>
-    /// <param name="encoding">The encoding.</param>
     public TerminatorReceiveFilter(byte[] terminator, Encoding encoding)
         : this(terminator, encoding, BasicRequestInfoParser.DefaultInstance)
     {
         
     }
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TerminatorReceiveFilter"/> class.
-    /// </summary>
-    /// <param name="terminator">The terminator.</param>
-    /// <param name="encoding">The encoding.</param>
-    /// <param name="requestParser">The request parser.</param>
     public TerminatorReceiveFilter(byte[] terminator, Encoding encoding, IRequestInfoParser<StringRequestInfo> requestParser)
         : base(terminator)
     {
@@ -272,13 +237,7 @@ public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo
         _requestParser = requestParser;
     }
 
-    /// <summary>
-    /// Resolves the specified data to StringRequestInfo.
-    /// </summary>
-    /// <param name="data">The data.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Resolves the specified data to StringRequestInfo.</summary>
     protected override StringRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length)
     {
         if(length == 0)

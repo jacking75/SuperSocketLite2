@@ -8,8 +8,9 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- IDE0005(사용하지 않는 using)는 문서 파일 생성이 켜져 있어야 빌드에서 동작한다. -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- CS1591: public 멤버 XML 주석 누락. 문서화는 필요한 곳에만 한다. -->
-    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- CS1591: public 멤버 XML 주석 누락, CS1573: 일부 인자만 param 태그 존재.
+         문서화는 설명이 필요한 곳에만 한다는 방침이므로 둘 다 끈다. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
     <PackageVersion>0.90.0</PackageVersion>
     <Version>0.90.0</Version>	
 	<PackageId>SuperSocketLite</PackageId>

@@ -26,19 +26,13 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
 
     private ArraySegmentList _bodyBuffer = null!;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="FixedHeaderReceiveFilter&lt;TRequestInfo&gt;"/> class.
-    /// </summary>
-    /// <param name="headerSize">Size of the header.</param>
     protected FixedHeaderReceiveFilter(int headerSize)
         : base(headerSize)
     {
 
     }
 
-    /// <summary>
-    /// Gets the buffered request size including a parsed header and any accumulated body bytes.
-    /// </summary>
+    /// <summary>Gets the buffered request size including a parsed header and any accumulated body bytes.</summary>
     public override int LeftBufferSize
     {
         get
@@ -53,23 +47,13 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         }
     }
 
-    /// <summary>
-    /// Called after the filter is initialized for a session.
-    /// </summary>
+    /// <summary>Called after the filter is initialized for a session.</summary>
     protected override void OnInitialized(IAppServer appServer, IAppSession session)
     {
         _maxRequestLength = session.Config.MaxRequestLength;
     }
 
-    /// <summary>
-    /// Filters the specified session.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <param name="rest">The rest.</param>
-    /// <returns></returns>
+    /// <summary>Filters the specified session.</summary>
     public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
         if (!_foundHeader)
@@ -176,14 +160,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return ResolveRequestInfo(headerSegment, body, 0, body.Length);
     }
 
-    /// <summary>
-    /// Processes the fix size request.
-    /// </summary>
-    /// <param name="buffer">The buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <returns></returns>
+    /// <summary>Processes the fix size request.</summary>
     protected override TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
     {
         _foundHeader = true;
@@ -209,12 +186,8 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return ResolveRequestInfo(_header, null, 0, 0);//Empty body
     }
 
-    /// <summary>
-    /// Processes the fix size request using ReadOnlySpan.
-    /// </summary>
+    /// <summary>Processes the fix size request using ReadOnlySpan.</summary>
     /// <param name="buffer">The buffer as ReadOnlySpan.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <returns></returns>
     protected override TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
     {
         _foundHeader = true;
@@ -243,13 +216,7 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return ResolveRequestInfo(header, bodyBuffer, 0, bodyBuffer.Length);
     }
 
-    /// <summary>
-    /// Gets the body length from header.
-    /// </summary>
-    /// <param name="header">The header.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Gets the body length from header.</summary>
     protected abstract int GetBodyLengthFromHeader(byte[] header, int offset, int length);
 
     /// <summary>
@@ -257,15 +224,12 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
     /// Default implementation converts to array and calls the byte[] version.
     /// </summary>
     /// <param name="header">The header as ReadOnlySpan.</param>
-    /// <returns></returns>
     protected virtual int GetBodyLengthFromHeader(ReadOnlySpan<byte> header)
     {
         return GetBodyLengthFromHeader(header.ToArray(), 0, header.Length);
     }
 
-    /// <summary>
-    /// Validates the body length before body bytes are accumulated.
-    /// </summary>
+    /// <summary>Validates the body length before body bytes are accumulated.</summary>
     protected virtual bool ValidateBodyLength(int bodyLength)
     {
         if (bodyLength < 0)
@@ -274,19 +238,10 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
         return _maxRequestLength <= 0 || Size + bodyLength < _maxRequestLength;
     }
 
-    /// <summary>
-    /// Resolves the request data.
-    /// </summary>
-    /// <param name="header">The header.</param>
-    /// <param name="bodyBuffer">The body buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
+    /// <summary>Resolves the request data.</summary>
     protected abstract TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[]? bodyBuffer, int offset, int length);
 
-    /// <summary>
-    /// Resets this instance.
-    /// </summary>
+    /// <summary>Resets this instance.</summary>
     public override void Reset()
     {
         base.Reset();

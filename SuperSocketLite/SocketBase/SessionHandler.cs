@@ -1,16 +1,12 @@
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// Used for session level event handler
-/// </summary>
+/// <summary>Used for session level event handler</summary>
 /// <typeparam name="TAppSession">the type of the target session</typeparam>
 /// <param name="session">the target session</param>
 public delegate void SessionHandler<TAppSession>(TAppSession session)
     where TAppSession : IAppSession;
 
-/// <summary>
-/// Used for session level event handler
-/// </summary>
+/// <summary>Used for session level event handler</summary>
 /// <typeparam name="TAppSession">the type of the target session</typeparam>
 /// <typeparam name="TParam">the target session</typeparam>
 /// <param name="session">the target session</param>

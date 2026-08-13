@@ -65,9 +65,7 @@ internal readonly struct SendItem
     }
 }
 
-/// <summary>
-/// Bounded, lock-free sending queue for a single session.
-/// </summary>
+/// <summary>Bounded, lock-free sending queue for a single session.</summary>
 /// <remarks>
 /// <para>
 /// The bounded <see cref="Channel{T}"/> already rejects writes atomically once it is full or
@@ -126,12 +124,8 @@ internal sealed class ChannelSendingQueue
         return true;
     }
 
-    /// <summary>
-    /// Waits asynchronously for room in the queue and then enqueues <paramref name="item"/>.
-    /// </summary>
-    /// <returns>
-    /// false once the queue has been completed (the session is shutting down); otherwise true.
-    /// </returns>
+    /// <summary>Waits asynchronously for room in the queue and then enqueues <paramref name="item"/>.</summary>
+    /// <returns>false once the queue has been completed (the session is shutting down); otherwise true.</returns>
     /// <exception cref="OperationCanceledException">
     /// <paramref name="cancellationToken"/> was cancelled while waiting.
     /// </exception>

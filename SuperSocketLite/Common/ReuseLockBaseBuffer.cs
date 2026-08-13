@@ -1,8 +1,6 @@
 namespace SuperSocketLite.Common;
 
-/// <summary>
-/// Fixed-size accumulation buffer used by the CollectSend feature.
-/// </summary>
+/// <summary>Fixed-size accumulation buffer used by the CollectSend feature.</summary>
 public class ReuseLockBaseBuffer
 {
     Int32 ReadPos = 0;
@@ -46,9 +44,7 @@ public class ReuseLockBaseBuffer
         }
     }
 
-    /// <summary>
-    /// Marks the first <paramref name="size"/> bytes of the current data as consumed.
-    /// </summary>
+    /// <summary>Marks the first <paramref name="size"/> bytes of the current data as consumed.</summary>
     public void Commit(int size)
     {
         if (size <= 0)

@@ -8,38 +8,25 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketBase;
 
-/// <summary>
-/// AppSession base class
-/// </summary>
+/// <summary>AppSession base class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
 public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppSession<TAppSession, TRequestInfo>
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
     where TRequestInfo : class, IRequestInfo
 {
-    /// <summary>
-    /// Gets the app server instance assosiated with the session.
-    /// </summary>
+    /// <summary>Gets the app server instance assosiated with the session.</summary>
     public virtual AppServerBase<TAppSession, TRequestInfo> AppServer { get; private set; } = null!;
 
-    /// <summary>
-    /// Gets the app server instance assosiated with the session.
-    /// </summary>
+    /// <summary>Gets the app server instance assosiated with the session.</summary>
     IAppServer IAppSession.AppServer => this.AppServer;
 
-    /// <summary>
-    /// Gets or sets the charset which is used for transfering text message.
-    /// </summary>
-    /// <value>
-    /// The charset.
-    /// </value>
+    /// <summary>Gets or sets the charset which is used for transfering text message.</summary>
     public Encoding Charset { get; set; } = null!;
 
     private IDictionary<object, object>? _items;
 
-    /// <summary>
-    /// Gets the items dictionary, only support 10 items maximum
-    /// </summary>
+    /// <summary>Gets the items dictionary, only support 10 items maximum</summary>
     public IDictionary<object, object> Items
     {
         get
@@ -57,52 +44,29 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     // the write may not be visible on ARM, causing an infinite spin.
     private volatile bool _connected = false;
 
-    /// <summary>
-    /// Gets a value indicating whether this <see cref="IAppSession"/> is connected.
-    /// </summary>
-    /// <value>
-    ///   <c>true</c> if connected; otherwise, <c>false</c>.
-    /// </value>
+    /// <summary>Gets a value indicating whether this <see cref="IAppSession"/> is connected.</summary>
     public bool Connected
     {
         get { return _connected; }
         internal set { _connected = value; }
     }
 
-    /// <summary>
-    /// Gets or sets the previous command.
-    /// </summary>
-    /// <value>
-    /// The prev command.
-    /// </value>
+    /// <summary>Gets or sets the previous command.</summary>
     public string? PrevCommand { get; set; }
 
-    /// <summary>
-    /// Gets or sets the current executing command.
-    /// </summary>
-    /// <value>
-    /// The current command.
-    /// </value>
+    /// <summary>Gets or sets the current executing command.</summary>
 public string? CurrentCommand { get; set; }
 
-    /// <summary>
-    /// Gets the local listening endpoint.
-    /// </summary>
+    /// <summary>Gets the local listening endpoint.</summary>
     public IPEndPoint? LocalEndPoint => SocketSession.LocalEndPoint;
 
-    /// <summary>
-    /// Gets the remote endpoint of client.
-    /// </summary>
+    /// <summary>Gets the remote endpoint of client.</summary>
     public IPEndPoint? RemoteEndPoint => SocketSession.RemoteEndPoint;
 
-    /// <summary>
-    /// Gets the logger.
-    /// </summary>
+    /// <summary>Gets the logger.</summary>
     public ILog Logger => AppServer.Logger;
 
-    /// <summary>
-    /// Gets this session's identity for structured logging.
-    /// </summary>
+    /// <summary>Gets this session's identity for structured logging.</summary>
     /// <remarks>
     /// A struct of two references, so reading it allocates nothing; pass it to
     /// <see cref="ILog.Log"/> instead of baking the session ID into the message text.
@@ -114,12 +78,7 @@ public string? CurrentCommand { get; set; }
     // a time zone conversion) and this is touched on every successful send and every request.
     private long _lastActiveTimeTicks;
 
-    /// <summary>
-    /// Gets or sets the last active time of the session, in UTC.
-    /// </summary>
-    /// <value>
-    /// The last active time.
-    /// </value>
+    /// <summary>Gets or sets the last active time of the session, in UTC.</summary>
     /// <remarks>
     /// The value is derived from a monotonic tick stamp, so it is accurate to a few milliseconds
     /// rather than exact. Idle-session detection uses the tick stamp directly and never goes
@@ -131,9 +90,7 @@ public string? CurrentCommand { get; set; }
         set { _lastActiveTimeTicks = Environment.TickCount64 - (long)(DateTime.UtcNow - value.ToUniversalTime()).TotalMilliseconds; }
     }
 
-    /// <summary>
-    /// Gets the tick stamp (<see cref="Environment.TickCount64"/>) of the last activity on this session.
-    /// </summary>
+    /// <summary>Gets the tick stamp (<see cref="Environment.TickCount64"/>) of the last activity on this session.</summary>
     internal long LastActiveTimeTicks => Volatile.Read(ref _lastActiveTimeTicks);
 
     /// <summary>
@@ -145,24 +102,16 @@ public string? CurrentCommand { get; set; }
         Volatile.Write(ref _lastActiveTimeTicks, Environment.TickCount64);
     }
 
-    /// <summary>
-    /// Gets the start time of the session, in UTC.
-    /// </summary>
+    /// <summary>Gets the start time of the session, in UTC.</summary>
     public DateTime StartTime { get; private set; }
 
-    /// <summary>
-    /// Gets the session ID.
-    /// </summary>
+    /// <summary>Gets the session ID.</summary>
     public string SessionID { get; private set; } = null!;
 
-    /// <summary>
-    /// Gets the socket session of the AppSession.
-    /// </summary>
+    /// <summary>Gets the socket session of the AppSession.</summary>
     public ISocketSession SocketSession { get; private set; } = null!;
 
-    /// <summary>
-    /// Gets the config of the server.
-    /// </summary>
+    /// <summary>Gets the config of the server.</summary>
     public IServerConfig Config => AppServer.Config;
 
     IReceiveFilter<TRequestInfo> _receiveFilter = null!;
@@ -171,9 +120,6 @@ public string? CurrentCommand { get; set; }
     // Filters accumulate partial packet data in this buffer between reads.
     private byte[]? _filterBuffer;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession, TRequestInfo&gt;"/> class.
-    /// </summary>
     public AppSession()
     {
         this.StartTime = DateTime.UtcNow;
@@ -181,11 +127,7 @@ public string? CurrentCommand { get; set; }
     }
 
 
-    /// <summary>
-    /// Initializes the specified app session by AppServer and SocketSession.
-    /// </summary>
-    /// <param name="appServer">The app server.</param>
-    /// <param name="socketSession">The socket session.</param>
+    /// <summary>Initializes the specified app session by AppServer and SocketSession.</summary>
     public virtual void Initialize(IAppServer<TAppSession, TRequestInfo> appServer, ISocketSession socketSession)
     {
         var castedAppServer = (AppServerBase<TAppSession, TRequestInfo>)appServer;
@@ -205,34 +147,25 @@ public string? CurrentCommand { get; set; }
         OnInit();
     }
 
-    /// <summary>
-    /// Starts the session.
-    /// </summary>
+    /// <summary>Starts the session.</summary>
     void IAppSession.StartSession()
     {
         OnSessionStarted();
     }
 
-    /// <summary>
-    /// Called when [init].
-    /// </summary>
+    /// <summary>Called when [init].</summary>
     protected virtual void OnInit()
     {
         
     }
 
-    /// <summary>
-    /// Called when [session started].
-    /// </summary>
+    /// <summary>Called when [session started].</summary>
     protected virtual void OnSessionStarted()
     {
 
     }
 
-    /// <summary>
-    /// Called when [session closed].
-    /// </summary>
-    /// <param name="reason">The reason.</param>
+    /// <summary>Called when [session closed].</summary>
     internal protected virtual void OnSessionClosed(CloseReason reason)
     {
         // _filterBuffer is returned to the pool by CompleteReceivePipe() which is called
@@ -254,9 +187,7 @@ public string? CurrentCommand { get; set; }
     }
 
 
-    /// <summary>
-    /// Handles the exceptional error, it only handles application error.
-    /// </summary>
+    /// <summary>Handles the exceptional error, it only handles application error.</summary>
     /// <param name="e">The exception.</param>
     protected virtual void HandleException(Exception e)
     {
@@ -264,10 +195,7 @@ public string? CurrentCommand { get; set; }
         this.Close(CloseReason.ApplicationError);
     }
 
-    /// <summary>
-    /// Handles the unknown request.
-    /// </summary>
-    /// <param name="requestInfo">The request info.</param>
+    /// <summary>Handles the unknown request.</summary>
     protected virtual void HandleUnknownRequest(TRequestInfo requestInfo)
     {
 
@@ -283,27 +211,21 @@ public string? CurrentCommand { get; set; }
         HandleException(e);
     }
 
-    /// <summary>
-    /// Closes the session by the specified reason.
-    /// </summary>
+    /// <summary>Closes the session by the specified reason.</summary>
     /// <param name="reason">The close reason.</param>
     public virtual void Close(CloseReason reason)
     {
         this.SocketSession.Close(reason);
     }
 
-    /// <summary>
-    /// Closes this session.
-    /// </summary>
+    /// <summary>Closes this session.</summary>
     public virtual void Close()
     {
         Close(CloseReason.ServerClosing);
     }
 
     
-    /// <summary>
-    /// Try to send the message to client.
-    /// </summary>
+    /// <summary>Try to send the message to client.</summary>
     /// <param name="message">The message which will be sent.</param>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySend(string message)
@@ -312,9 +234,7 @@ public string? CurrentCommand { get; set; }
         return InternalTrySend(new ArraySegment<byte>(data, 0, data.Length));
     }
 
-    /// <summary>
-    /// Sends the message to client.
-    /// </summary>
+    /// <summary>Sends the message to client.</summary>
     /// <param name="message">The message which will be sent.</param>
     public virtual void Send(string message)
     {
@@ -322,24 +242,16 @@ public string? CurrentCommand { get; set; }
         Send(data, 0, data.Length);
     }
 
-    /// <summary>
-    /// Try to send the data to client.
-    /// </summary>
+    /// <summary>Try to send the data to client.</summary>
     /// <param name="data">The data which will be sent.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySend(byte[] data, int offset, int length)
     {
         return InternalTrySend(new ArraySegment<byte>(data, offset, length));
     }
 
-    /// <summary>
-    /// Sends the data to client.
-    /// </summary>
+    /// <summary>Sends the data to client.</summary>
     /// <param name="data">The data which will be sent.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
     public virtual void Send(byte[] data, int offset, int length)
     {
         InternalSend(new ArraySegment<byte>(data, offset, length));
@@ -354,9 +266,7 @@ public string? CurrentCommand { get; set; }
         return true;
     }
 
-    /// <summary>
-    /// Try to send the data segment to client.
-    /// </summary>
+    /// <summary>Try to send the data segment to client.</summary>
     /// <param name="segment">The segment which will be sent.</param>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySend(ArraySegment<byte> segment)
@@ -403,9 +313,7 @@ public string? CurrentCommand { get; set; }
         }
     }
 
-    /// <summary>
-    /// Sends the data segment to client.
-    /// </summary>
+    /// <summary>Sends the data segment to client.</summary>
     /// <param name="segment">The segment which will be sent.</param>
     public virtual void Send(ArraySegment<byte> segment)
     {
@@ -421,10 +329,7 @@ public string? CurrentCommand { get; set; }
         return true;
     }
 
-    /// <summary>
-    /// Try to send the data segments to client.
-    /// </summary>
-    /// <param name="segments">The segments.</param>
+    /// <summary>Try to send the data segments to client.</summary>
     /// <returns>Indicate whether the message was pushed into the sending queue; if it returns false, the sending queue may be full or the socket is not connected</returns>
     public virtual bool TrySend(IList<ArraySegment<byte>> segments)
     {
@@ -469,10 +374,7 @@ public string? CurrentCommand { get; set; }
         }
     }
 
-    /// <summary>
-    /// Sends the data segments to client.
-    /// </summary>
-    /// <param name="segments">The segments.</param>
+    /// <summary>Sends the data segments to client.</summary>
     /// <remarks>
     /// The segment list itself is copied, so it can be reused as soon as this returns, but the
     /// underlying arrays are not: do not modify them until the data has been sent. Use
@@ -492,9 +394,7 @@ public string? CurrentCommand { get; set; }
         return true;
     }
 
-    /// <summary>
-    /// Try to send a copy of the data to the client, so the caller's buffer can be reused immediately.
-    /// </summary>
+    /// <summary>Try to send a copy of the data to the client, so the caller's buffer can be reused immediately.</summary>
     /// <param name="data">The data which will be sent.</param>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySendCopied(ReadOnlySpan<byte> data)
@@ -505,9 +405,7 @@ public string? CurrentCommand { get; set; }
         return InternalTrySendCopied(data);
     }
 
-    /// <summary>
-    /// Sends a copy of the data to the client, so the caller's buffer can be reused immediately.
-    /// </summary>
+    /// <summary>Sends a copy of the data to the client, so the caller's buffer can be reused immediately.</summary>
     /// <param name="data">The data which will be sent.</param>
     /// <exception cref="TimeoutException">The sending queue stayed full for longer than SendTimeOut.</exception>
     public virtual void SendCopied(ReadOnlySpan<byte> data)
@@ -545,9 +443,7 @@ public string? CurrentCommand { get; set; }
         }
     }
 
-    /// <summary>
-    /// Sends the data to the client, waiting asynchronously while the sending queue is full.
-    /// </summary>
+    /// <summary>Sends the data to the client, waiting asynchronously while the sending queue is full.</summary>
     /// <param name="data">The data which will be sent. Array-backed memory is sent without copying.</param>
     /// <param name="cancellationToken">Cancels the wait for queue space.</param>
     /// <returns>false if the session is not connected, or was closed while waiting.</returns>
@@ -568,9 +464,7 @@ public string? CurrentCommand { get; set; }
         return true;
     }
 
-    /// <summary>
-    /// Sends the response.
-    /// </summary>
+    /// <summary>Sends the response.</summary>
     /// <param name="message">The message which will be sent.</param>
     /// <param name="paramValues">The parameter values.</param>
     public virtual void Send(string message, params object[] paramValues)
@@ -601,34 +495,21 @@ public string? CurrentCommand { get; set; }
     }
 
 
-    /// <summary>
-    /// Sets the next Receive filter which will be used when next data block received
-    /// </summary>
-    /// <param name="nextReceiveFilter">The next receive filter.</param>
+    /// <summary>Sets the next Receive filter which will be used when next data block received</summary>
     protected void SetNextReceiveFilter(IReceiveFilter<TRequestInfo> nextReceiveFilter)
     {
         _receiveFilter = nextReceiveFilter;
     }
 
-    /// <summary>
-    /// Gets the maximum allowed length of the request.
-    /// </summary>
-    /// <returns></returns>
+    /// <summary>Gets the maximum allowed length of the request.</summary>
     protected virtual int GetMaxRequestLength()
     {
         return AppServer.Config.MaxRequestLength;
     }
 
-    /// <summary>
-    /// Filters the request.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
+    /// <summary>Filters the request.</summary>
     /// <param name="rest">The rest, the size of the data which has not been processed</param>
     /// <param name="offsetDelta">return offset delta of next receiving buffer.</param>
-    /// <returns></returns>
     TRequestInfo? FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
     {
         if (!AppServer.OnRawDataReceived(this, readBuffer, offset, length))
@@ -686,16 +567,8 @@ public string? CurrentCommand { get; set; }
         return requestInfo;
     }
 
-    /// <summary>
-    /// Processes the request data.
-    /// </summary>
-    /// <param name="readBuffer">The read buffer.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <returns>
-    /// return offset delta of next receiving buffer
-    /// </returns>
+    /// <summary>Processes the request data.</summary>
+    /// <returns>return offset delta of next receiving buffer</returns>
     int IAppSession.ProcessRequest(byte[] readBuffer, int offset, int length, bool toBeCopied)
     {
         int rest, offsetDelta;
@@ -890,9 +763,7 @@ public string? CurrentCommand { get; set; }
 
 }
 
-/// <summary>
-/// AppServer basic class for whose request infoe type is StringRequestInfo
-/// </summary>
+/// <summary>AppServer basic class for whose request infoe type is StringRequestInfo</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRequestInfo>
     where TAppSession : AppSession<TAppSession, StringRequestInfo>, IAppSession, new()
@@ -902,38 +773,24 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
 
     private static string s_NewLine = "\r\n";
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession&gt;"/> class.
-    /// </summary>
     public AppSession()
         : this(true)
     {
 
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession&gt;"/> class.
-    /// </summary>
-    /// <param name="appendNewLineForResponse">if set to <c>true</c> [append new line for response].</param>
     public AppSession(bool appendNewLineForResponse)
     {
         _appendNewLineForResponse = appendNewLineForResponse;
     }
 
-    /// <summary>
-    /// Handles the unknown request.
-    /// </summary>
-    /// <param name="requestInfo">The request info.</param>
+    /// <summary>Handles the unknown request.</summary>
     protected override void HandleUnknownRequest(StringRequestInfo requestInfo)
     {
         Send("Unknown request: " + requestInfo.Key);
     }
 
-    /// <summary>
-    /// Processes the sending message.
-    /// </summary>
-    /// <param name="rawMessage">The raw message.</param>
-    /// <returns></returns>
+    /// <summary>Processes the sending message.</summary>
     protected virtual string ProcessSendingMessage(string rawMessage)
     {
         if (!_appendNewLineForResponse)
@@ -948,21 +805,13 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
             return rawMessage;
     }
 
-    /// <summary>
-    /// Sends the specified message.
-    /// </summary>
-    /// <param name="message">The message.</param>
-    /// <returns></returns>
+    /// <summary>Sends the specified message.</summary>
     public override void Send(string message)
     {
         base.Send(ProcessSendingMessage(message));
     }
 
-    /// <summary>
-    /// Sends the response.
-    /// </summary>
-    /// <param name="message">The message.</param>
-    /// <param name="paramValues">The param values.</param>
+    /// <summary>Sends the response.</summary>
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public override void Send(string message, params object[] paramValues)
     {
@@ -970,9 +819,7 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
     }
 }
 
-/// <summary>
-/// AppServer basic class for whose request infoe type is StringRequestInfo
-/// </summary>
+/// <summary>AppServer basic class for whose request infoe type is StringRequestInfo</summary>
 public class AppSession : AppSession<AppSession>
 {
 

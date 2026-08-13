@@ -1,8 +1,6 @@
 namespace SuperSocketLite.Common;
 
-/// <summary>
-/// Binary util class
-/// </summary>
+/// <summary>Binary util class</summary>
 public static class BinaryUtil
 {
     /// <summary>
@@ -10,11 +8,6 @@ public static class BinaryUtil
     /// <paramref name="searchState"/> so a mark split over two reads is still found.
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="searchState">State of the search.</param>
-    /// <param name="parsedLength">Length of the parsed.</param>
     /// <returns>The position of the mark, or -1 when it was not found.</returns>
     public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState, out int parsedLength)
         where T : IEquatable<T>
@@ -37,14 +30,8 @@ public static class BinaryUtil
         return result.Value;
     }
 
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
+    /// <summary>Searches the mark from source.</summary>
     /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="searchState">State of the search.</param>
     /// <returns>The position of the mark, or -1 when it was not found.</returns>
     public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState)
         where T : IEquatable<T>
@@ -52,14 +39,8 @@ public static class BinaryUtil
         return SearchMark(source, offset, length, searchState, out _);
     }
 
-    /// <summary>
-    /// Clones the elements in the specific range.
-    /// </summary>
+    /// <summary>Clones the elements in the specific range.</summary>
     /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
     public static T[] CloneRange<T>(this IList<T> source, int offset, int length)
     {
         var target = new T[length];

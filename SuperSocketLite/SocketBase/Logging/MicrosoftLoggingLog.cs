@@ -5,9 +5,7 @@ using MsILogger = Microsoft.Extensions.Logging.ILogger;
 
 namespace SuperSocketLite.SocketBase.Logging;
 
-/// <summary>
-/// Adapts a <c>Microsoft.Extensions.Logging.ILogger</c> to <see cref="ILog"/>.
-/// </summary>
+/// <summary>Adapts a <c>Microsoft.Extensions.Logging.ILogger</c> to <see cref="ILog"/>.</summary>
 /// <remarks>
 /// Because Serilog, NLog, ZLogger, log4net and others all ship an
 /// <c>Microsoft.Extensions.Logging</c> provider, this single adapter is enough to run the server on
@@ -23,9 +21,6 @@ public sealed class MicrosoftLoggingLog : ILog
 
     private readonly MsILogger _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="MicrosoftLoggingLog"/> class.
-    /// </summary>
     /// <param name="logger">The logger to write to.</param>
     public MicrosoftLoggingLog(MsILogger logger)
     {

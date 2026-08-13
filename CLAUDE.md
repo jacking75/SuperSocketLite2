@@ -32,7 +32,6 @@ dotnet build -c Release
 ## 상세 문서
 
 - 아키텍처 및 코드 흐름 → `.claude/architecture.md`
-- 개선 작업 목록 → `.claude/tasks.md`
 - 코딩 컨벤션 → `.claude/conventions.md`
 - 알려진 주의 사항 → `.claude/cautions.md`
 

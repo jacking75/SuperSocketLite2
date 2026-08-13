@@ -59,13 +59,13 @@ public interface IAppServer : ILogProvider
     void RecordBytesSent(int count);
 
     /// <summary>Records a connection that was refused because the connection limit was reached.</summary>
-    void RecordSessionRejected() { }
+    void RecordSessionRejected();
 
     /// <summary>Records a send that was dropped because the session's sending queue was full.</summary>
-    void RecordSendQueueFull() { }
+    void RecordSendQueueFull();
 
     /// <summary>Records a failed send.</summary>
-    void RecordSendError() { }
+    void RecordSendError();
 }
 
 /// <summary>The raw data processor</summary>

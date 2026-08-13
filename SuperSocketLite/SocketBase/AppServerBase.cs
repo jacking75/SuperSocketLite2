@@ -3,6 +3,7 @@ using System.Diagnostics.Metrics;
 using System.Net;
 using System.Text;
 using SuperSocketLite.Common;
+using SuperSocketLite.SocketEngine;
 using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
@@ -162,8 +163,12 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
             
-    /// <summary>Setups the specified root config.</summary>
-    protected virtual bool Setup(IRootConfig rootConfig, IServerConfig config)
+    /// <summary>
+    /// Called from <see cref="Setup(IRootConfig, IServerConfig, ISocketServerFactory, IReceiveFilterFactory{TRequestInfo}, ILogFactory, IEnumerable{IConnectionFilter})"/>
+    /// once the config, logger, receive filter factory and listeners are in place. Override to add
+    /// server specific initialization; return false to fail the setup.
+    /// </summary>
+    protected virtual bool OnSetup(IRootConfig rootConfig, IServerConfig config)
     {
         return true;
     }
@@ -198,13 +203,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
             }
         }
 
-        if (socketServerFactory == null)
-        {
-            var socketServerFactoryType = Type.GetType("SuperSocketLite.SocketEngine.SocketServerFactory, SuperSocketLite", true)!;
-            socketServerFactory = (ISocketServerFactory)Activator.CreateInstance(socketServerFactoryType)!;
-        }
-
-        _socketServerFactory = socketServerFactory;
+        _socketServerFactory = socketServerFactory ?? new SocketServerFactory();
 
         //Read text encoding from the configuration
         if (!string.IsNullOrEmpty(config.TextEncoding))
@@ -212,31 +211,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         else
             TextEncoding = new ASCIIEncoding();
     }
-
-    private bool SetupMedium(IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory, IEnumerable<IConnectionFilter>? connectionFilters)
-    {
-        if (receiveFilterFactory != null)
-            ReceiveFilterFactory = receiveFilterFactory;
-
-        if (connectionFilters != null && connectionFilters.Any())
-        {
-            if (_connectionFilters == null)
-                _connectionFilters = [];
-
-            _connectionFilters.AddRange(connectionFilters);
-        }
-         
-        return true;
-    }
-
-    private bool SetupAdvanced(IServerConfig config)
-    {
-        if (!SetupListeners(config))
-            return false;
-                                
-        return true;
-    }
-
 
     internal abstract IReceiveFilterFactory<TRequestInfo>? CreateDefaultReceiveFilterFactory();
 
@@ -272,13 +246,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return SetupSocketServer();
     }
 
-    /// <summary>Setups with the specified port.</summary>
-    /// <returns>return setup result</returns>
-    public bool Setup(int port)
-    {
-        return Setup("Any", port);
-    }
-
     private void TrySetInitializedState()
     {
         if (Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Initializing, ServerStateConst.NotInitialized)
@@ -308,13 +275,19 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         Logger = CreateLogger(this.Name);
 
-        if (!SetupMedium(receiveFilterFactory, connectionFilters))
+        if (receiveFilterFactory != null)
+            ReceiveFilterFactory = receiveFilterFactory;
+
+        if (connectionFilters != null && connectionFilters.Any())
+        {
+            _connectionFilters ??= [];
+            _connectionFilters.AddRange(connectionFilters);
+        }
+
+        if (!SetupListeners(config))
             return false;
 
-        if (!SetupAdvanced(config))
-            return false;
-
-        if (!Setup(rootConfig, config))
+        if (!OnSetup(rootConfig, config))
             return false;
 
         if (!SetupFinal())
@@ -324,36 +297,16 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    /// <summary>Setups with the specified ip and port.</summary>
-    /// <returns>return setup result</returns>
-    public bool Setup(string ip, int port, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
-    {
-        return Setup(new ServerConfig
-                        {
-                            Ip = ip,
-                            Port = port
-                        },
-                      socketServerFactory,
-                      receiveFilterFactory,
-                      logFactory,
-                      connectionFilters);
-    }
-           
-    private bool SetupLogFactory(ILogFactory? logFactory)
+    private void SetupLogFactory(ILogFactory? logFactory)
     {
         if (logFactory != null)
         {
             LogFactory = logFactory;
-            return true;
+            return;
         }
 
         //ConsoleLogFactory is default log factory
-        if (LogFactory == null)
-        {
-            LogFactory = new ConsoleLogFactory();
-        }
-
-        return true;
+        LogFactory ??= new ConsoleLogFactory();
     }
 
 

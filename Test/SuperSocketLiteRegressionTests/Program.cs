@@ -35,6 +35,8 @@ var tests = new (string Name, Action Test)[]
     ("A single request larger than MaxRequestLength is still rejected", LiveServerTests.OversizedSingleRequestIsStillRejected),
     ("SyncSessionConnectedEvent orders the connected handler before the first request", LiveServerTests.SyncSessionConnectedEventOrdersBeforeFirstRequest),
     ("Connections refused by the connection limit are counted", LiveServerTests.RejectedSessionsAreCounted),
+    ("FixedSizeReceiveFilter parses a request split across three segments", FilterAndQueueTests.FixedSizeFilterParsesRequestSplitAcrossThreeSegments),
+    ("FixedHeaderReceiveFilter handles a straddling header, an empty body and pipelining", FilterAndQueueTests.FixedHeaderFilterHandlesBoundaryZeroBodyAndPipelining),
     ("Send queue EnqueueAsync waits for space and resumes after a drain", FilterAndQueueTests.SendQueueEnqueueAsyncWaitsForSpace),
     ("Send queue EnqueueAsync unblocks on Complete and on cancellation", FilterAndQueueTests.SendQueueEnqueueAsyncUnblocksOnCompleteAndCancel),
     ("A minimal ILog adapter still receives session-scoped entries", LoggingTests.MinimalAdapterStillReceivesSessionScopedEntries),
@@ -470,6 +472,26 @@ sealed class OneByteSequenceLengthFilter : FixedHeaderSequenceReceiveFilter<Test
     protected override TestRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
         return new TestRequestInfo("sequence", body.ToArray());
+    }
+}
+
+sealed class TwoByteLengthFilter : FixedHeaderSequenceReceiveFilter<TestRequestInfo>
+{
+    public TwoByteLengthFilter()
+        : base(2)
+    {
+    }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
+    {
+        Span<byte> bytes = stackalloc byte[2];
+        header.CopyTo(bytes);
+        return (bytes[0] << 8) | bytes[1];
+    }
+
+    protected override TestRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
+    {
+        return new TestRequestInfo("two-byte", body.ToArray());
     }
 }
 

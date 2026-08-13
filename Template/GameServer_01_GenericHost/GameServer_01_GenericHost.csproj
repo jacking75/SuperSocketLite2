@@ -19,9 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="SuperSocketLite">
-      <HintPath>..\00_superSocketLite_libs\net9.0\SuperSocketLite.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\SuperSocketLite\SuperSocketLite.csproj" />
   </ItemGroup>
 
   <ItemGroup>

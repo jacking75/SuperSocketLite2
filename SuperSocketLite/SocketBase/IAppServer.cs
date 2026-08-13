@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
@@ -10,7 +10,7 @@ namespace SuperSocketLite.SocketBase;
 /// <summary>
 /// The interface for AppServer
 /// </summary>
-public interface IAppServer : ILoggerProvider
+public interface IAppServer : ILogProvider
 {
     /// <summary>
     /// Gets the name of the server instance.

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,7 +17,7 @@ public static class Async
     /// <param name="logProvider">The log provider.</param>
     /// <param name="task">The task.</param>
     /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action task)
+    public static Task AsyncRun(this ILogProvider logProvider, Action task)
     {
         return Task.Factory.StartNew(task, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default)
             .ContinueWith(t =>

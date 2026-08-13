@@ -888,9 +888,8 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         if (Config.LogCommand && Logger.IsInfoEnabled)
         {
-            //Logger.Info(session, string.Format("Command - {0}", requestInfo.Key));
-            var message = string.Format("Command - {0}", requestInfo.Key);
-            Logger.Info(string.Format("Session: {0}/{1}", session.SessionID, session.RemoteEndPoint) + Environment.NewLine + message);
+            Logger.Log(LogEventLevel.Info, session.SessionLogContext,
+                string.Format("Command - {0}", requestInfo.Key));
         }
 
         Interlocked.Increment(ref m_TotalHandledRequests);

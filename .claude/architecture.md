@@ -61,6 +61,56 @@ Closed      = 0x01000000
 | `SessionClosed` | `Task.Run()` — 비동기 |
   
 
+## 로깅
+
+라이브러리는 특정 로그 라이브러리에 의존하지 않고 자체 `ILog` / `ILogFactory` 추상화만 쓴다.
+
+**연동 방법 (권장)** — `MicrosoftLoggingLogFactory`
+Serilog·NLog·ZLogger·log4net 모두 `Microsoft.Extensions.Logging` 프로바이더를 제공하므로,
+내장 브리지 하나로 전부 커버된다. 라이브러리별 어댑터를 직접 만들 필요가 없다.
+
+```csharp
+// 일반 설정
+Setup(new RootConfig(), config, logFactory: new MicrosoftLoggingLogFactory(loggerFactory));
+
+// GenericHost
+services.AddSingleton<ILogFactory>(
+    sp => new MicrosoftLoggingLogFactory(sp.GetRequiredService<ILoggerFactory>()));
+```
+
+**직접 어댑터를 만들 때**
+필수 구현은 레벨 플래그 6개 + 평문 메서드 8개뿐이다. 나머지는 default 구현이 있다.
+
+| 멤버 | 필수 | 비고 |
+|---|---|---|
+| `IsDebug/Info/Warn/Error/FatalEnabled` | O | |
+| `IsTraceEnabled` | X | 기본 false — 옵트인하지 않으면 Trace를 안 보낸다 |
+| `Debug/Info/Warn/Error/Fatal(string)` | O | |
+| `Trace(string)` | X | 기본 Debug로 접힘 |
+| `Error/Fatal(string, Exception)` | O | |
+| `Trace/Debug/Info/Warn(string, Exception)` | X | 기본 텍스트로 합침 |
+| `Log(LogEventLevel, in LogSessionContext, string, Exception?)` | X | **구조적 로깅을 원하면 재정의** |
+
+**구조적 로깅** — `LogSessionContext`
+세션 정보를 메시지 문자열에 이어붙이지 않고 별도로 전달한다.
+`readonly struct`(참조 2개)라서 호출 지점에서 힙 할당이 없고 박싱도 없다.
+
+```csharp
+Logger.Log(LogEventLevel.Error, session.SessionLogContext, "Max request length exceeded");
+```
+
+`Log`를 재정의하지 않은 어댑터는 default 구현이 `[sessionId/endpoint] message` 형태로
+합쳐 평문 메서드로 넘긴다. 어느 경로든 **개행이 들어가지 않는다** — 줄 단위 수집기에서
+한 이벤트가 쪼개지지 않게 하기 위함이다.
+
+> default 인터페이스 멤버는 **인터페이스 타입으로 호출할 때만** 보인다.
+> 라이브러리는 항상 `ILog`로 들고 있어서 문제없지만, 테스트에서 구현 클래스 타입으로
+> 직접 호출하면 컴파일되지 않는다.
+
+**이름 충돌 회피**
+`ILogProvider`(MEL의 `ILoggerProvider`와 구분), `LogEventLevel`(MEL의 `LogLevel`과 구분).
+
+
 ## 수신 필터 두 경로
 
 | 인터페이스 | 경로 | 비고 |

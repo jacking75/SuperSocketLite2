@@ -1,4 +1,4 @@
-# 개선 작업 목록
+﻿# 개선 작업 목록
 
 코드 변경 후 반드시 `dotnet build` 성공을 확인한다.
 개발 중이므로 public API는 자유롭게 바꿔도 된다 (하위 호환 제약 없음).
@@ -9,6 +9,24 @@
 ---
 
 ## 완료된 태스크
+
+### TASK-21: 로깅 인터페이스 정비 — ✅ 완료 (2026-08-13)
+외부 로그 라이브러리 연동성 점검 후 발견한 문제를 전부 처리했다.
+- **MEL 브리지 추가**: `MicrosoftLoggingLogFactory` / `MicrosoftLoggingLog`.
+  `Microsoft.Extensions.Logging.Abstractions` 의존이 생겼다(구현체는 안 딸려옴).
+- **이름 충돌 제거**: `ILoggerProvider` → `ILogProvider`. 새 열거형은 `LogLevel`이 아니라
+  `LogEventLevel`로 명명.
+- **전 레벨 Exception 오버로드 + `Trace` 레벨** 추가. 전부 default 구현이라 기존 어댑터가 안 깨진다.
+- **구조적 로깅**: `LogSessionContext`(readonly struct, 할당·박싱 없음) +
+  `ILog.Log(LogEventLevel, in LogSessionContext, string, Exception?)`.
+  `params object[]`는 의도적으로 쓰지 않았다.
+- 세션 정보를 `Environment.NewLine`으로 이어붙이던 9곳 제거 → 모든 로그가 단일 행.
+- `LogFactoryBase.IsSharedConfig`(항상 false인 죽은 속성) 제거, 선택적 헬퍼임을 문서화.
+- 어댑터 13벌 정리: NLog 10벌은 예외를 `Log.Error(ex, msg)`로 제대로 전달 + 구조적 속성 지원,
+  ZLogger 3벌은 삭제하고 내장 브리지로 대체.
+- `Template/GameServer_01_GenericHost`가 오래된 `net9.0` DLL을 참조하던 것을 프로젝트 참조로 교체.
+- 회귀 테스트 6개 추가(총 36개).
+
 
 ### TASK-20: 미사용 코드·기능 제거 — ✅ 완료 (2026-08-13)
 - 라이브러리 13,578줄 → 10,777줄 (-2,801줄, -20.6%), 소스 파일 12개 삭제.

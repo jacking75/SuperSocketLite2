@@ -1,4 +1,13 @@
-# 작업 로그
+﻿# 작업 로그
+
+## 2026-08-13 11:01:45 KST - 로깅 인터페이스 정비
+
+- 외부 로그 라이브러리(NLog/Serilog/ZLogger/log4net/MEL) 연동성을 점검하고 발견한 문제를 전부 처리했다.
+- `MicrosoftLoggingLogFactory` 브리지를 내장해 어댑터 없이 MEL 프로바이더를 쓰는 모든 라이브러리를 커버했고, MEL과 겹치던 `ILoggerProvider`를 `ILogProvider`로 개명했다.
+- 할당 없는 `LogSessionContext`(readonly struct) + `LogEventLevel` 기반 구조적 로깅을 추가하고, 세션 정보를 개행으로 이어붙이던 9곳을 제거해 모든 로그를 단일 행으로 만들었다.
+- 죽은 `IsSharedConfig` 제거, 전 레벨 Exception 오버로드/`Trace` 추가(전부 default 구현이라 하위 호환 유지), 튜토리얼·템플릿 어댑터 13벌 정리.
+- 전체 솔루션 33개 프로젝트 빌드 CS 경고 0개·오류 0개, 회귀 테스트 36개(신규 6개) 전부 통과.
+
 
 ## 2026-08-13 09:48:19 KST - 미사용 코드·기능 제거
 

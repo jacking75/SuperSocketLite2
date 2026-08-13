@@ -41,7 +41,13 @@ var tests = new (string Name, Action Test)[]
     ("CountSpliterReceiveFilter parses a multi-segment sequence", FilterAndQueueTests.CountSpliterFilterParsesMultiSegmentSequence),
     ("Send queue EnqueueAsync waits for space and resumes after a drain", FilterAndQueueTests.SendQueueEnqueueAsyncWaitsForSpace),
     ("Send queue EnqueueAsync unblocks on Complete and on cancellation", FilterAndQueueTests.SendQueueEnqueueAsyncUnblocksOnCompleteAndCancel),
-    ("ReuseLockBaseBuffer handles commit boundaries", FilterAndQueueTests.ReuseLockBaseBufferHandlesCommitBoundaries)
+    ("ReuseLockBaseBuffer handles commit boundaries", FilterAndQueueTests.ReuseLockBaseBufferHandlesCommitBoundaries),
+    ("A minimal ILog adapter still receives session-scoped entries", LoggingTests.MinimalAdapterStillReceivesSessionScopedEntries),
+    ("Flattened log entries never span more than one line", LoggingTests.FlattenedEntriesAreSingleLine),
+    ("Every log level accepts an exception", LoggingTests.EveryLevelAcceptsAnException),
+    ("A structured ILog adapter receives the session identity separately", LoggingTests.StructuredAdapterReceivesSessionIdentitySeparately),
+    ("Microsoft.Extensions.Logging bridge passes the exception and structured properties", LoggingTests.MicrosoftLoggingBridgePassesExceptionAndProperties),
+    ("Microsoft.Extensions.Logging bridge honours level filtering", LoggingTests.MicrosoftLoggingBridgeHonoursLevelFiltering)
 };
 
 var failures = 0;

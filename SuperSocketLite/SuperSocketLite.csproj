@@ -30,5 +30,9 @@
   
   <ItemGroup>
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <!-- Abstractions only: lets the built-in MicrosoftLoggingLogFactory bridge any logging library
+         that ships an ILoggerFactory provider (Serilog, NLog, ZLogger, log4net, ...).
+         No logging implementation is pulled in. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
   </ItemGroup>
 </Project>

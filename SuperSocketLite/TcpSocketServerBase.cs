@@ -97,7 +97,7 @@ abstract class TcpSocketServerBase : SocketServerBase
             var logger = AppServer.Logger;
 
             if (logger != null && logger.IsWarnEnabled)
-                logger.Warn($"Failed to apply the socket option {name}, keep-alive detection may not work as configured: {e.Message}");
+                logger.Warn($"Failed to apply the socket option {name}, keep-alive detection may not work as configured.", e);
         }
     }
 

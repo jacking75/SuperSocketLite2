@@ -26,7 +26,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         m_SendSAEAFromPool = sendSAEA != null;
     }
 
-    ILog ILoggerProvider.Logger
+    ILog ILogProvider.Logger
     {
         get { return AppSession.Logger; }
     }

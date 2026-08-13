@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using SuperSocketLite.SocketBase.Logging;
 
 
 namespace SuperSocketLite.SocketEngine;
@@ -9,10 +10,13 @@ abstract partial class SocketSession
 {
     private const string m_GeneralErrorMessage = "Unexpected error";
     private const string m_GeneralSocketErrorMessage = "Unexpected socket error: {0}";
-    private const string m_CallerInformation = "Caller: {0}, file path: {1}, line number: {2}";
+    private const string m_CallerInformation = "caller: {0}, file path: {1}, line number: {2}";
 
-    string m_SessionInfoTemplate = "Session: {0}/{1}";
-    
+    /// <summary>
+    /// Gets this session's identity for structured logging.
+    /// </summary>
+    private LogSessionContext SessionLogContext => new LogSessionContext(SessionID, RemoteEndPoint);
+
     /// <summary>
     /// Logs the error, skip the ignored exception
     /// </summary>
@@ -30,11 +34,7 @@ abstract partial class SocketSession
 
         var message = socketErrorCode > 0 ? string.Format(m_GeneralSocketErrorMessage, socketErrorCode) : m_GeneralErrorMessage;
 
-        /*AppSession.Logger.Error(this
-            , message + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber)
-            , exception);*/
-        var title = message + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber);
-        AppSession.Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + title, exception);            
+        Write(message, exception, caller, callerFilePath, callerLineNumber);
     }
 
     /// <summary>
@@ -47,17 +47,11 @@ abstract partial class SocketSession
     /// <param name="callerLineNumber">The caller line number.</param>
     protected void LogError(string message, Exception exception, [CallerMemberName] string caller = "", [CallerFilePath] string callerFilePath = "", [CallerLineNumber] int callerLineNumber = -1)
     {
-        int socketErrorCode;
-
         //This exception is ignored, needn't log it
-        if (IsIgnorableException(exception, out socketErrorCode))
+        if (IsIgnorableException(exception, out _))
             return;
 
-        /*AppSession.Logger.Error(this
-            , message + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber)
-            , exception);*/
-        var title = message + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber);
-        AppSession.Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + title, exception);
+        Write(message, exception, caller, callerFilePath, callerLineNumber);
     }
 
     /// <summary>
@@ -76,10 +70,22 @@ abstract partial class SocketSession
                 return;
         }
 
-        /*AppSession.Logger.Error(this
-            , string.Format(m_GeneralSocketErrorMessage, socketErrorCode) + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber)
-            , new SocketException(socketErrorCode));*/
-        var title = string.Format(m_GeneralSocketErrorMessage, socketErrorCode) + Environment.NewLine + string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber);
-        AppSession.Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + title, new SocketException(socketErrorCode));
+        Write(string.Format(m_GeneralSocketErrorMessage, socketErrorCode), new SocketException(socketErrorCode), caller, callerFilePath, callerLineNumber);
+    }
+
+    /// <summary>
+    /// Emits the entry with the session identity kept as structured properties and the exception
+    /// passed through as an exception rather than flattened into the text.
+    /// </summary>
+    private void Write(string message, Exception exception, string caller, string callerFilePath, int callerLineNumber)
+    {
+        var logger = AppSession?.Logger;
+
+        if (logger == null || !logger.IsErrorEnabled)
+            return;
+
+        logger.Log(LogEventLevel.Error, SessionLogContext,
+            string.Concat(message, " (", string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber), ")"),
+            exception);
     }
 }

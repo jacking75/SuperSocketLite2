@@ -3,7 +3,7 @@ using SuperSocketLite.SocketBase;
 
 namespace SuperSocketLite.SocketEngine;
 
-interface IAsyncSocketSession : ILoggerProvider
+interface IAsyncSocketSession : ILogProvider
 {
     SocketAsyncEventArgsProxy SocketAsyncProxy { get; }
 

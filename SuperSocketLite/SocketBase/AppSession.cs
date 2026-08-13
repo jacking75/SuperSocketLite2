@@ -22,8 +22,6 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
     where TRequestInfo : class, IRequestInfo
 {
-    string m_SessionInfoTemplate = "Session: {0}/{1}";
-
     /// <summary>
     /// Gets the app server instance assosiated with the session.
     /// </summary>
@@ -118,6 +116,15 @@ public string? CurrentCommand { get; set; }
     {
         get { return AppServer.Logger; }
     }
+
+    /// <summary>
+    /// Gets this session's identity for structured logging.
+    /// </summary>
+    /// <remarks>
+    /// A struct of two references, so reading it allocates nothing; pass it to
+    /// <see cref="ILog.Log"/> instead of baking the session ID into the message text.
+    /// </remarks>
+    public LogSessionContext SessionLogContext => new LogSessionContext(SessionID, RemoteEndPoint);
 
     // The authoritative "last activity" stamp, in Environment.TickCount64 milliseconds.
     // Reading the monotonic tick counter is far cheaper than DateTime.Now (which additionally does
@@ -684,9 +691,8 @@ public string? CurrentCommand { get; set; }
         {
             if (Logger.IsErrorEnabled)
             {
-                //Logger.Error(this, string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, currentRequestLength));
-                var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, currentRequestLength);
-                Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+                Logger.Log(LogEventLevel.Error, SessionLogContext,
+                    string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, currentRequestLength));
             }
 
             Close(CloseReason.ProtocolError);
@@ -773,8 +779,8 @@ public string? CurrentCommand { get; set; }
         {
             if (Logger.IsErrorEnabled)
             {
-                var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, neededSize);
-                Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+                Logger.Log(LogEventLevel.Error, SessionLogContext,
+                    string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, neededSize));
             }
 
             Close(CloseReason.ProtocolError);
@@ -888,8 +894,8 @@ public string? CurrentCommand { get; set; }
             {
                 if (Logger.IsErrorEnabled)
                 {
-                    var message = string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, pendingLength);
-                    Logger.Error(string.Format(m_SessionInfoTemplate, SessionID, RemoteEndPoint) + Environment.NewLine + message);
+                    Logger.Log(LogEventLevel.Error, SessionLogContext,
+                        string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, pendingLength));
                 }
 
                 Close(CloseReason.ProtocolError);

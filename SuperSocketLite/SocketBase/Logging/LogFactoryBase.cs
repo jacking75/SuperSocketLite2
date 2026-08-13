@@ -1,23 +1,32 @@
-﻿using System;
+using System;
 using System.IO;
 
 
 namespace SuperSocketLite.SocketBase.Logging;
 
 /// <summary>
-/// LogFactory Base class
+/// Optional base class for an <see cref="ILogFactory"/> that is configured from a config file
+/// (NLog.config, log4net.config, ...). It only resolves the config file path for you.
 /// </summary>
+/// <remarks>
+/// <para>
+/// <b>Inheriting from this is not required.</b> A logging library configured in code or through DI
+/// - Serilog, ZLogger, anything behind <c>Microsoft.Extensions.Logging</c> - has no config file to
+/// resolve, so implement <see cref="ILogFactory"/> directly, or just use
+/// <see cref="MicrosoftLoggingLogFactory"/>.
+/// </para>
+/// </remarks>
 public abstract class LogFactoryBase : ILogFactory
 {
     /// <summary>
-    /// Gets the config file file path.
+    /// Gets the resolved config file path.
     /// </summary>
-    protected string ConfigFile { get; private set; }
-
-    /// <summary>
-    /// Gets a value indicating whether the server instance is running in isolation mode and the multiple server instances share the same logging configuration.
-    /// </summary>
-    protected bool IsSharedConfig { get; private set; }
+    /// <remarks>
+    /// A relative path is searched for in the application base directory and then in its
+    /// <c>Config</c> subdirectory; if it is found in neither, the value is returned unchanged so the
+    /// logging library can apply its own resolution.
+    /// </remarks>
+    protected string ConfigFile { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LogFactoryBase"/> class.
@@ -31,15 +40,7 @@ public abstract class LogFactoryBase : ILogFactory
             return;
         }
 
-        if (Path.DirectorySeparatorChar != '\\')
-        {
-            // 원본에서는 윈도우와 비윈도우 간에 로그 파일을 다르게 하기 위해서 아래처럼 했음
-            //configFile = Path.GetFileNameWithoutExtension(configFile) + ".unix" + Path.GetExtension(configFile);
-            configFile = Path.GetFileNameWithoutExtension(configFile) + Path.GetExtension(configFile);
-        }
-
-        
-        var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, configFile);
+        var filePath = Path.Combine(AppContext.BaseDirectory, configFile);
 
         if (File.Exists(filePath))
         {
@@ -47,7 +48,7 @@ public abstract class LogFactoryBase : ILogFactory
             return;
         }
 
-        filePath = Path.Combine(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Config"), configFile);
+        filePath = Path.Combine(AppContext.BaseDirectory, "Config", configFile);
 
         if (File.Exists(filePath))
         {

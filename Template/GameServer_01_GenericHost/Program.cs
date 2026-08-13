@@ -89,7 +89,11 @@ class Program
                 services.Configure<ServerOption>(hostContext.Configuration.GetSection("ServerOption"));
                 services.AddHostedService<MainServer>();
 
-                services.AddSingleton<SuperSocketLite.SocketBase.Logging.ILogFactory, SuperSocketLogProvider>();
+                // The built-in bridge turns the host's ILoggerFactory (ZLogger here) into a
+                // SuperSocketLite ILogFactory - no per-library adapter class is needed.
+                services.AddSingleton<SuperSocketLite.SocketBase.Logging.ILogFactory>(
+                    sp => new SuperSocketLite.SocketBase.Logging.MicrosoftLoggingLogFactory(
+                        sp.GetRequiredService<ILoggerFactory>()));
             })
             .Build();
 

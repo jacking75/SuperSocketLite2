@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
 
 
@@ -76,8 +77,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
-    string m_SessionInfoTemplate = "Session: {0}/{1}";
-    
     /// <summary>
     /// Initializes a new instance of the <see cref="AppServer&lt;TAppSession, TRequestInfo&gt;"/> class.
     /// </summary>
@@ -140,9 +139,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
         if (Logger.IsErrorEnabled)
         {
-            //Logger.Error(appSession, "The session is refused because the it's ID already exists!");
-            var message = "The session is refused because the it's ID already exists!";
-            Logger.Error(string.Format(m_SessionInfoTemplate, appSession.SessionID, appSession.RemoteEndPoint) + Environment.NewLine + message);
+            Logger.Log(LogEventLevel.Error,
+                new LogSessionContext(appSession.SessionID, appSession.RemoteEndPoint),
+                "The session is refused because its ID already exists!");
         }
         
         return false;
@@ -179,9 +178,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
             {
                 if (Logger.IsErrorEnabled)
                 {
-                    //Logger.Error(session, "Failed to remove this session, Because it has't been in session container!");
-                    var message = "Failed to remove this session, Because it has't been in session container!"; 
-                    Logger.Error(string.Format(m_SessionInfoTemplate, session.SessionID, session.RemoteEndPoint) + Environment.NewLine + message);
+                    Logger.Log(LogEventLevel.Error,
+                        new LogSessionContext(session.SessionID, session.RemoteEndPoint),
+                        "Failed to remove this session, because it has not been in the session container!");
                 }
             }
         }
@@ -297,9 +296,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                         if (Logger.IsInfoEnabled)
                         {
                             var idleSeconds = (nowTicks - s.LastActiveTimeTicks) / 1000.0;
-                            var message = string.Format("The session will be closed for {0} timeout, the session start time: {1}, last active time: {2}!", idleSeconds, s.StartTime, s.LastActiveTime);
-                            string info = string.Format(m_SessionInfoTemplate, s.SessionID, s.RemoteEndPoint) + Environment.NewLine + message;
-                            Logger.Info(info);
+                            Logger.Log(LogEventLevel.Info,
+                                new LogSessionContext(s.SessionID, s.RemoteEndPoint),
+                                string.Format("The session will be closed after being idle for {0} seconds, start time: {1}, last active time: {2}", idleSeconds, s.StartTime, s.LastActiveTime));
                         }
 
                         s.Close(CloseReason.TimeOut);

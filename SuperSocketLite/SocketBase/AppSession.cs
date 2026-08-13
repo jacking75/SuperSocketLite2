@@ -38,7 +38,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// </value>
     public Encoding Charset { get; set; } = null!;
 
-    private IDictionary<object, object>? m_Items;
+    private IDictionary<object, object>? _items;
 
     /// <summary>
     /// Gets the items dictionary, only support 10 items maximum
@@ -47,18 +47,18 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     {
         get
         {
-            if (m_Items == null)
-                m_Items = new Dictionary<object, object>(10);
+            if (_items == null)
+                _items = new Dictionary<object, object>(10);
 
-            return m_Items;
+            return _items;
         }
     }
 
 
     // volatile: set to false on the close thread (OnSocketSessionClosed), read on the
-    // sending thread inside InternalSend()'s while(m_Connected) spin.  Without volatile
+    // sending thread inside InternalSend()'s while(_connected) spin.  Without volatile
     // the write may not be visible on ARM, causing an infinite spin.
-    private volatile bool m_Connected = false;
+    private volatile bool _connected = false;
 
     /// <summary>
     /// Gets a value indicating whether this <see cref="IAppSession"/> is connected.
@@ -68,8 +68,8 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// </value>
     public bool Connected
     {
-        get { return m_Connected; }
-        internal set { m_Connected = value; }
+        get { return _connected; }
+        internal set { _connected = value; }
     }
 
     /// <summary>
@@ -119,12 +119,12 @@ public string? CurrentCommand { get; set; }
     /// A struct of two references, so reading it allocates nothing; pass it to
     /// <see cref="ILog.Log"/> instead of baking the session ID into the message text.
     /// </remarks>
-    public LogSessionContext SessionLogContext => new LogSessionContext(SessionID, RemoteEndPoint);
+    public LogSessionContext SessionLogContext => new(SessionID, RemoteEndPoint);
 
     // The authoritative "last activity" stamp, in Environment.TickCount64 milliseconds.
     // Reading the monotonic tick counter is far cheaper than DateTime.Now (which additionally does
     // a time zone conversion) and this is touched on every successful send and every request.
-    private long m_LastActiveTimeTicks;
+    private long _lastActiveTimeTicks;
 
     /// <summary>
     /// Gets or sets the last active time of the session, in UTC.
@@ -139,14 +139,14 @@ public string? CurrentCommand { get; set; }
     /// </remarks>
     public DateTime LastActiveTime
     {
-        get { return DateTime.UtcNow.AddMilliseconds(m_LastActiveTimeTicks - Environment.TickCount64); }
-        set { m_LastActiveTimeTicks = Environment.TickCount64 - (long)(DateTime.UtcNow - value.ToUniversalTime()).TotalMilliseconds; }
+        get { return DateTime.UtcNow.AddMilliseconds(_lastActiveTimeTicks - Environment.TickCount64); }
+        set { _lastActiveTimeTicks = Environment.TickCount64 - (long)(DateTime.UtcNow - value.ToUniversalTime()).TotalMilliseconds; }
     }
 
     /// <summary>
     /// Gets the tick stamp (<see cref="Environment.TickCount64"/>) of the last activity on this session.
     /// </summary>
-    internal long LastActiveTimeTicks => Volatile.Read(ref m_LastActiveTimeTicks);
+    internal long LastActiveTimeTicks => Volatile.Read(ref _lastActiveTimeTicks);
 
     /// <summary>
     /// Stamps the session as active right now. This is the hot-path form of
@@ -154,7 +154,7 @@ public string? CurrentCommand { get; set; }
     /// </summary>
     internal void MarkActive()
     {
-        Volatile.Write(ref m_LastActiveTimeTicks, Environment.TickCount64);
+        Volatile.Write(ref _lastActiveTimeTicks, Environment.TickCount64);
     }
 
     /// <summary>
@@ -180,7 +180,7 @@ public string? CurrentCommand { get; set; }
         get { return AppServer.Config; }
     }
 
-    IReceiveFilter<TRequestInfo> m_ReceiveFilter = null!;
+    IReceiveFilter<TRequestInfo> _receiveFilter = null!;
 
     // Per-session carry buffer for the Pipelines receive path.
     // Filters accumulate partial packet data in this buffer between reads.
@@ -208,10 +208,10 @@ public string? CurrentCommand { get; set; }
         Charset = castedAppServer.TextEncoding;
         SocketSession = socketSession;
         SessionID = socketSession.SessionID;
-        m_Connected = true;
-        m_ReceiveFilter = castedAppServer.ReceiveFilterFactory.CreateFilter(appServer, this, socketSession.RemoteEndPoint);
+        _connected = true;
+        _receiveFilter = castedAppServer.ReceiveFilterFactory.CreateFilter(appServer, this, socketSession.RemoteEndPoint);
                     
-        var filterInitializer = m_ReceiveFilter as IReceiveFilterInitializer;
+        var filterInitializer = _receiveFilter as IReceiveFilterInitializer;
         if (filterInitializer != null)
             filterInitializer.Initialize(castedAppServer, this);
 
@@ -376,7 +376,7 @@ public string? CurrentCommand { get; set; }
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySend(ArraySegment<byte> segment)
     {
-        if (!m_Connected)
+        if (!_connected)
             return false;
 
         return InternalTrySend(segment);
@@ -385,7 +385,7 @@ public string? CurrentCommand { get; set; }
 
     private void InternalSend(ArraySegment<byte> segment)
     {
-        if (!m_Connected)
+        if (!_connected)
             return;
 
         if (InternalTrySend(segment))
@@ -403,7 +403,7 @@ public string? CurrentCommand { get; set; }
 
         var spinWait = new SpinWait();
 
-        while (m_Connected)
+        while (_connected)
         {
             spinWait.SpinOnce();
 
@@ -443,7 +443,7 @@ public string? CurrentCommand { get; set; }
     /// <returns>Indicate whether the message was pushed into the sending queue; if it returns false, the sending queue may be full or the socket is not connected</returns>
     public virtual bool TrySend(IList<ArraySegment<byte>> segments)
     {
-        if (!m_Connected)
+        if (!_connected)
             return false;
 
         return InternalTrySend(segments);
@@ -451,7 +451,7 @@ public string? CurrentCommand { get; set; }
 
     private void InternalSend(IList<ArraySegment<byte>> segments)
     {
-        if (!m_Connected)
+        if (!_connected)
             return;
 
         if (InternalTrySend(segments))
@@ -469,7 +469,7 @@ public string? CurrentCommand { get; set; }
 
         var spinWait = new SpinWait();
 
-        while (m_Connected)
+        while (_connected)
         {
             spinWait.SpinOnce();
 
@@ -514,7 +514,7 @@ public string? CurrentCommand { get; set; }
     /// <returns>Indicate whether the message was pushed into the sending queue</returns>
     public virtual bool TrySendCopied(ReadOnlySpan<byte> data)
     {
-        if (!m_Connected)
+        if (!_connected)
             return false;
 
         return InternalTrySendCopied(data);
@@ -527,7 +527,7 @@ public string? CurrentCommand { get; set; }
     /// <exception cref="TimeoutException">The sending queue stayed full for longer than SendTimeOut.</exception>
     public virtual void SendCopied(ReadOnlySpan<byte> data)
     {
-        if (!m_Connected)
+        if (!_connected)
             return;
 
         if (InternalTrySendCopied(data))
@@ -545,7 +545,7 @@ public string? CurrentCommand { get; set; }
 
         var spinWait = new SpinWait();
 
-        while (m_Connected)
+        while (_connected)
         {
             spinWait.SpinOnce();
 
@@ -573,7 +573,7 @@ public string? CurrentCommand { get; set; }
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     public virtual async ValueTask<bool> SendAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
     {
-        if (!m_Connected)
+        if (!_connected)
             return false;
 
         if (!await SocketSession.SendAsync(data, cancellationToken).ConfigureAwait(false))
@@ -622,7 +622,7 @@ public string? CurrentCommand { get; set; }
     /// <param name="nextReceiveFilter">The next receive filter.</param>
     protected void SetNextReceiveFilter(IReceiveFilter<TRequestInfo> nextReceiveFilter)
     {
-        m_ReceiveFilter = nextReceiveFilter;
+        _receiveFilter = nextReceiveFilter;
     }
 
     /// <summary>
@@ -653,11 +653,11 @@ public string? CurrentCommand { get; set; }
             return null;
         }
 
-        var currentRequestLength = m_ReceiveFilter.LeftBufferSize;
+        var currentRequestLength = _receiveFilter.LeftBufferSize;
 
-        var requestInfo = m_ReceiveFilter.Filter(readBuffer, offset, length, toBeCopied, out rest);
+        var requestInfo = _receiveFilter.Filter(readBuffer, offset, length, toBeCopied, out rest);
 
-        if (m_ReceiveFilter.State == FilterState.Error)
+        if (_receiveFilter.State == FilterState.Error)
         {
             rest = 0;
             offsetDelta = 0;
@@ -665,14 +665,14 @@ public string? CurrentCommand { get; set; }
             return null;
         }
 
-        var offsetAdapter = m_ReceiveFilter as IOffsetAdapter;
+        var offsetAdapter = _receiveFilter as IOffsetAdapter;
 
         offsetDelta = offsetAdapter != null ? offsetAdapter.OffsetDelta : 0;
 
         if (requestInfo == null)
         {
             //current buffered length
-            currentRequestLength = m_ReceiveFilter.LeftBufferSize;
+            currentRequestLength = _receiveFilter.LeftBufferSize;
         }
         else
         {
@@ -695,8 +695,8 @@ public string? CurrentCommand { get; set; }
         }
 
         //If next Receive filter wasn't set, still use current Receive filter in next round received data processing
-        if (m_ReceiveFilter.NextReceiveFilter != null)
-            m_ReceiveFilter = m_ReceiveFilter.NextReceiveFilter;
+        if (_receiveFilter.NextReceiveFilter != null)
+            _receiveFilter = _receiveFilter.NextReceiveFilter;
 
         return requestInfo;
     }
@@ -750,14 +750,14 @@ public string? CurrentCommand { get; set; }
     /// </summary>
     ProcessReceiveResult IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
     {
-        if (!AppServer.HasRawDataReceivedHandler && m_ReceiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
+        if (!AppServer.HasRawDataReceivedHandler && _receiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
         {
             return ProcessSequenceRequest(sequence, sequenceReceiveFilter);
         }
 
         // Determine where in the carry buffer the filter expects new bytes.
-        // IOffsetAdapter.OffsetDelta == m_ParsedLength of the current filter (bytes already accumulated).
-        var filterOffsetAdapter = m_ReceiveFilter as IOffsetAdapter;
+        // IOffsetAdapter.OffsetDelta == _parsedLength of the current filter (bytes already accumulated).
+        var filterOffsetAdapter = _receiveFilter as IOffsetAdapter;
         int writeOffset = filterOffsetAdapter?.OffsetDelta ?? 0;
 
         if (sequence.Length > int.MaxValue)
@@ -832,7 +832,7 @@ public string? CurrentCommand { get; set; }
         }
 
         // Always tell the PipeReader that all bytes have been consumed.
-        // Partial-packet state is stored in _filterBuffer + filter's m_ParsedLength/m_OffsetDelta.
+        // Partial-packet state is stored in _filterBuffer + filter's _parsedLength/_offsetDelta.
         return new ProcessReceiveResult(sequence.End, sequence.End);
     }
 
@@ -847,7 +847,7 @@ public string? CurrentCommand { get; set; }
         {
             var requestInfo = sequenceReceiveFilter.Filter(current, out var consumed, out var examined);
 
-            if (m_ReceiveFilter.State == FilterState.Error)
+            if (_receiveFilter.State == FilterState.Error)
             {
                 Close(CloseReason.ProtocolError);
                 return new ProcessReceiveResult(sequence.End, sequence.End);
@@ -866,11 +866,11 @@ public string? CurrentCommand { get; set; }
                     HandleException(e);
                 }
 
-                if (m_ReceiveFilter.NextReceiveFilter != null)
+                if (_receiveFilter.NextReceiveFilter != null)
                 {
-                    m_ReceiveFilter = m_ReceiveFilter.NextReceiveFilter;
+                    _receiveFilter = _receiveFilter.NextReceiveFilter;
 
-                    if (m_ReceiveFilter is not ISequenceReceiveFilter<TRequestInfo> nextSequenceReceiveFilter)
+                    if (_receiveFilter is not ISequenceReceiveFilter<TRequestInfo> nextSequenceReceiveFilter)
                         return new ProcessReceiveResult(consumedPosition, consumedPosition);
 
                     sequenceReceiveFilter = nextSequenceReceiveFilter;
@@ -913,9 +913,9 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
     where TAppSession : AppSession<TAppSession, StringRequestInfo>, IAppSession, new()
 {
 
-    private bool m_AppendNewLineForResponse = false;
+    private bool _appendNewLineForResponse = false;
 
-    private static string m_NewLine = "\r\n";
+    private static string s_NewLine = "\r\n";
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AppSession&lt;TAppSession&gt;"/> class.
@@ -932,7 +932,7 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
     /// <param name="appendNewLineForResponse">if set to <c>true</c> [append new line for response].</param>
     public AppSession(bool appendNewLineForResponse)
     {
-        m_AppendNewLineForResponse = appendNewLineForResponse;
+        _appendNewLineForResponse = appendNewLineForResponse;
     }
 
     /// <summary>
@@ -951,14 +951,14 @@ public abstract class AppSession<TAppSession> : AppSession<TAppSession, StringRe
     /// <returns></returns>
     protected virtual string ProcessSendingMessage(string rawMessage)
     {
-        if (!m_AppendNewLineForResponse)
+        if (!_appendNewLineForResponse)
             return rawMessage;
 
         if (AppServer.Config.Mode == SocketMode.Udp)
             return rawMessage;
 
-        if (string.IsNullOrEmpty(rawMessage) || !rawMessage.EndsWith(m_NewLine))
-            return rawMessage + m_NewLine;
+        if (string.IsNullOrEmpty(rawMessage) || !rawMessage.EndsWith(s_NewLine))
+            return rawMessage + s_NewLine;
         else
             return rawMessage;
     }

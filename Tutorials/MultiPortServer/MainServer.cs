@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,7 +21,7 @@ class MainServer : AppServer<NetworkSession, EFBinaryRequestInfo>
     Dictionary<int, Action<NetworkSession, EFBinaryRequestInfo>> HandlerMap = new Dictionary<int, Action<NetworkSession, EFBinaryRequestInfo>>();
     CommonHandler CommonHan = new CommonHandler();
 
-    IServerConfig m_Config;
+    IServerConfig _config;
 
 
     public MainServer()
@@ -42,7 +42,7 @@ class MainServer : AppServer<NetworkSession, EFBinaryRequestInfo>
 
     public void InitConfig(string name, int port, int maxConnectionNumber)
     {
-        m_Config = new ServerConfig
+        _config = new ServerConfig
         {
             Port = port,
             Ip = "Any",
@@ -56,7 +56,7 @@ class MainServer : AppServer<NetworkSession, EFBinaryRequestInfo>
     {
         try
         {
-            bool bResult = Setup(new RootConfig(), m_Config, logFactory: new NLogLogFactory());
+            bool bResult = Setup(new RootConfig(), _config, logFactory: new NLogLogFactory());
 
             if (bResult == false)
             {

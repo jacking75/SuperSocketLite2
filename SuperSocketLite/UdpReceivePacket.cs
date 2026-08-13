@@ -5,9 +5,9 @@ namespace SuperSocketLite.SocketEngine;
 
 internal sealed class UdpReceivePacket : IDisposable
 {
-    private byte[]? m_Buffer;
+    private byte[]? _buffer;
 
-    public byte[] Buffer => m_Buffer ?? Array.Empty<byte>();
+    public byte[] Buffer => _buffer ?? [];
 
     public int Offset { get; private set; }
 
@@ -17,7 +17,7 @@ internal sealed class UdpReceivePacket : IDisposable
 
     public void Initialize(byte[] buffer, int offset, int count, IPEndPoint remoteEndPoint)
     {
-        m_Buffer = buffer;
+        _buffer = buffer;
         Offset = offset;
         Count = count;
         RemoteEndPoint = new IPEndPoint(remoteEndPoint.Address, remoteEndPoint.Port);
@@ -25,11 +25,11 @@ internal sealed class UdpReceivePacket : IDisposable
 
     public void Dispose()
     {
-        var buffer = m_Buffer;
+        var buffer = _buffer;
         if (buffer == null)
             return;
 
-        m_Buffer = null;
+        _buffer = null;
         Offset = 0;
         Count = 0;
         ArrayPool<byte>.Shared.Return(buffer);

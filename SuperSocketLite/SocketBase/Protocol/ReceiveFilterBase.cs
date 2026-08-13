@@ -9,14 +9,14 @@ namespace SuperSocketLite.SocketBase.Protocol;
 public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    private ArraySegmentList m_BufferSegments = null!;
+    private ArraySegmentList _bufferSegments = null!;
 
     /// <summary>
     /// Gets the buffer segments which can help you parse your request info conviniently.
     /// </summary>
     protected ArraySegmentList BufferSegments
     {
-        get { return m_BufferSegments; }
+        get { return _bufferSegments; }
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// </summary>
     protected ReceiveFilterBase()
     {
-        m_BufferSegments = new ArraySegmentList();
+        _bufferSegments = new ArraySegmentList();
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <param name="previousRequestFilter">The previous Receive filter.</param>
     public void Initialize(ReceiveFilterBase<TRequestInfo> previousRequestFilter)
     {
-        m_BufferSegments = previousRequestFilter.BufferSegments;
+        _bufferSegments = previousRequestFilter.BufferSegments;
     }
 
     
@@ -67,7 +67,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// </value>
     public int LeftBufferSize
     {
-        get { return m_BufferSegments.Count; }
+        get { return _bufferSegments.Count; }
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
     protected void AddArraySegment(byte[] buffer, int offset, int length, bool toBeCopied)
     {
-        m_BufferSegments.AddSegment(buffer, offset, length, toBeCopied);
+        _bufferSegments.AddSegment(buffer, offset, length, toBeCopied);
     }
 
     /// <summary>
@@ -97,7 +97,7 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// </summary>
     protected void ClearBufferSegments()
     {
-        m_BufferSegments.ClearSegements();
+        _bufferSegments.ClearSegements();
     }
 
     /// <summary>
@@ -105,8 +105,8 @@ public abstract class ReceiveFilterBase<TRequestInfo> : IReceiveFilter<TRequestI
     /// </summary>
     public virtual void Reset()
     {
-        if(m_BufferSegments != null && m_BufferSegments.Count > 0)
-            m_BufferSegments.ClearSegements();
+        if(_bufferSegments != null && _bufferSegments.Count > 0)
+            _bufferSegments.ClearSegements();
     }
 
     /// <summary>

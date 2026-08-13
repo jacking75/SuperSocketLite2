@@ -7,51 +7,51 @@ namespace SuperSocketLite.SocketEngine;
 
 abstract class TcpSocketServerBase : SocketServerBase
 {
-    private readonly int m_SendTimeOut;
-    private readonly int m_ReceiveBufferSize;
-    private readonly int m_SendBufferSize;
-    private readonly bool m_NoDelay;
-    private readonly int m_KeepAliveTime;
-    private readonly int m_KeepAliveInterval;
-    private readonly int m_KeepAliveRetryCount;
+    private readonly int _sendTimeOut;
+    private readonly int _receiveBufferSize;
+    private readonly int _sendBufferSize;
+    private readonly bool _noDelay;
+    private readonly int _keepAliveTime;
+    private readonly int _keepAliveInterval;
+    private readonly int _keepAliveRetryCount;
 
     //Bit i is set once the i-th keep-alive option has failed, so an unsupported option is logged
     //once per server instead of once per accepted connection.
-    private int m_LoggedKeepAliveFailures;
+    private int _loggedKeepAliveFailures;
 
     public TcpSocketServerBase(IAppServer appServer, ListenerInfo[] listeners)
         : base(appServer, listeners)
     {
         var config = appServer.Config;
 
-        m_KeepAliveTime = config.KeepAliveTime;
-        m_KeepAliveInterval = config.KeepAliveInterval;
+        _keepAliveTime = config.KeepAliveTime;
+        _keepAliveInterval = config.KeepAliveInterval;
 
         //KeepAliveRetryCount only exists on ServerConfig (IServerConfig is kept unchanged for
         //backward compatibility), so custom config implementations get the default.
-        m_KeepAliveRetryCount = (config as ServerConfig)?.KeepAliveRetryCount ?? ServerConfig.DefaultKeepAliveRetryCount;
+        _keepAliveRetryCount = (config as ServerConfig)?.KeepAliveRetryCount ?? ServerConfig.DefaultKeepAliveRetryCount;
 
-        m_SendTimeOut = config.SendTimeOut;
-        m_ReceiveBufferSize = config.ReceiveBufferSize;
-        m_SendBufferSize = config.SendBufferSize;
+        _sendTimeOut = config.SendTimeOut;
+        _receiveBufferSize = config.ReceiveBufferSize;
+        _sendBufferSize = config.SendBufferSize;
 
-        m_NoDelay = config.NoDelay;
+        _noDelay = config.NoDelay;
     }
 
     protected IAppSession CreateSession(Socket client, ISocketSession session)
     {
-        if (m_SendTimeOut > 0)
-            client.SendTimeout = m_SendTimeOut;
+        if (_sendTimeOut > 0)
+            client.SendTimeout = _sendTimeOut;
 
-        if (m_ReceiveBufferSize > 0)
-            client.ReceiveBufferSize = m_ReceiveBufferSize;
+        if (_receiveBufferSize > 0)
+            client.ReceiveBufferSize = _receiveBufferSize;
 
-        if (m_SendBufferSize > 0)
-            client.SendBufferSize = m_SendBufferSize;
+        if (_sendBufferSize > 0)
+            client.SendBufferSize = _sendBufferSize;
 
         ApplyKeepAlive(client);
 
-        client.NoDelay = m_NoDelay;
+        client.NoDelay = _noDelay;
         // enable:false = SO_LINGER off, i.e. the default graceful close: Close() returns immediately
         // and the OS keeps draining the send buffer in the background. (An abortive RST close would
         // be LingerOption(enable:true, seconds:0) - deliberately NOT used, it would discard data
@@ -71,14 +71,14 @@ abstract class TcpSocketServerBase : SocketServerBase
         TrySetSocketOption(client, SocketOptionLevel.Socket, SocketOptionName.KeepAlive, 1, 0);
 
         //The TCP level options are expressed in seconds, same unit as the config values.
-        if (m_KeepAliveTime > 0)
-            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, m_KeepAliveTime, 1);
+        if (_keepAliveTime > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveTime, _keepAliveTime, 1);
 
-        if (m_KeepAliveInterval > 0)
-            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, m_KeepAliveInterval, 2);
+        if (_keepAliveInterval > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveInterval, _keepAliveInterval, 2);
 
-        if (m_KeepAliveRetryCount > 0)
-            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, m_KeepAliveRetryCount, 3);
+        if (_keepAliveRetryCount > 0)
+            TrySetSocketOption(client, SocketOptionLevel.Tcp, SocketOptionName.TcpKeepAliveRetryCount, _keepAliveRetryCount, 3);
     }
 
     private void TrySetSocketOption(Socket client, SocketOptionLevel level, SocketOptionName name, int value, int failureLogBit)
@@ -105,12 +105,12 @@ abstract class TcpSocketServerBase : SocketServerBase
 
         while (true)
         {
-            var oldValue = m_LoggedKeepAliveFailures;
+            var oldValue = _loggedKeepAliveFailures;
 
             if ((oldValue & mask) == mask)
                 return false;
 
-            if (Interlocked.CompareExchange(ref m_LoggedKeepAliveFailures, oldValue | mask, oldValue) == oldValue)
+            if (Interlocked.CompareExchange(ref _loggedKeepAliveFailures, oldValue | mask, oldValue) == oldValue)
                 return true;
         }
     }

@@ -14,13 +14,13 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IOffsetAdapter, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    private int m_Total;
+    private int _total;
 
-    private int m_SpliterFoundCount;
+    private int _spliterFoundCount;
 
-    private readonly byte m_Spliter;
+    private readonly byte _spliter;
 
-    private readonly int m_SpliterCount;
+    private readonly int _spliterCount;
 
     /// <summary>
     /// Null request info instance
@@ -34,8 +34,8 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// <param name="spliterCount">The spliter count.</param>
     protected CountSpliterReceiveFilter(byte spliter, int spliterCount)
     {
-        m_Spliter = spliter;
-        m_SpliterCount = spliterCount;
+        _spliter = spliter;
+        _spliterCount = spliterCount;
     }
 
     /// <summary>
@@ -53,11 +53,11 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
 
         for (int i = 0; i < length; i++)
         {
-            if(readBuffer[offset + i] == m_Spliter)
+            if(readBuffer[offset + i] == _spliter)
             {
-                m_SpliterFoundCount++;
+                _spliterFoundCount++;
 
-                if(m_SpliterFoundCount == m_SpliterCount)
+                if(_spliterFoundCount == _spliterCount)
                 {
                     parsedLen = i + 1;
                     break;
@@ -69,16 +69,16 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         if(parsedLen == 0)
         {
             //Move current requestInfo's offset to orginal offset
-            if (OffsetDelta != m_Total)
+            if (OffsetDelta != _total)
             {
-                Buffer.BlockCopy(readBuffer, offset - m_Total, readBuffer, offset - OffsetDelta, m_Total + length);
+                Buffer.BlockCopy(readBuffer, offset - _total, readBuffer, offset - OffsetDelta, _total + length);
 
-                m_Total += length;
-                OffsetDelta = m_Total;
+                _total += length;
+                OffsetDelta = _total;
             }
             else
             {
-                m_Total += length;
+                _total += length;
                 OffsetDelta += length;
             }
             
@@ -87,9 +87,9 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         }
 
         rest = length - parsedLen;
-        var finalTotal = m_Total + parsedLen;
+        var finalTotal = _total + parsedLen;
 
-        var requestInfo = ProcessMatchedRequest(readBuffer, offset - m_Total, finalTotal);
+        var requestInfo = ProcessMatchedRequest(readBuffer, offset - _total, finalTotal);
 
         InternalReset();
 
@@ -122,10 +122,10 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
         var reader = new SequenceReader<byte>(buffer);
         var found = 0;
 
-        while (found < m_SpliterCount && reader.TryAdvanceTo(m_Spliter, advancePastDelimiter: true))
+        while (found < _spliterCount && reader.TryAdvanceTo(_spliter, advancePastDelimiter: true))
             found++;
 
-        if (found < m_SpliterCount)
+        if (found < _spliterCount)
         {
             consumed = buffer.Start;
             examined = buffer.End;
@@ -157,7 +157,7 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
     /// </value>
     public int LeftBufferSize
     {
-        get { return m_Total; }
+        get { return _total; }
     }
 
     /// <summary>
@@ -170,8 +170,8 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
 
     private void InternalReset()
     {
-        m_Total = 0;
-        m_SpliterFoundCount = 0;
+        _total = 0;
+        _spliterFoundCount = 0;
     }
 
     /// <summary>
@@ -205,11 +205,11 @@ public abstract class CountSpliterReceiveFilter<TRequestInfo> : IReceiveFilter<T
 /// </summary>
 public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequestInfo>
 {
-    private readonly Encoding m_Encoding;
+    private readonly Encoding _encoding;
 
-    private readonly int m_KeyIndex;
+    private readonly int _keyIndex;
 
-    private readonly char m_Spliter;
+    private readonly char _spliter;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CountSpliterReceiveFilter"/> class.
@@ -244,9 +244,9 @@ public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequest
     public CountSpliterReceiveFilter(byte spliter, int spliterCount, Encoding encoding, int keyIndex)
         : base(spliter, spliterCount)
     {
-        m_Encoding = encoding;
-        m_KeyIndex = keyIndex;
-        m_Spliter = (char)spliter;
+        _encoding = encoding;
+        _keyIndex = keyIndex;
+        _spliter = (char)spliter;
     }
 
     /// <summary>
@@ -259,8 +259,8 @@ public class CountSpliterReceiveFilter : CountSpliterReceiveFilter<StringRequest
     protected override StringRequestInfo? ProcessMatchedRequest(byte[] readBuffer, int offset, int length)
     {
         //ignore the first and the last spliter
-        var body = m_Encoding.GetString(readBuffer, offset + 1, length - 2);
-        var array = body.Split(m_Spliter);
-        return new StringRequestInfo(array[m_KeyIndex], body, array);
+        var body = _encoding.GetString(readBuffer, offset + 1, length - 2);
+        var array = body.Split(_spliter);
+        return new StringRequestInfo(array[_keyIndex], body, array);
     }
 }

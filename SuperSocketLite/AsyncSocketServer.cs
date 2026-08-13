@@ -13,8 +13,8 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     }
 
-    private SmartPool<SocketAsyncEventArgsProxy>? m_ReceiveSAEAPool;
-    private SmartPool<SocketAsyncEventArgs>? m_SendSAEAPool;
+    private SmartPool<SocketAsyncEventArgsProxy>? _receiveSAEAPool;
+    private SmartPool<SocketAsyncEventArgs>? _sendSAEAPool;
 
     public override bool Start()
     {
@@ -26,10 +26,10 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             //at MinPoolSize and grow on demand.
             var minPoolSize = AppServer.Config.PreAllocateSAEA ? maxPoolSize : AppServer.Config.MinPoolSize;
 
-            m_ReceiveSAEAPool = new SmartPool<SocketAsyncEventArgsProxy>(
+            _receiveSAEAPool = new SmartPool<SocketAsyncEventArgsProxy>(
                 minPoolSize, maxPoolSize, static () => new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs()));
 
-            m_SendSAEAPool = new SmartPool<SocketAsyncEventArgs>(
+            _sendSAEAPool = new SmartPool<SocketAsyncEventArgs>(
                 minPoolSize, maxPoolSize, static () => new SocketAsyncEventArgs());
 
             if (!base.Start())
@@ -57,7 +57,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
     {
         // Get receive SAEA from pool
         SocketAsyncEventArgsProxy? socketEventArgsProxy;
-        if (!m_ReceiveSAEAPool!.TryGet(out socketEventArgsProxy))
+        if (!_receiveSAEAPool!.TryGet(out socketEventArgsProxy))
         {
             AppServer.RecordSessionRejected();
             AppServer.AsyncRun(client.SafeClose);
@@ -69,10 +69,10 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
         // Get send SAEA from pool
         SocketAsyncEventArgs? sendSAEA;
-        if (!m_SendSAEAPool!.TryGet(out sendSAEA))
+        if (!_sendSAEAPool!.TryGet(out sendSAEA))
         {
             socketEventArgsProxy.Reset();
-            m_ReceiveSAEAPool.Push(socketEventArgsProxy);
+            _receiveSAEAPool.Push(socketEventArgsProxy);
             AppServer.RecordSessionRejected();
             AppServer.AsyncRun(client.SafeClose);
             if (AppServer.Logger.IsErrorEnabled)
@@ -87,8 +87,8 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         if (session == null)
         {
             socketEventArgsProxy.Reset();
-            m_ReceiveSAEAPool.Push(socketEventArgsProxy);
-            m_SendSAEAPool.Push(sendSAEA);
+            _receiveSAEAPool.Push(socketEventArgsProxy);
+            _sendSAEAPool.Push(sendSAEA);
             AppServer.AsyncRun(client.SafeClose);
             return null;
         }
@@ -123,8 +123,8 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         var args = proxy.SocketEventArgs;
 
         var serverState = AppServer.State;
-        var receivePool = this.m_ReceiveSAEAPool;
-        var sendPool = this.m_SendSAEAPool;
+        var receivePool = this._receiveSAEAPool;
+        var sendPool = this._sendSAEAPool;
 
         if (receivePool == null || sendPool == null || serverState == ServerState.Stopping || serverState == ServerState.NotStarted)
         {
@@ -162,23 +162,23 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             base.Stop();
 
             // Dispose all receive SAEA objects by draining the pool
-            if (m_ReceiveSAEAPool != null)
+            if (_receiveSAEAPool != null)
             {
-                while (m_ReceiveSAEAPool.TryGet(out var proxy))
+                while (_receiveSAEAPool.TryGet(out var proxy))
                 {
                     proxy.SocketEventArgs.Dispose();
                 }
-                m_ReceiveSAEAPool = null;
+                _receiveSAEAPool = null;
             }
 
             // Dispose all send SAEA objects by draining the pool
-            if (m_SendSAEAPool != null)
+            if (_sendSAEAPool != null)
             {
-                while (m_SendSAEAPool.TryGet(out var saea))
+                while (_sendSAEAPool.TryGet(out var saea))
                 {
                     saea.Dispose();
                 }
-                m_SendSAEAPool = null;
+                _sendSAEAPool = null;
             }
 
             IsRunning = false;

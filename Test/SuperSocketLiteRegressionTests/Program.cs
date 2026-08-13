@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
@@ -321,7 +321,7 @@ static void LegacyFiltersOptInToSequenceReceivePath()
 static void SocketSessionStoresReceiveProcessingTask()
 {
     var socketSessionType = Type.GetType("SuperSocketLite.SocketEngine.SocketSession, SuperSocketLite", throwOnError: true)!;
-    var field = socketSessionType.GetField("m_ReceiveProcessingTask", BindingFlags.Instance | BindingFlags.NonPublic);
+    var field = socketSessionType.GetField("_receiveProcessingTask", BindingFlags.Instance | BindingFlags.NonPublic);
     AssertTrue(field != null, "SocketSession should store the receive processing task for close-time observation");
 }
 
@@ -399,11 +399,11 @@ sealed class SendingQueueAccessor
     private static readonly MethodInfo s_Complete = s_QueueType.GetMethod("Complete", Type.EmptyTypes)!;
     private static readonly PropertyInfo s_CountProperty = s_QueueType.GetProperty("Count")!;
 
-    private readonly object m_Queue;
+    private readonly object _queue;
 
     private SendingQueueAccessor(object queue)
     {
-        m_Queue = queue;
+        _queue = queue;
     }
 
     public static SendingQueueAccessor Create(int capacity)
@@ -418,18 +418,18 @@ sealed class SendingQueueAccessor
         return new SendingQueueAccessor(queue);
     }
 
-    public int Count => (int)s_CountProperty.GetValue(m_Queue)!;
+    public int Count => (int)s_CountProperty.GetValue(_queue)!;
 
-    public bool TryEnqueue(ArraySegment<byte> segment) => (bool)s_TryEnqueueSegment.Invoke(m_Queue, new object[] { segment })!;
+    public bool TryEnqueue(ArraySegment<byte> segment) => (bool)s_TryEnqueueSegment.Invoke(_queue, new object[] { segment })!;
 
-    public bool TryEnqueue(IList<ArraySegment<byte>> segments) => (bool)s_TryEnqueueList.Invoke(m_Queue, new object[] { segments })!;
+    public bool TryEnqueue(IList<ArraySegment<byte>> segments) => (bool)s_TryEnqueueList.Invoke(_queue, new object[] { segments })!;
 
     /// <summary>Pooled backing arrays reported by the last drain.</summary>
     public List<byte[]> PooledBuffers { get; } = new List<byte[]>();
 
-    public void DrainAvailable(List<ArraySegment<byte>> into) => s_DrainAvailable.Invoke(m_Queue, new object[] { into, PooledBuffers });
+    public void DrainAvailable(List<ArraySegment<byte>> into) => s_DrainAvailable.Invoke(_queue, new object[] { into, PooledBuffers });
 
-    public void Complete() => s_Complete.Invoke(m_Queue, Array.Empty<object>());
+    public void Complete() => s_Complete.Invoke(_queue, Array.Empty<object>());
 
     /// <summary>Calls the internal <c>EnqueueAsync(SendItem, CancellationToken)</c>.</summary>
     public Task<bool> EnqueueAsync(ArraySegment<byte> segment, CancellationToken cancellationToken)
@@ -438,7 +438,7 @@ sealed class SendingQueueAccessor
         var item = Activator.CreateInstance(sendItemType, new object[] { segment })!;
 
         var method = s_QueueType.GetMethod("EnqueueAsync", new[] { sendItemType, typeof(CancellationToken) })!;
-        var valueTask = method.Invoke(m_Queue, new object[] { item, cancellationToken })!;
+        var valueTask = method.Invoke(_queue, new object[] { item, cancellationToken })!;
 
         return (Task<bool>)valueTask.GetType().GetMethod("AsTask")!.Invoke(valueTask, Array.Empty<object>())!;
     }

@@ -9,16 +9,16 @@ namespace SuperSocketLite.Common;
 /// <typeparam name="T">The pooled item type.</typeparam>
 public sealed class SmartPool<T>
 {
-    private readonly ConcurrentStack<T> m_Stack = new ConcurrentStack<T>();
+    private readonly ConcurrentStack<T> _stack = new();
 
-    private readonly Func<T> m_ItemCreator;
+    private readonly Func<T> _itemCreator;
 
-    private readonly int m_MaxPoolSize;
+    private readonly int _maxPoolSize;
 
-    private int m_TotalItemsCount;
+    private int _totalItemsCount;
 
     // 0 = nobody is growing the pool, 1 = one thread is inside Grow().
-    private int m_IsIncreasing;
+    private int _isIncreasing;
 
     /// <summary>
     /// Initializes the pool and creates its initial <paramref name="minPoolSize"/> items.
@@ -28,8 +28,8 @@ public sealed class SmartPool<T>
     /// <param name="itemCreator">Creates one new pooled item.</param>
     public SmartPool(int minPoolSize, int maxPoolSize, Func<T> itemCreator)
     {
-        m_ItemCreator = itemCreator;
-        m_MaxPoolSize = Math.Max(maxPoolSize, minPoolSize);
+        _itemCreator = itemCreator;
+        _maxPoolSize = Math.Max(maxPoolSize, minPoolSize);
         Grow(minPoolSize);
     }
 
@@ -39,7 +39,7 @@ public sealed class SmartPool<T>
     /// <param name="item">The item.</param>
     public void Push(T item)
     {
-        m_Stack.Push(item);
+        _stack.Push(item);
     }
 
     /// <summary>
@@ -50,28 +50,28 @@ public sealed class SmartPool<T>
     /// <returns>false when the pool is exhausted at its maximum size.</returns>
     public bool TryGet(out T item)
     {
-        if (m_Stack.TryPop(out item!))
+        if (_stack.TryPop(out item!))
             return true;
 
-        if (Volatile.Read(ref m_TotalItemsCount) >= m_MaxPoolSize)
+        if (Volatile.Read(ref _totalItemsCount) >= _maxPoolSize)
             return TryPopWithWait(out item);
 
         //Another thread is already growing the pool; wait for it rather than growing twice.
-        if (Interlocked.CompareExchange(ref m_IsIncreasing, 1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _isIncreasing, 1, 0) != 0)
             return TryPopWithWait(out item);
 
         try
         {
-            Grow(Math.Min(m_TotalItemsCount, m_MaxPoolSize - m_TotalItemsCount));
+            Grow(Math.Min(_totalItemsCount, _maxPoolSize - _totalItemsCount));
         }
         finally
         {
             // Interlocked gives a full memory barrier: every item pushed by Grow() must be visible
-            // to other threads before they observe m_IsIncreasing == 0 and try to pop it.
-            Interlocked.Exchange(ref m_IsIncreasing, 0);
+            // to other threads before they observe _isIncreasing == 0 and try to pop it.
+            Interlocked.Exchange(ref _isIncreasing, 0);
         }
 
-        return m_Stack.TryPop(out item!);
+        return _stack.TryPop(out item!);
     }
 
     private void Grow(int count)
@@ -81,10 +81,10 @@ public sealed class SmartPool<T>
 
         for (var i = 0; i < count; i++)
         {
-            m_Stack.Push(m_ItemCreator());
+            _stack.Push(_itemCreator());
         }
 
-        Interlocked.Add(ref m_TotalItemsCount, count);
+        Interlocked.Add(ref _totalItemsCount, count);
     }
 
     private bool TryPopWithWait(out T item)
@@ -95,7 +95,7 @@ public sealed class SmartPool<T>
         {
             spinWait.SpinOnce();
 
-            if (m_Stack.TryPop(out item!))
+            if (_stack.TryPop(out item!))
                 return true;
 
             if (spinWait.Count >= 100)

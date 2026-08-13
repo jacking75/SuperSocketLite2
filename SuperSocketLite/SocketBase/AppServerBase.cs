@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;
 using System.Text;
@@ -30,12 +30,12 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     public IServerConfig Config { get; private set; } = null!;
 
     //Server instance name
-    private string m_Name = null!;
+    private string _name = null!;
 
     /// <summary>
     /// the current state's code
     /// </summary>
-    private int m_StateCode = ServerStateConst.NotInitialized;
+    private int _stateCode = ServerStateConst.NotInitialized;
 
     /// <summary>
     /// Gets the current state of the work item.
@@ -47,7 +47,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     {
         get
         {
-            return (ServerState)m_StateCode;
+            return (ServerState)_stateCode;
         }
     }
 
@@ -68,7 +68,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
        
 
-    private ISocketServerFactory m_SocketServerFactory = null!;
+    private ISocketServerFactory _socketServerFactory = null!;
 
     /// <summary>
     /// Gets the root config.
@@ -83,25 +83,25 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     // 0 = not configured, 1 = configured.
     // Interlocked.CompareExchange prevents two concurrently-initialized AppServer instances
     // from both configuring the thread pool (check-then-set race on plain bool).
-    private static int m_ThreadPoolConfigured = 0;
+    private static int s_ThreadPoolConfigured = 0;
 
     // Holds the registration created by Start(CancellationToken) so it can be
-    // disposed in Stop() — prevents the callback from firing after the server stops.
-    private CancellationTokenRegistration m_StopRegistration;
+    // disposed in Stop() ??prevents the callback from firing after the server stops.
+    private CancellationTokenRegistration _stopRegistration;
 
-    private List<IConnectionFilter>? m_ConnectionFilters;
+    private List<IConnectionFilter>? _connectionFilters;
 
-    private long m_TotalHandledRequests = 0;
+    private long _totalHandledRequests = 0;
 
     /// <summary>
     /// Gets the total handled requests number.
     /// </summary>
     protected long TotalHandledRequests
     {
-        get { return m_TotalHandledRequests; }
+        get { return _totalHandledRequests; }
     }
 
-    private ListenerInfo[]? m_Listeners;
+    private ListenerInfo[]? _listeners;
 
     /// <summary>
     /// Gets or sets the listeners inforamtion.
@@ -111,7 +111,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </value>
     public ListenerInfo[]? Listeners
     {
-        get { return m_Listeners; }
+        get { return _listeners; }
     }
 
     /// <summary>
@@ -123,7 +123,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     public DateTime StartedTime { get; private set; }
 
     // Metrics
-    private static readonly Meter s_Meter = new Meter("SuperSocketLite");
+    private static readonly Meter s_Meter = new("SuperSocketLite");
     private static readonly Counter<long> s_TotalRequestsCounter = s_Meter.CreateCounter<long>("total-requests", "requests", "Total number of requests received");
     private static readonly Counter<long> s_TotalBytesReceivedCounter = s_Meter.CreateCounter<long>("total-bytes-received", "bytes", "Total bytes received");
     private static readonly Counter<long> s_TotalBytesSentCounter = s_Meter.CreateCounter<long>("total-bytes-sent", "bytes", "Total bytes sent");
@@ -134,12 +134,12 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     private static UpDownCounter<int>? s_ActiveConnectionsCounter;
 
     // Registered once per server instance so that "session-count" reports the live session count.
-    private ObservableGauge<int>? m_SessionCountGauge;
+    private ObservableGauge<int>? _sessionCountGauge;
 
-    private long m_TotalBytesReceived = 0;
-    private long m_TotalBytesSent = 0;
+    private long _totalBytesReceived = 0;
+    private long _totalBytesSent = 0;
 
-    private KeyValuePair<string, object?> ServerTag => new KeyValuePair<string, object?>("server", Name);
+    private KeyValuePair<string, object?> ServerTag => new("server", Name);
 
     /// <summary>
     /// Records bytes received for metrics.
@@ -147,7 +147,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="count">The number of bytes received.</param>
     public void RecordBytesReceived(int count)
     {
-        Interlocked.Add(ref m_TotalBytesReceived, count);
+        Interlocked.Add(ref _totalBytesReceived, count);
         s_TotalBytesReceivedCounter.Add(count, ServerTag);
     }
 
@@ -157,7 +157,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="count">The number of bytes sent.</param>
     public void RecordBytesSent(int count)
     {
-        Interlocked.Add(ref m_TotalBytesSent, count);
+        Interlocked.Add(ref _totalBytesSent, count);
         s_TotalBytesSentCounter.Add(count, ServerTag);
     }
 
@@ -166,7 +166,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public void RecordSessionRejected()
     {
-        Interlocked.Increment(ref m_TotalSessionsRejected);
+        Interlocked.Increment(ref _totalSessionsRejected);
         s_SessionsRejectedCounter.Add(1, ServerTag);
     }
 
@@ -175,7 +175,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public void RecordSendQueueFull()
     {
-        Interlocked.Increment(ref m_TotalSendQueueFull);
+        Interlocked.Increment(ref _totalSendQueueFull);
         s_SendQueueFullCounter.Add(1, ServerTag);
     }
 
@@ -184,38 +184,38 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public void RecordSendError()
     {
-        Interlocked.Increment(ref m_TotalSendErrors);
+        Interlocked.Increment(ref _totalSendErrors);
         s_SendErrorsCounter.Add(1, ServerTag);
     }
 
-    private long m_TotalSessionsRejected = 0;
-    private long m_TotalSendQueueFull = 0;
-    private long m_TotalSendErrors = 0;
+    private long _totalSessionsRejected = 0;
+    private long _totalSendQueueFull = 0;
+    private long _totalSendErrors = 0;
 
     /// <summary>
     /// Gets the total bytes received.
     /// </summary>
-    public long TotalBytesReceived => m_TotalBytesReceived;
+    public long TotalBytesReceived => _totalBytesReceived;
 
     /// <summary>
     /// Gets the total bytes sent.
     /// </summary>
-    public long TotalBytesSent => m_TotalBytesSent;
+    public long TotalBytesSent => _totalBytesSent;
 
     /// <summary>
     /// Gets the number of connections refused because the connection limit was reached.
     /// </summary>
-    public long TotalSessionsRejected => m_TotalSessionsRejected;
+    public long TotalSessionsRejected => _totalSessionsRejected;
 
     /// <summary>
     /// Gets the number of sends dropped because the sending queue was full.
     /// </summary>
-    public long TotalSendQueueFull => m_TotalSendQueueFull;
+    public long TotalSendQueueFull => _totalSendQueueFull;
 
     /// <summary>
     /// Gets the number of sends that failed with a socket error.
     /// </summary>
-    public long TotalSendErrors => m_TotalSendErrors;
+    public long TotalSendErrors => _totalSendErrors;
 
 
     /// <summary>
@@ -275,21 +275,21 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
             throw new ArgumentNullException("config");
 
         if (!string.IsNullOrEmpty(config.Name))
-            m_Name = config.Name;
+            _name = config.Name;
         else
-            m_Name = string.Format("{0}-{1}", this.GetType().Name, Math.Abs(this.GetHashCode()));
+            _name = string.Format("{0}-{1}", this.GetType().Name, Math.Abs(this.GetHashCode()));
 
         Config = config;
 
         // Only the first thread that wins the CAS configures the thread pool.
-        if (Interlocked.CompareExchange(ref m_ThreadPoolConfigured, 1, 0) == 0)
+        if (Interlocked.CompareExchange(ref s_ThreadPoolConfigured, 1, 0) == 0)
         {
-            if (!TheadPoolEx.ResetThreadPool(rootConfig.MaxWorkingThreads >= 0 ? rootConfig.MaxWorkingThreads : new Nullable<int>(),
+            if (!ThreadPoolEx.ResetThreadPool(rootConfig.MaxWorkingThreads >= 0 ? rootConfig.MaxWorkingThreads : new Nullable<int>(),
                     rootConfig.MaxCompletionPortThreads >= 0 ? rootConfig.MaxCompletionPortThreads : new Nullable<int>(),
                     rootConfig.MinWorkingThreads >= 0 ? rootConfig.MinWorkingThreads : new Nullable<int>(),
                     rootConfig.MinCompletionPortThreads >= 0 ? rootConfig.MinCompletionPortThreads : new Nullable<int>()))
             {
-                Interlocked.Exchange(ref m_ThreadPoolConfigured, 0); // allow retry
+                Interlocked.Exchange(ref s_ThreadPoolConfigured, 0); // allow retry
                 throw new Exception("Failed to configure thread pool!");
             }
         }
@@ -300,7 +300,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
             socketServerFactory = (ISocketServerFactory)Activator.CreateInstance(socketServerFactoryType)!;
         }
 
-        m_SocketServerFactory = socketServerFactory;
+        _socketServerFactory = socketServerFactory;
 
         //Read text encoding from the configuration
         if (!string.IsNullOrEmpty(config.TextEncoding))
@@ -316,10 +316,10 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         if (connectionFilters != null && connectionFilters.Any())
         {
-            if (m_ConnectionFilters == null)
-                m_ConnectionFilters = new List<IConnectionFilter>();
+            if (_connectionFilters == null)
+                _connectionFilters = [];
 
-            m_ConnectionFilters.AddRange(connectionFilters);
+            _connectionFilters.AddRange(connectionFilters);
         }
          
         return true;
@@ -380,7 +380,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     private void TrySetInitializedState()
     {
-        if (Interlocked.CompareExchange(ref m_StateCode, ServerStateConst.Initializing, ServerStateConst.NotInitialized)
+        if (Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Initializing, ServerStateConst.NotInitialized)
                 != ServerStateConst.NotInitialized)
         {
             throw new Exception("The server has been initialized already, you cannot initialize it again!");
@@ -396,7 +396,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="receiveFilterFactory">The receive filter factory.</param>
     /// <param name="logFactory">The log factory.</param>
     /// <param name="connectionFilters">The connection filters.</param>
-    /// <param name="commandLoaders">The command loaders.</param>
     /// <returns></returns>
     public bool Setup(IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
@@ -412,7 +411,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="receiveFilterFactory">The Receive filter factory.</param>
     /// <param name="logFactory">The log factory.</param>
     /// <param name="connectionFilters">The connection filters.</param>
-    /// <param name="commandLoaders">The command loaders.</param>
     /// <returns></returns>
     public bool Setup(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
     {
@@ -436,7 +434,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         if (!SetupFinal())
             return false;
 
-        m_StateCode = ServerStateConst.NotStarted;
+        _stateCode = ServerStateConst.NotStarted;
         return true;
     }
 
@@ -499,8 +497,8 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     {
         try
         {
-            m_SocketServer = m_SocketServerFactory.CreateSocketServer<TRequestInfo>(this, m_Listeners!, Config);
-            return m_SocketServer != null;
+            _socketServer = _socketServerFactory.CreateSocketServer<TRequestInfo>(this, _listeners!, Config);
+            return _socketServer != null;
         }
         catch (Exception e)
         {
@@ -583,7 +581,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
                 return false;
             }
 
-            m_Listeners = listeners.ToArray();
+            _listeners = listeners.ToArray();
 
             return true;
         }
@@ -601,10 +599,10 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public string Name
     {
-        get { return m_Name; }
+        get { return _name; }
     }
 
-    private ISocketServer m_SocketServer = null!;
+    private ISocketServer _socketServer = null!;
 
     /// <summary>
     /// Starts this server instance and stops it automatically when
@@ -624,7 +622,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         if (cancellationToken.CanBeCanceled)
         {
             // Use a static lambda + state object to avoid allocating a closure.
-            m_StopRegistration = cancellationToken.Register(
+            _stopRegistration = cancellationToken.Register(
                 static s => ((AppServerBase<TAppSession, TRequestInfo>)s!).Stop(),
                 this);
         }
@@ -640,7 +638,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </returns>
     public virtual bool Start()
     {
-        var origStateCode = Interlocked.CompareExchange(ref m_StateCode, ServerStateConst.Starting, ServerStateConst.NotStarted);
+        var origStateCode = Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Starting, ServerStateConst.NotStarted);
 
         if (origStateCode != ServerStateConst.NotStarted)
         {
@@ -655,16 +653,16 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         // Initialize active connections counter for metrics
         s_ActiveConnectionsCounter ??= s_Meter.CreateUpDownCounter<int>("active-connections", "connections", "Number of active connections");
-        m_SessionCountGauge ??= s_Meter.CreateObservableGauge("session-count", () => new Measurement<int>(SessionCount, ServerTag), "sessions", "Number of sessions currently registered");
+        _sessionCountGauge ??= s_Meter.CreateObservableGauge("session-count", () => new Measurement<int>(SessionCount, ServerTag), "sessions", "Number of sessions currently registered");
 
-        if (!m_SocketServer.Start())
+        if (!_socketServer.Start())
         {
-            m_StateCode = ServerStateConst.NotStarted;
+            _stateCode = ServerStateConst.NotStarted;
             return false;
         }
 
         StartedTime = DateTime.UtcNow;
-        m_StateCode = ServerStateConst.Running;
+        _stateCode = ServerStateConst.Running;
                     
         try
         {
@@ -716,7 +714,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     {
         //Take ownership of the shutdown exactly like Stop() does, so a concurrent Stop()/StopAsync()
         //cannot run the teardown twice.
-        if (Interlocked.CompareExchange(ref m_StateCode, ServerStateConst.Stopping, ServerStateConst.Running)
+        if (Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Stopping, ServerStateConst.Running)
                 != ServerStateConst.Running)
         {
             return;
@@ -724,7 +722,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         try
         {
-            (m_SocketServer as SuperSocketLite.SocketEngine.SocketServerBase)?.StopListeners();
+            (_socketServer as SuperSocketLite.SocketEngine.SocketServerBase)?.StopListeners();
 
             await DrainSendingSessionsAsync(drainTimeout).ConfigureAwait(false);
         }
@@ -736,7 +734,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         finally
         {
             //Hand back to Stop(): it expects to make the Running -> Stopping transition itself.
-            m_StateCode = ServerStateConst.Running;
+            _stateCode = ServerStateConst.Running;
             Stop();
         }
     }
@@ -778,7 +776,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public virtual void Stop()
     {
-        if (Interlocked.CompareExchange(ref m_StateCode, ServerStateConst.Stopping, ServerStateConst.Running)
+        if (Interlocked.CompareExchange(ref _stateCode, ServerStateConst.Stopping, ServerStateConst.Running)
                 != ServerStateConst.Running)
         {
             return;
@@ -787,13 +785,13 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         // Dispose the cancellation registration so the callback cannot fire after Stop()
         // has already run.  Dispose() is safe to call from within the callback itself
         // (.NET guarantees no deadlock in that case).
-        var reg = m_StopRegistration;
-        m_StopRegistration = default;
+        var reg = _stopRegistration;
+        _stopRegistration = default;
         reg.Dispose();
 
-        m_SocketServer.Stop();
+        _socketServer.Stop();
 
-        m_StateCode = ServerStateConst.NotStarted;
+        _stateCode = ServerStateConst.NotStarted;
 
         OnStopped();
                     
@@ -802,7 +800,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    private Func<TAppSession, byte[], int, int, bool>? m_RawDataReceivedHandler;
+    private Func<TAppSession, byte[], int, int, bool>? _rawDataReceivedHandler;
 
     /// <summary>
     /// Gets or sets the raw binary data received event handler.
@@ -814,8 +812,8 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     event Func<TAppSession, byte[], int, int, bool> IRawDataProcessor<TAppSession>.RawDataReceived
     {
-        add { m_RawDataReceivedHandler += value; }
-        remove { m_RawDataReceivedHandler -= value; }
+        add { _rawDataReceivedHandler += value; }
+        remove { _rawDataReceivedHandler -= value; }
     }
 
     /// <summary>
@@ -827,7 +825,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="length">The length.</param>
     internal bool OnRawDataReceived(IAppSession session, byte[] buffer, int offset, int length)
     {
-        var handler = m_RawDataReceivedHandler;
+        var handler = _rawDataReceivedHandler;
         if (handler == null)
             return true;
 
@@ -836,18 +834,18 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     internal bool HasRawDataReceivedHandler
     {
-        get { return m_RawDataReceivedHandler != null; }
+        get { return _rawDataReceivedHandler != null; }
     }
 
-    private RequestHandler<TAppSession, TRequestInfo>? m_RequestHandler;
+    private RequestHandler<TAppSession, TRequestInfo>? _requestHandler;
 
     /// <summary>
     /// Occurs when a full request item received.
     /// </summary>
     public virtual event RequestHandler<TAppSession, TRequestInfo> NewRequestReceived
     {
-        add { m_RequestHandler += value; }
-        remove { m_RequestHandler -= value; }
+        add { _requestHandler += value; }
+        remove { _requestHandler -= value; }
     }
 
 
@@ -860,7 +858,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     {
         session.CurrentCommand = requestInfo.Key;
 
-        var handler = m_RequestHandler;
+        var handler = _requestHandler;
         if (handler == null)
             return;
 
@@ -887,7 +885,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
                 string.Format("Command - {0}", requestInfo.Key));
         }
 
-        Interlocked.Increment(ref m_TotalHandledRequests);
+        Interlocked.Increment(ref _totalHandledRequests);
 
         // Track total requests for metrics
         s_TotalRequestsCounter.Add(1, ServerTag);
@@ -922,7 +920,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </value>
     public IEnumerable<IConnectionFilter>? ConnectionFilters
     {
-        get { return m_ConnectionFilters; }
+        get { return _connectionFilters; }
     }
 
     /// <summary>
@@ -932,12 +930,12 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <returns></returns>
     private bool ExecuteConnectionFilters(IPEndPoint? remoteAddress)
     {
-        if (m_ConnectionFilters == null)
+        if (_connectionFilters == null)
             return true;
 
-        for (var i = 0; i < m_ConnectionFilters.Count; i++)
+        for (var i = 0; i < _connectionFilters.Count; i++)
         {
-            var currentFilter = m_ConnectionFilters[i];
+            var currentFilter = _connectionFilters[i];
             if (!currentFilter.AllowConnect(remoteAddress))
             {
                 if (Logger.IsInfoEnabled)
@@ -1012,15 +1010,15 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    private SessionHandler<TAppSession>? m_NewSessionConnected;
+    private SessionHandler<TAppSession>? _newSessionConnected;
 
     /// <summary>
     /// The action which will be executed after a new session connect
     /// </summary>
     public event SessionHandler<TAppSession> NewSessionConnected
     {
-        add { m_NewSessionConnected += value; }
-        remove { m_NewSessionConnected -= value; }
+        add { _newSessionConnected += value; }
+        remove { _newSessionConnected -= value; }
     }
 
     /// <summary>
@@ -1035,7 +1033,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </remarks>
     protected virtual void OnNewSessionConnected(TAppSession session)
     {
-        var handler = m_NewSessionConnected;
+        var handler = _newSessionConnected;
         if (handler == null)
         {
             return;
@@ -1060,8 +1058,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
     /// <summary>
-    /// Resets the session's security protocol.
-    /// <summary>
     /// Called when [socket session closed].
     /// </summary>
     /// <param name="session">The socket session.</param>
@@ -1075,14 +1071,14 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         OnSessionClosed(appSession, reason);
     }
 
-    private SessionHandler<TAppSession, CloseReason>? m_SessionClosed;
+    private SessionHandler<TAppSession, CloseReason>? _sessionClosed;
     /// <summary>
     /// Gets/sets the session closed event handler.
     /// </summary>
     public event SessionHandler<TAppSession, CloseReason> SessionClosed
     {
-        add { m_SessionClosed += value; }
-        remove { m_SessionClosed -= value; }
+        add { _sessionClosed += value; }
+        remove { _sessionClosed -= value; }
     }
 
     /// <summary>
@@ -1092,7 +1088,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <param name="reason">The reason.</param>
     protected virtual void OnSessionClosed(TAppSession session, CloseReason reason)
     {
-        var handler = m_SessionClosed;
+        var handler = _sessionClosed;
 
         if (handler != null)
         {
@@ -1150,7 +1146,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <exception cref="System.Exception">This server cannot support active connect.</exception>
     Task<ActiveConnectResult> IActiveConnector.ActiveConnect(EndPoint targetEndPoint, EndPoint? localEndPoint)
     {
-        var activeConnector = m_SocketServer as IActiveConnector;
+        var activeConnector = _socketServer as IActiveConnector;
 
         if (activeConnector == null)
             throw new Exception("This server cannot support active connect.");
@@ -1176,7 +1172,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// </summary>
     public void Dispose()
     {
-        if (m_StateCode == ServerStateConst.Running)
+        if (_stateCode == ServerStateConst.Running)
             Stop();
     }
 }

@@ -11,10 +11,10 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    private readonly SearchMarkState<byte> m_BeginSearchState;
-    private readonly SearchMarkState<byte> m_EndSearchState;
+    private readonly SearchMarkState<byte> _beginSearchState;
+    private readonly SearchMarkState<byte> _endSearchState;
 
-    private bool m_FoundBegin = false;
+    private bool _foundBegin = false;
 
     /// <summary>
     /// Null request info
@@ -28,8 +28,8 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     /// <param name="endMark">The end mark.</param>
     protected BeginEndMarkReceiveFilter(byte[] beginMark, byte[] endMark)
     {
-        m_BeginSearchState = new SearchMarkState<byte>(beginMark);
-        m_EndSearchState = new SearchMarkState<byte>(endMark);
+        _beginSearchState = new SearchMarkState<byte>(beginMark);
+        _endSearchState = new SearchMarkState<byte>(endMark);
     }
 
     /// <summary>
@@ -52,15 +52,15 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
         int prevMatched = 0;
         int totalParsed = 0;
 
-        if (!m_FoundBegin)
+        if (!_foundBegin)
         {
-            prevMatched = m_BeginSearchState.Matched;
-            int pos = readBuffer.SearchMark(offset, length, m_BeginSearchState, out totalParsed);
+            prevMatched = _beginSearchState.Matched;
+            int pos = readBuffer.SearchMark(offset, length, _beginSearchState, out totalParsed);
             
             if (pos < 0)
             {
                 //Don't cache invalid data
-                if (prevMatched > 0 || (m_BeginSearchState.Matched > 0 && length != m_BeginSearchState.Matched))
+                if (prevMatched > 0 || (_beginSearchState.Matched > 0 && length != _beginSearchState.Matched))
                 {
                     State = FilterState.Error;
                     return NullRequestInfo;
@@ -79,14 +79,14 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
             }
 
             //Found start mark
-            m_FoundBegin = true;
+            _foundBegin = true;
 
-            searchEndMarkOffset = pos + m_BeginSearchState.Mark.Length - prevMatched;
+            searchEndMarkOffset = pos + _beginSearchState.Mark.Length - prevMatched;
 
             //This block only contain (part of)begin mark
             if (offset + length <= searchEndMarkOffset)
             {
-                AddArraySegment(m_BeginSearchState.Mark, 0, m_BeginSearchState.Mark.Length, false);
+                AddArraySegment(_beginSearchState.Mark, 0, _beginSearchState.Mark.Length, false);
                 return NullRequestInfo;
             }
 
@@ -100,16 +100,16 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
 
         while (true)
         {
-            var prevEndMarkMatched = m_EndSearchState.Matched;
+            var prevEndMarkMatched = _endSearchState.Matched;
             var parsedLen = 0;
-            var endPos = readBuffer.SearchMark(searchEndMarkOffset, searchEndMarkLength, m_EndSearchState, out parsedLen);
+            var endPos = readBuffer.SearchMark(searchEndMarkOffset, searchEndMarkLength, _endSearchState, out parsedLen);
 
             //Haven't found end mark
             if (endPos < 0)
             {
                 rest = 0;
                 if(prevMatched > 0)//Also cache the prev matched begin mark
-                    AddArraySegment(m_BeginSearchState.Mark, 0, prevMatched, false);
+                    AddArraySegment(_beginSearchState.Mark, 0, prevMatched, false);
                 AddArraySegment(readBuffer, offset, length, toBeCopied);
                 return NullRequestInfo;
             }
@@ -123,7 +123,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
                 BufferSegments.CopyTo(commandData, 0, 0, BufferSegments.Count);
 
             if(prevMatched > 0)
-                Array.Copy(m_BeginSearchState.Mark, 0, commandData, BufferSegments.Count, prevMatched);
+                Array.Copy(_beginSearchState.Mark, 0, commandData, BufferSegments.Count, prevMatched);
 
             Array.Copy(readBuffer, offset, commandData, BufferSegments.Count + prevMatched, totalParsed);
 
@@ -137,14 +137,14 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
 
             if (rest > 0)
             {
-                searchEndMarkOffset = endPos + m_EndSearchState.Mark.Length;
+                searchEndMarkOffset = endPos + _endSearchState.Mark.Length;
                 searchEndMarkLength = rest;
                 continue;
             }
 
             //Not match
             if(prevMatched > 0)//Also cache the prev matched begin mark
-                AddArraySegment(m_BeginSearchState.Mark, 0, prevMatched, false);
+                AddArraySegment(_beginSearchState.Mark, 0, prevMatched, false);
             AddArraySegment(readBuffer, offset, length, toBeCopied);
             return NullRequestInfo;
         }
@@ -168,7 +168,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
         consumed = buffer.Start;
         examined = buffer.End;
 
-        var beginMark = m_BeginSearchState.Mark;
+        var beginMark = _beginSearchState.Mark;
         var comparableLength = (int)Math.Min(buffer.Length, beginMark.Length);
 
         //The begin mark must sit at the very start of the request; a mismatch is fatal even when
@@ -185,7 +185,7 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
         var reader = new SequenceReader<byte>(buffer);
         reader.Advance(beginMark.Length);
 
-        var endMark = m_EndSearchState.Mark;
+        var endMark = _endSearchState.Mark;
 
         //ProcessMatchedRequest may reject a match (an end mark that appears inside the body), in
         //which case the byte[] overload keeps looking for the next one - mirror that here.
@@ -221,9 +221,9 @@ public abstract class BeginEndMarkReceiveFilter<TRequestInfo> : ReceiveFilterBas
     /// </summary>
     public override void Reset()
     {
-        m_BeginSearchState.Matched = 0;
-        m_EndSearchState.Matched = 0;
-        m_FoundBegin = false;
+        _beginSearchState.Matched = 0;
+        _endSearchState.Matched = 0;
+        _foundBegin = false;
         base.Reset();
     }
 }

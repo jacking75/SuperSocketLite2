@@ -7,7 +7,7 @@ namespace SuperSocketLite.SocketEngine;
 
 abstract class SocketServerBase : ISocketServer, IDisposable
 {
-    protected object SyncRoot = new object();
+    protected object SyncRoot = new();
 
     public IAppServer AppServer { get; private set; }
 

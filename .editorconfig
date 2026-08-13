@@ -1,0 +1,68 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{csproj,props,targets,config,json,xml,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+indent_style = space
+indent_size = 4
+csharp_indent_size = 4
+
+# --- 스타일: Allman 중괄호 ---
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# --- 네이밍 규칙 (.claude/conventions.md 를 빌드로 강제) ---
+# 규칙은 위에서부터 먼저 매치되는 것이 적용되므로 const -> static -> 나머지 순으로 둔다.
+
+dotnet_naming_rule.private_const_pascal_case.symbols  = private_const_fields
+dotnet_naming_rule.private_const_pascal_case.style    = pascal_case_style
+dotnet_naming_rule.private_const_pascal_case.severity = warning
+
+dotnet_naming_rule.private_static_s_prefix.symbols  = private_static_fields
+dotnet_naming_rule.private_static_s_prefix.style    = s_prefix_style
+dotnet_naming_rule.private_static_s_prefix.severity = warning
+
+dotnet_naming_rule.private_fields_underscore.symbols  = private_instance_fields
+dotnet_naming_rule.private_fields_underscore.style    = underscore_camel_case_style
+dotnet_naming_rule.private_fields_underscore.severity = warning
+
+dotnet_naming_symbols.private_const_fields.applicable_kinds           = field
+dotnet_naming_symbols.private_const_fields.applicable_accessibilities = private, internal, protected, protected_internal, private_protected
+dotnet_naming_symbols.private_const_fields.required_modifiers         = const
+
+dotnet_naming_symbols.private_static_fields.applicable_kinds           = field
+dotnet_naming_symbols.private_static_fields.applicable_accessibilities = private, internal, private_protected
+dotnet_naming_symbols.private_static_fields.required_modifiers         = static
+
+dotnet_naming_symbols.private_instance_fields.applicable_kinds           = field
+dotnet_naming_symbols.private_instance_fields.applicable_accessibilities = private, internal, private_protected
+
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+dotnet_naming_style.s_prefix_style.capitalization  = pascal_case
+dotnet_naming_style.s_prefix_style.required_prefix = s_
+
+dotnet_naming_style.underscore_camel_case_style.capitalization  = camel_case
+dotnet_naming_style.underscore_camel_case_style.required_prefix = _
+
+# --- 단순화 규칙 (다시 지저분해지는 것을 빌드가 막는다) ---
+dotnet_diagnostic.IDE0005.severity = warning   # 사용하지 않는 using
+dotnet_diagnostic.IDE0028.severity = warning   # 컬렉션 초기화 단순화
+dotnet_diagnostic.IDE0090.severity = warning   # new() 단순화
+dotnet_diagnostic.IDE0300.severity = warning   # 컬렉션 식 단순화 (배열)
+dotnet_diagnostic.IDE0301.severity = warning   # 컬렉션 식 단순화 (빈 컬렉션)
+csharp_style_implicit_object_creation_when_type_is_apparent = true:warning
+dotnet_style_collection_initializer = true:warning

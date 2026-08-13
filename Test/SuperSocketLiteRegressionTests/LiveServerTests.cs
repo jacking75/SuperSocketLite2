@@ -275,11 +275,11 @@ static class LiveServerTests
         var sessionType = Type.GetType("SuperSocketLite.SocketEngine.AsyncSocketSession, SuperSocketLite", throwOnError: true)!;
         var socketSessionType = sessionType.BaseType!;
 
-        var stateField = socketSessionType.GetField("m_State", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.True(stateField != null, "SocketSession should keep its state in m_State");
+        var stateField = socketSessionType.GetField("_state", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.True(stateField != null, "SocketSession should keep its state in _state");
 
-        var clientField = socketSessionType.GetField("m_Client", BindingFlags.Instance | BindingFlags.NonPublic);
-        Assert.True(clientField != null, "SocketSession should keep the socket in m_Client");
+        var clientField = socketSessionType.GetField("_client", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.True(clientField != null, "SocketSession should keep the socket in _client");
 
         var sendSync = sessionType.GetMethod("SendSync", BindingFlags.Instance | BindingFlags.NonPublic);
         Assert.True(sendSync != null, "AsyncSocketSession should implement SendSync");
@@ -724,7 +724,7 @@ enum EchoSendMode
 
 class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
 {
-    private readonly EchoSendMode m_SendMode;
+    private readonly EchoSendMode _sendMode;
 
     // Reused across requests on purpose: with SendCopied the session must not depend on it.
     [ThreadStatic]
@@ -741,7 +741,7 @@ class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
     public LiveEchoServer(EchoSendMode sendMode)
         : base(new DefaultReceiveFilterFactory<LiveEchoReceiveFilter, LiveEchoRequestInfo>())
     {
-        m_SendMode = sendMode;
+        _sendMode = sendMode;
         NewRequestReceived += OnRequestReceived;
     }
 
@@ -754,7 +754,7 @@ class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
 
         var totalSize = LiveEchoReceiveFilter.PacketHeaderSize + requestInfo.Body.Length;
 
-        if (m_SendMode == EchoSendMode.SendCopied)
+        if (_sendMode == EchoSendMode.SendCopied)
         {
             // Deliberately reuses one buffer: SendCopied must already own the bytes when it returns.
             var scratch = s_ScratchBuffer;
@@ -781,7 +781,7 @@ class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
         BinaryPrimitives.WriteInt16LittleEndian(packet, (short)totalSize);
         requestInfo.Body.CopyTo(packet, LiveEchoReceiveFilter.PacketHeaderSize);
 
-        if (m_SendMode == EchoSendMode.Send)
+        if (_sendMode == EchoSendMode.Send)
             session.Send(packet, 0, packet.Length);
         else
             session.SendAsync(packet).AsTask().GetAwaiter().GetResult();

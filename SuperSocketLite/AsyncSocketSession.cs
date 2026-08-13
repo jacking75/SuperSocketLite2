@@ -9,16 +9,16 @@ namespace SuperSocketLite.SocketEngine;
 
 class AsyncSocketSession : SocketSession, IAsyncSocketSession
 {
-    private bool m_SendSAEAFromPool;
-    private SocketAsyncEventArgs? m_SocketEventArgSend;
-    private bool m_ReceiveInlineOnIocpThread = true;
+    private bool _sendSAEAFromPool;
+    private SocketAsyncEventArgs? _socketEventArgSend;
+    private bool _receiveInlineOnIocpThread = true;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, SocketAsyncEventArgs? sendSAEA)
         : base(client)
     {
         SocketAsyncProxy = socketAsyncProxy;
-        m_SocketEventArgSend = sendSAEA;
-        m_SendSAEAFromPool = sendSAEA != null;
+        _socketEventArgSend = sendSAEA;
+        _sendSAEAFromPool = sendSAEA != null;
     }
 
     ILog ILogProvider.Logger
@@ -26,15 +26,15 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         get { return AppSession.Logger; }
     }
 
-    public SocketAsyncEventArgs? SendSAEA => m_SocketEventArgSend;
+    public SocketAsyncEventArgs? SendSAEA => _socketEventArgSend;
 
-    public bool ReceiveInlineOnIocpThread => m_ReceiveInlineOnIocpThread;
+    public bool ReceiveInlineOnIocpThread => _receiveInlineOnIocpThread;
 
     public override void Initialize(IAppSession appSession)
     {
         base.Initialize(appSession);
 
-        m_ReceiveInlineOnIocpThread = (Config as ServerConfig)?.ReceiveInlineOnIocpThread ?? true;
+        _receiveInlineOnIocpThread = (Config as ServerConfig)?.ReceiveInlineOnIocpThread ?? true;
 
         //Initialize SocketAsyncProxy for receiving
         SocketAsyncProxy.Initialize(this);
@@ -42,10 +42,10 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         if (!SyncSend)
         {
             //Initialize SocketAsyncEventArgs for sending
-            if (m_SocketEventArgSend == null)
-                m_SocketEventArgSend = new SocketAsyncEventArgs();
+            if (_socketEventArgSend == null)
+                _socketEventArgSend = new SocketAsyncEventArgs();
             
-            m_SocketEventArgSend.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendingCompleted);
+            _socketEventArgSend.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendingCompleted);
         }
     }
 
@@ -238,7 +238,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         try
         {
-            var sae = m_SocketEventArgSend!;
+            var sae = _socketEventArgSend!;
 
             //SocketAsyncEventArgs throws if Buffer and BufferList are set at the same time, so the
             //previous send must always have been cleared by ClearPrevSendState.
@@ -270,7 +270,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         {
             LogError(e);
 
-            ClearPrevSendState(m_SocketEventArgSend!);
+            ClearPrevSendState(_socketEventArgSend!);
             OnSendError(queue, CloseReason.SocketError);
         }
     }
@@ -379,7 +379,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         CompleteReceivePipeWriter();
 
-        var sae = m_SocketEventArgSend;
+        var sae = _socketEventArgSend;
 
         if (sae == null)
         {
@@ -387,12 +387,12 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
             return;
         }
 
-        if (Interlocked.CompareExchange(ref m_SocketEventArgSend, null, sae) == sae)
+        if (Interlocked.CompareExchange(ref _socketEventArgSend, null, sae) == sae)
         {
             sae.Completed -= OnSendingCompleted;
             
             // Only dispose if not from pool - pool manages lifecycle
-            if (!m_SendSAEAFromPool)
+            if (!_sendSAEAFromPool)
             {
                 sae.Dispose();
             }

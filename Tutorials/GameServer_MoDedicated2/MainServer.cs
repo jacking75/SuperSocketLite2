@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -22,7 +22,7 @@ public class MainServer : AppServer<ClientSession, EFBinaryRequestInfo>
     public static GameServerOption ServerOption;
     public static SuperSocketLite.SocketBase.Logging.ILog MainLogger;
 
-    SuperSocketLite.SocketBase.Config.IServerConfig m_Config;
+    SuperSocketLite.SocketBase.Config.IServerConfig _config;
 
     PacketProcessor MainPacketProcessor = new PacketProcessor();
     RoomManager RoomMgr = new RoomManager();
@@ -40,7 +40,7 @@ public class MainServer : AppServer<ClientSession, EFBinaryRequestInfo>
     {
         ServerOption = option;
 
-        m_Config = new SuperSocketLite.SocketBase.Config.ServerConfig
+        _config = new SuperSocketLite.SocketBase.Config.ServerConfig
         {
             Name = option.Name,
             Ip = "Any",
@@ -57,7 +57,7 @@ public class MainServer : AppServer<ClientSession, EFBinaryRequestInfo>
     {
         try
         {
-            bool bResult = Setup(new SuperSocketLite.SocketBase.Config.RootConfig(), m_Config, logFactory: new NLogLogFactory());
+            bool bResult = Setup(new SuperSocketLite.SocketBase.Config.RootConfig(), _config, logFactory: new NLogLogFactory());
 
             if (bResult == false)
             {
@@ -93,7 +93,7 @@ public class MainServer : AppServer<ClientSession, EFBinaryRequestInfo>
 
     public ERROR_CODE CreateComponent()
     {
-        ClientSession.CreateIndexPool(m_Config.MaxConnectionNumber);
+        ClientSession.CreateIndexPool(_config.MaxConnectionNumber);
 
         Room.NetSendFunc = this.SendData;
         RoomMgr.CreateRooms();

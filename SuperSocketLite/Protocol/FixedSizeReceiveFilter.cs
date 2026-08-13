@@ -11,16 +11,16 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFilter<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
 {
-    private int m_ParsedLength;
+    private int _parsedLength;
 
-    private int m_Size;
+    private int _size;
 
     /// <summary>
     /// Gets the size of the fixed size Receive filter.
     /// </summary>
     public int Size
     {
-        get { return m_Size; }
+        get { return _size; }
     }
 
     /// <summary>
@@ -34,7 +34,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// <param name="size">The size.</param>
     protected FixedSizeReceiveFilter(int size)
     {
-        m_Size = size;
+        _size = size;
     }
 
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
@@ -60,25 +60,25 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// <returns></returns>
     public virtual TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
-        rest = m_ParsedLength + length - m_Size;
+        rest = _parsedLength + length - _size;
 
         if (rest >= 0)
         {
-            var requestInfo = ProcessMatchedRequest(readBuffer, offset - m_ParsedLength, m_Size, toBeCopied);
+            var requestInfo = ProcessMatchedRequest(readBuffer, offset - _parsedLength, _size, toBeCopied);
             InternalReset();
             return requestInfo;
         }
         else
         {
-            m_ParsedLength += length;
-            m_OffsetDelta = m_ParsedLength;
+            _parsedLength += length;
+            _offsetDelta = _parsedLength;
             rest = 0;
 
             //The carry buffer always starts at offset 0, so unparsed bytes are moved to the front
             //whenever the filter has not yet caught up with the end of the current read.
-            if (m_OffsetDelta < offset + length)
+            if (_offsetDelta < offset + length)
             {
-                Buffer.BlockCopy(readBuffer, offset - m_ParsedLength + length, readBuffer, 0, m_ParsedLength);
+                Buffer.BlockCopy(readBuffer, offset - _parsedLength + length, readBuffer, 0, _parsedLength);
             }
 
             return NullRequestInfo;
@@ -94,18 +94,18 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
         consumed = buffer.Start;
         examined = buffer.End;
 
-        if (buffer.Length < m_Size)
+        if (buffer.Length < _size)
         {
-            m_ParsedLength = ToInt32BufferSize(buffer.Length);
-            m_OffsetDelta = 0;
+            _parsedLength = ToInt32BufferSize(buffer.Length);
+            _offsetDelta = 0;
             return NullRequestInfo;
         }
 
-        var matched = buffer.Slice(0, m_Size);
+        var matched = buffer.Slice(0, _size);
         var requestInfo = matched.IsSingleSegment
             ? ProcessMatchedRequest(matched.First.Span, false)
-            : ProcessMatchedRequest(matched.ToArray(), 0, m_Size, false);
-        consumed = buffer.GetPosition(m_Size);
+            : ProcessMatchedRequest(matched.ToArray(), 0, _size, false);
+        consumed = buffer.GetPosition(_size);
         examined = consumed;
         InternalReset();
         return requestInfo;
@@ -142,7 +142,7 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     /// </value>
     public virtual int LeftBufferSize
     {
-        get { return m_ParsedLength; }
+        get { return _parsedLength; }
     }
 
     /// <summary>
@@ -154,14 +154,14 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     }
 
 
-    private int m_OffsetDelta;
+    private int _offsetDelta;
 
     /// <summary>
     /// Gets the offset delta.
     /// </summary>
     int IOffsetAdapter.OffsetDelta
     {
-        get { return m_OffsetDelta; }
+        get { return _offsetDelta; }
     }
 
     /// <summary>
@@ -174,8 +174,8 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
 
     private void InternalReset()
     {
-        m_ParsedLength = 0;
-        m_OffsetDelta = 0;
+        _parsedLength = 0;
+        _offsetDelta = 0;
     }
 
     /// <summary>

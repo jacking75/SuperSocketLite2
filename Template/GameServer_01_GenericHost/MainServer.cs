@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
@@ -22,7 +22,7 @@ class MainServer : AppServer<NetworkSession, PacketRequestInfo>, IHostedService
     CommonHandler CommonHan = new CommonHandler();
 
     ServerOption ServerOpt;
-    IServerConfig m_Config;
+    IServerConfig _config;
 
     private readonly IHostApplicationLifetime AppLifetime;
     private readonly ILogger<MainServer> AppLogger;
@@ -94,7 +94,7 @@ class MainServer : AppServer<NetworkSession, PacketRequestInfo>, IHostedService
 
     public void InitConfig(ServerOption option)
     {
-        m_Config = new ServerConfig
+        _config = new ServerConfig
         {
             Port = option.Port,
             Ip = "Any",
@@ -108,7 +108,7 @@ class MainServer : AppServer<NetworkSession, PacketRequestInfo>, IHostedService
     {
         try
         {            
-            bool bResult = Setup(new RootConfig(), m_Config, logFactory: _logFactory);
+            bool bResult = Setup(new RootConfig(), _config, logFactory: _logFactory);
 
             if (bResult == false)
             {

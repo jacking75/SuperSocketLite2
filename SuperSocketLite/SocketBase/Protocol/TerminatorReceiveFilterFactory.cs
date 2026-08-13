@@ -8,9 +8,9 @@ namespace SuperSocketLite.SocketBase.Protocol;
 /// </summary>
 public class TerminatorReceiveFilterFactory : IReceiveFilterFactory<StringRequestInfo>
 {
-    private readonly Encoding m_Encoding;
-    private readonly byte[] m_Terminator;
-    private readonly IRequestInfoParser<StringRequestInfo> m_RequestInfoParser;
+    private readonly Encoding _encoding;
+    private readonly byte[] _terminator;
+    private readonly IRequestInfoParser<StringRequestInfo> _requestInfoParser;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TerminatorReceiveFilterFactory"/> class.
@@ -41,9 +41,9 @@ public class TerminatorReceiveFilterFactory : IReceiveFilterFactory<StringReques
     /// <param name="requestInfoParser">The line parser.</param>
     public TerminatorReceiveFilterFactory(string terminator, Encoding encoding, IRequestInfoParser<StringRequestInfo> requestInfoParser)
     {
-        m_Encoding = encoding;
-        m_Terminator = encoding.GetBytes(terminator);
-        m_RequestInfoParser = requestInfoParser;
+        _encoding = encoding;
+        _terminator = encoding.GetBytes(terminator);
+        _requestInfoParser = requestInfoParser;
     }
 
     /// <summary>
@@ -57,6 +57,6 @@ public class TerminatorReceiveFilterFactory : IReceiveFilterFactory<StringReques
     /// </returns>
     public virtual IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
-        return new TerminatorReceiveFilter(m_Terminator, m_Encoding, m_RequestInfoParser);
+        return new TerminatorReceiveFilter(_terminator, _encoding, _requestInfoParser);
     }
 }

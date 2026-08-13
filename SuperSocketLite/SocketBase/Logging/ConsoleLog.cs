@@ -9,7 +9,7 @@ namespace SuperSocketLite.SocketBase.Logging;
 /// </remarks>
 public class ConsoleLog : ILog
 {
-    private readonly string m_Name;
+    private readonly string _name;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConsoleLog"/> class.
@@ -17,7 +17,7 @@ public class ConsoleLog : ILog
     /// <param name="name">The name.</param>
     public ConsoleLog(string name)
     {
-        m_Name = name;
+        _name = name;
     }
 
     /// <inheritdoc />
@@ -82,7 +82,7 @@ public class ConsoleLog : ILog
 
     private void Write(LogEventLevel level, in LogSessionContext session, string message, Exception? exception)
     {
-        var line = string.Concat(m_Name, "-", LevelName(level), ": ");
+        var line = string.Concat(_name, "-", LevelName(level), ": ");
 
         if (!session.IsEmpty)
             line = string.Concat(line, "[", session.ToString(), "] ");

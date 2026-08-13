@@ -119,7 +119,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         return true;
     }
 
-    private ConcurrentDictionary<string, TAppSession> m_SessionDict = new ConcurrentDictionary<string, TAppSession>(StringComparer.OrdinalIgnoreCase);
+    private ConcurrentDictionary<string, TAppSession> _sessionDict = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Registers the session into the session container.
@@ -129,7 +129,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// <returns></returns>
     protected override bool RegisterSession(string sessionID, TAppSession appSession)
     {
-        if (m_SessionDict.TryAdd(sessionID, appSession))
+        if (_sessionDict.TryAdd(sessionID, appSession))
             return true;
 
         if (Logger.IsErrorEnabled)
@@ -153,7 +153,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
             return NullAppSession;
 
         TAppSession? targetSession;
-        m_SessionDict.TryGetValue(sessionID, out targetSession);
+        _sessionDict.TryGetValue(sessionID, out targetSession);
         return targetSession;
     }
 
@@ -169,7 +169,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         if (!string.IsNullOrEmpty(sessionID))
         {
             TAppSession? removedSession;
-            if (!m_SessionDict.TryRemove(sessionID, out removedSession))
+            if (!_sessionDict.TryRemove(sessionID, out removedSession))
             {
                 if (Logger.IsErrorEnabled)
                 {
@@ -190,17 +190,17 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     {
         get
         {
-            return m_SessionDict.Count;
+            return _sessionDict.Count;
         }
     }
 
 
-    private Timer? m_CollectSendSessionTimer = null;
+    private Timer? _collectSendSessionTimer = null;
 
     private void StartCollectSendSessionTimer()
     {
         int interval = Config.CollectSendIntervalMillSec;
-        m_CollectSendSessionTimer = new Timer(CollectSendSession, new object(), interval, interval);
+        _collectSendSessionTimer = new Timer(CollectSendSession, new object(), interval, interval);
 
         if (Logger.IsInfoEnabled)
         {
@@ -256,12 +256,12 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
      
 
 
-    private Timer? m_ClearIdleSessionTimer = null;
+    private Timer? _clearIdleSessionTimer = null;
 
     private void StartClearSessionTimer()
     {
         int interval = Config.ClearIdleSessionInterval * 1000;//in milliseconds
-        m_ClearIdleSessionTimer = new Timer(ClearIdleSession, new object(), interval, interval);
+        _clearIdleSessionTimer = new Timer(ClearIdleSession, new object(), interval, interval);
     }
 
     /// <summary>
@@ -316,9 +316,9 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         get
         {
             if (Config.DisableSessionSnapshot)
-                return m_SessionDict.ToArray();
+                return _sessionDict.ToArray();
             else
-                return m_SessionsSnapshot;
+                return _sessionsSnapshot;
         }
     }
 
@@ -326,21 +326,21 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     
 
-    private Timer? m_SessionSnapshotTimer = null;
+    private Timer? _sessionSnapshotTimer = null;
 
-    private KeyValuePair<string, TAppSession>[]? m_SessionsSnapshot = new KeyValuePair<string, TAppSession>[0];
+    private KeyValuePair<string, TAppSession>[]? _sessionsSnapshot = [];
 
     private void StartSessionSnapshotTimer()
     {
         int interval = Math.Max(Config.SessionSnapshotInterval, 1) * 1000;//in milliseconds
-        m_SessionSnapshotTimer = new Timer(TakeSessionSnapshot, new object(), interval, interval);
+        _sessionSnapshotTimer = new Timer(TakeSessionSnapshot, new object(), interval, interval);
     }
 
     private void TakeSessionSnapshot(object? state)
     {
         if (Monitor.TryEnter(state!))
         {
-            Interlocked.Exchange(ref m_SessionsSnapshot, m_SessionDict.ToArray());
+            Interlocked.Exchange(ref _sessionsSnapshot, _sessionDict.ToArray());
             Monitor.Exit(state!);
         }
     }
@@ -385,30 +385,30 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     {
         base.Stop();
 
-        if (m_SessionSnapshotTimer != null)
+        if (_sessionSnapshotTimer != null)
         {
-            m_SessionSnapshotTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            m_SessionSnapshotTimer.Dispose();
-            m_SessionSnapshotTimer = null;
+            _sessionSnapshotTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            _sessionSnapshotTimer.Dispose();
+            _sessionSnapshotTimer = null;
         }
 
-        if (m_ClearIdleSessionTimer != null)
+        if (_clearIdleSessionTimer != null)
         {
-            m_ClearIdleSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            m_ClearIdleSessionTimer.Dispose();
-            m_ClearIdleSessionTimer = null;
+            _clearIdleSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            _clearIdleSessionTimer.Dispose();
+            _clearIdleSessionTimer = null;
         }
 
-        if (m_CollectSendSessionTimer != null)
+        if (_collectSendSessionTimer != null)
         {
-            m_CollectSendSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
-            m_CollectSendSessionTimer.Dispose();
-            m_CollectSendSessionTimer = null;
+            _collectSendSessionTimer.Change(Timeout.Infinite, Timeout.Infinite);
+            _collectSendSessionTimer.Dispose();
+            _collectSendSessionTimer = null;
         }
 
-        m_SessionsSnapshot = null;
+        _sessionsSnapshot = null;
 
-        var sessions = m_SessionDict.ToArray();
+        var sessions = _sessionDict.ToArray();
 
         if (sessions.Length > 0)
         {

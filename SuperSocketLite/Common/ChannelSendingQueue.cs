@@ -9,9 +9,9 @@ namespace SuperSocketLite.Common;
 /// </summary>
 internal readonly struct SendItem
 {
-    private readonly ArraySegment<byte> m_Segment;
-    private readonly ArraySegment<byte>[]? m_Segments;
-    private readonly byte[]? m_PooledBuffer;
+    private readonly ArraySegment<byte> _segment;
+    private readonly ArraySegment<byte>[]? _segments;
+    private readonly byte[]? _pooledBuffer;
 
     public SendItem(ArraySegment<byte> segment)
         : this(segment, null)
@@ -26,15 +26,15 @@ internal readonly struct SendItem
     /// </param>
     public SendItem(ArraySegment<byte> segment, byte[]? pooledBuffer)
     {
-        m_Segment = segment;
-        m_Segments = null;
-        m_PooledBuffer = pooledBuffer;
+        _segment = segment;
+        _segments = null;
+        _pooledBuffer = pooledBuffer;
     }
 
     public SendItem(IList<ArraySegment<byte>> segments)
     {
-        m_Segment = default;
-        m_PooledBuffer = null;
+        _segment = default;
+        _pooledBuffer = null;
 
         // The segments are copied out of the caller's list on purpose: the caller is free to reuse
         // its list as soon as the enqueue returns, exactly like before this queue stored whole
@@ -44,19 +44,19 @@ internal readonly struct SendItem
         for (var i = 0; i < copy.Length; i++)
             copy[i] = segments[i];
 
-        m_Segments = copy;
+        _segments = copy;
     }
 
     public void AppendTo(List<ArraySegment<byte>> target, List<byte[]> pooledBuffers)
     {
-        if (m_PooledBuffer != null)
-            pooledBuffers.Add(m_PooledBuffer);
+        if (_pooledBuffer != null)
+            pooledBuffers.Add(_pooledBuffer);
 
-        var segments = m_Segments;
+        var segments = _segments;
 
         if (segments == null)
         {
-            target.Add(m_Segment);
+            target.Add(_segment);
             return;
         }
 
@@ -86,15 +86,15 @@ internal readonly struct SendItem
 /// </remarks>
 internal sealed class ChannelSendingQueue
 {
-    private readonly Channel<SendItem> m_Channel;
-    private int m_Count;
+    private readonly Channel<SendItem> _channel;
+    private int _count;
 
     public ChannelSendingQueue(int capacity)
     {
         if (capacity <= 0)
             throw new ArgumentOutOfRangeException(nameof(capacity));
 
-        m_Channel = Channel.CreateBounded<SendItem>(new BoundedChannelOptions(capacity)
+        _channel = Channel.CreateBounded<SendItem>(new BoundedChannelOptions(capacity)
         {
             SingleReader = true,
             SingleWriter = false,
@@ -102,7 +102,7 @@ internal sealed class ChannelSendingQueue
         });
     }
 
-    public int Count => Volatile.Read(ref m_Count);
+    public int Count => Volatile.Read(ref _count);
 
     public bool TryEnqueue(ArraySegment<byte> item)
     {
@@ -119,10 +119,10 @@ internal sealed class ChannelSendingQueue
 
     public bool TryEnqueue(SendItem item)
     {
-        if (!m_Channel.Writer.TryWrite(item))
+        if (!_channel.Writer.TryWrite(item))
             return false;
 
-        Interlocked.Increment(ref m_Count);
+        Interlocked.Increment(ref _count);
         return true;
     }
 
@@ -137,11 +137,11 @@ internal sealed class ChannelSendingQueue
     /// </exception>
     public async ValueTask<bool> EnqueueAsync(SendItem item, CancellationToken cancellationToken)
     {
-        while (await m_Channel.Writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false))
+        while (await _channel.Writer.WaitToWriteAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (m_Channel.Writer.TryWrite(item))
+            if (_channel.Writer.TryWrite(item))
             {
-                Interlocked.Increment(ref m_Count);
+                Interlocked.Increment(ref _count);
                 return true;
             }
         }
@@ -163,15 +163,15 @@ internal sealed class ChannelSendingQueue
         into.Clear();
         pooledBuffers.Clear();
 
-        while (m_Channel.Reader.TryRead(out var item))
+        while (_channel.Reader.TryRead(out var item))
         {
-            Interlocked.Decrement(ref m_Count);
+            Interlocked.Decrement(ref _count);
             item.AppendTo(into, pooledBuffers);
         }
     }
 
     public void Complete()
     {
-        m_Channel.Writer.TryComplete();
+        _channel.Writer.TryComplete();
     }
 }

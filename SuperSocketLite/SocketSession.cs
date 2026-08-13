@@ -26,7 +26,7 @@ abstract partial class SocketSession : ISocketSession
 {
     public IAppSession AppSession { get; private set; } = null!;
 
-    protected readonly object SyncRoot = new object();
+    protected readonly object SyncRoot = new();
 
     //0x00 0x00 0x00 0x00
     //1st byte: Closed(Y/N) - 0x01
@@ -36,15 +36,15 @@ abstract partial class SocketSession : ISocketSession
     //0000 0001: in sending
     //0000 0010: in receiving
     //0001 0000: in closing
-    private int m_State = 0;
+    private int _state = 0;
 
     private ReuseLockBaseBuffer? CollectSendBuffer = null;
 
     protected Pipe? _receivePipe;
     protected PipeWriter? _pipeWriter;
     protected PipeReader? _pipeReader;
-    private Task? m_ReceiveProcessingTask;
-    private int m_ReceiveProcessingTaskObserved;
+    private Task? _receiveProcessingTask;
+    private int _receiveProcessingTaskObserved;
 
     private void AddStateFlag(int stateValue)
     {
@@ -55,7 +55,7 @@ abstract partial class SocketSession : ISocketSession
     {
         while(true)
         {
-            var oldState = m_State;
+            var oldState = _state;
 
             if (notClosing)
             {
@@ -66,9 +66,9 @@ abstract partial class SocketSession : ISocketSession
                 }
             }
 
-            var newState = m_State | stateValue;
+            var newState = _state | stateValue;
 
-            if(Interlocked.CompareExchange(ref m_State, newState, oldState) == oldState)
+            if(Interlocked.CompareExchange(ref _state, newState, oldState) == oldState)
                 return true;
         }
     }
@@ -77,8 +77,8 @@ abstract partial class SocketSession : ISocketSession
     {
         while (true)
         {
-            var oldState = m_State;
-            var newState = m_State | stateValue;
+            var oldState = _state;
+            var newState = _state | stateValue;
 
             //Already marked
             if (oldState == newState)
@@ -86,7 +86,7 @@ abstract partial class SocketSession : ISocketSession
                 return false;
             }
 
-            var compareState = Interlocked.CompareExchange(ref m_State, newState, oldState);
+            var compareState = Interlocked.CompareExchange(ref _state, newState, oldState);
 
             if (compareState == oldState)
                 return true;
@@ -97,33 +97,33 @@ abstract partial class SocketSession : ISocketSession
     {
         while(true)
         {
-            var oldState = m_State;
-            var newState = m_State & (~stateValue);
+            var oldState = _state;
+            var newState = _state & (~stateValue);
 
-            if(Interlocked.CompareExchange(ref m_State, newState, oldState) == oldState)
+            if(Interlocked.CompareExchange(ref _state, newState, oldState) == oldState)
                 return;
         }
     }
 
     private bool CheckState(int stateValue)
     {
-        return (m_State & stateValue) == stateValue;
+        return (_state & stateValue) == stateValue;
     }
 
     protected bool SyncSend { get; private set; }
 
-    private ChannelSendingQueue m_SendQueue = null!;
+    private ChannelSendingQueue _sendQueue = null!;
 
     // Reused by every StartSend to avoid allocating a List (plus its backing array) per send cycle.
     // Safe because sending is single-flight per session: StartSend only proceeds after it owns the
     // InSending flag, and the previous batch is detached from the SocketAsyncEventArgs
     // (ClearPrevSendState) before OnSendingCompleted can trigger the next drain.
-    private readonly List<ArraySegment<byte>> m_SendBatch = new List<ArraySegment<byte>>();
+    private readonly List<ArraySegment<byte>> _sendBatch = [];
 
     // ArrayPool arrays backing the batch currently being sent. They are returned once the whole
     // batch is done, which is also correct for the partial-send retry path: TrimSegments only
     // points at a different slice of the very same arrays.
-    private readonly List<byte[]> m_PooledInFlight = new List<byte[]>();
+    private readonly List<byte[]> _pooledInFlight = [];
 
     
     public SocketSession(Socket client)
@@ -132,7 +132,7 @@ abstract partial class SocketSession : ISocketSession
         if (client == null)
             throw new ArgumentNullException("client");
 
-        m_Client = client;
+        _client = client;
         LocalEndPoint = (IPEndPoint?)client.LocalEndPoint;
         RemoteEndPoint = (IPEndPoint?)client.RemoteEndPoint;
     }
@@ -148,7 +148,7 @@ abstract partial class SocketSession : ISocketSession
         Config = appSession.Config;
         SyncSend = Config.SyncSend;
 
-        m_SendQueue = new ChannelSendingQueue(Math.Max(Config.SendingQueueSize, 1));
+        _sendQueue = new ChannelSendingQueue(Math.Max(Config.SendingQueueSize, 1));
 
         if (Config.CollectSendIntervalMillSec > 0)
         {
@@ -225,7 +225,7 @@ abstract partial class SocketSession : ISocketSession
         if (!TryAddStateFlag(SocketState.Closed))
             return;
 
-        m_SendQueue?.Complete();
+        _sendQueue?.Complete();
 
         var closedHandler = Closed;
         if (closedHandler != null)
@@ -265,7 +265,7 @@ abstract partial class SocketSession : ISocketSession
         if (IsClosed)
             return false;
 
-        if (!m_SendQueue.TryEnqueue(segments))
+        if (!_sendQueue.TryEnqueue(segments))
         {
             RecordSendQueueFull();
             return false;
@@ -285,7 +285,7 @@ abstract partial class SocketSession : ISocketSession
         if (IsClosed)
             return false;
 
-        if (!m_SendQueue.TryEnqueue(segment))
+        if (!_sendQueue.TryEnqueue(segment))
         {
             RecordSendQueueFull();
             return false;
@@ -344,7 +344,7 @@ abstract partial class SocketSession : ISocketSession
         var buffer = ArrayPool<byte>.Shared.Rent(data.Length);
         data.CopyTo(buffer);
 
-        if (!m_SendQueue.TryEnqueue(new SendItem(new ArraySegment<byte>(buffer, 0, data.Length), buffer)))
+        if (!_sendQueue.TryEnqueue(new SendItem(new ArraySegment<byte>(buffer, 0, data.Length), buffer)))
         {
             ArrayPool<byte>.Shared.Return(buffer);
             RecordSendQueueFull();
@@ -395,7 +395,7 @@ abstract partial class SocketSession : ISocketSession
 
         try
         {
-            enqueued = await m_SendQueue.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
+            enqueued = await _sendQueue.EnqueueAsync(item, cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -460,15 +460,15 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        m_SendQueue.DrainAvailable(m_SendBatch, m_PooledInFlight);
+        _sendQueue.DrainAvailable(_sendBatch, _pooledInFlight);
 
-        if (m_SendBatch.Count == 0)
+        if (_sendBatch.Count == 0)
         {
             OnSendEnd();
             return;
         }
 
-        Send(m_SendBatch);
+        Send(_sendBatch);
     }
 
     /// <summary>
@@ -482,7 +482,7 @@ abstract partial class SocketSession : ISocketSession
     /// </remarks>
     private void ReturnPooledSendBuffers()
     {
-        var pooled = m_PooledInFlight;
+        var pooled = _pooledInFlight;
 
         if (pooled.Count == 0)
             return;
@@ -515,7 +515,7 @@ abstract partial class SocketSession : ISocketSession
             Socket? client;
 
             //has data is being sent and the socket isn't closed
-            if (m_SendQueue.Count > 0 && !TryValidateClosedBySocket(out client))
+            if (_sendQueue.Count > 0 && !TryValidateClosedBySocket(out client))
             {
                 StartSend(false);
                 return;
@@ -525,11 +525,11 @@ abstract partial class SocketSession : ISocketSession
             return;
         }
 
-        if (m_SendQueue.Count == 0)
+        if (_sendQueue.Count == 0)
         {
             OnSendEnd();
 
-            if (m_SendQueue.Count > 0)
+            if (_sendQueue.Count > 0)
             {
                 StartSend(true);
             }
@@ -545,27 +545,27 @@ abstract partial class SocketSession : ISocketSession
     /// </summary>
     public bool IsSendIdle
     {
-        get { return m_SendQueue == null || (m_SendQueue.Count == 0 && !CheckState(SocketState.InSending)); }
+        get { return _sendQueue == null || (_sendQueue.Count == 0 && !CheckState(SocketState.InSending)); }
     }
 
-    private Socket? m_Client;
+    private Socket? _client;
     /// <summary>
     /// Gets or sets the client.
     /// </summary>
     /// <value>The client.</value>
     public Socket? Client
     {
-        get { return m_Client; }
+        get { return _client; }
     }
 
     protected bool IsInClosingOrClosed
     {
-        get { return m_State >= SocketState.InClosing; }
+        get { return _state >= SocketState.InClosing; }
     }
 
     protected bool IsClosed
     {
-        get { return m_State >= SocketState.Closed; }
+        get { return _state >= SocketState.Closed; }
     }
 
     /// <summary>
@@ -582,7 +582,7 @@ abstract partial class SocketSession : ISocketSession
 
     protected virtual bool TryValidateClosedBySocket(out Socket? socket)
     {
-        socket = m_Client;
+        socket = _client;
         //Already closed/closing
         return socket == null;
     }
@@ -616,7 +616,7 @@ abstract partial class SocketSession : ISocketSession
 
     private void InternalClose(Socket client, CloseReason reason, bool setCloseReason)
     {
-        if (Interlocked.CompareExchange(ref m_Client, null, client) == client)
+        if (Interlocked.CompareExchange(ref _client, null, client) == client)
         {
             if (setCloseReason)
                 AddStateFlag(GetCloseReasonValue(reason));
@@ -667,7 +667,7 @@ abstract partial class SocketSession : ISocketSession
     /// <returns></returns>
     private bool ValidateNotInSendingReceiving()
     {
-        var oldState = m_State;
+        var oldState = _state;
 
         if ((oldState & SocketState.InSendingReceivingMask) == oldState)
         {
@@ -677,16 +677,16 @@ abstract partial class SocketSession : ISocketSession
         return false;
     }
 
-    private const int m_CloseReasonMagic = 256;
+    private const int CloseReasonMagic = 256;
 
     private int GetCloseReasonValue(CloseReason reason)
     {
-        return ((int)reason + 1) * m_CloseReasonMagic;
+        return ((int)reason + 1) * CloseReasonMagic;
     }
 
     private CloseReason GetCloseReasonFromState()
     {
-        return (CloseReason)(m_State / m_CloseReasonMagic - 1);
+        return (CloseReason)(_state / CloseReasonMagic - 1);
     }
 
     private void FireCloseEvent()
@@ -718,7 +718,7 @@ abstract partial class SocketSession : ISocketSession
 
                     if (!TryValidateClosedBySocket(out client))
                     {
-                        if (forceClose || m_SendQueue.Count == 0)
+                        if (forceClose || _sendQueue.Count == 0)
                         {
                             if (client != null)// the socket instance is not closed yet, do it now
                                 InternalClose(client, GetCloseReasonFromState(), false);
@@ -746,8 +746,8 @@ abstract partial class SocketSession : ISocketSession
 
     protected void StartReceiveProcessingTask()
     {
-        Volatile.Write(ref m_ReceiveProcessingTaskObserved, 0);
-        m_ReceiveProcessingTask = ProcessPipeAsync();
+        Volatile.Write(ref _receiveProcessingTaskObserved, 0);
+        _receiveProcessingTask = ProcessPipeAsync();
     }
 
     protected void CompleteReceivePipeWriter(Exception? exception = null)
@@ -760,8 +760,8 @@ abstract partial class SocketSession : ISocketSession
         {
         }
 
-        var task = m_ReceiveProcessingTask;
-        if (task != null && Interlocked.Exchange(ref m_ReceiveProcessingTaskObserved, 1) == 0)
+        var task = _receiveProcessingTask;
+        if (task != null && Interlocked.Exchange(ref _receiveProcessingTaskObserved, 1) == 0)
             _ = ObserveReceiveProcessingTaskAsync(task);
     }
 

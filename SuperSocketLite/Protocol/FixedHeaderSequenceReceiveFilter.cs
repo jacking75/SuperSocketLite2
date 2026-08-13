@@ -12,79 +12,79 @@ namespace SuperSocketLite.SocketEngine.Protocol;
 public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequenceReceiveFilter<TRequestInfo>, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
 {
-    private readonly int m_HeaderSize;
-    private int m_LeftBufferSize;
-    private int m_MaxRequestLength = int.MaxValue;
-    private long m_LastConsumedLength;
-    private byte[]? m_LegacyBuffer;
-    private int m_LegacyBufferLength;
+    private readonly int _headerSize;
+    private int _leftBufferSize;
+    private int _maxRequestLength = int.MaxValue;
+    private long _lastConsumedLength;
+    private byte[]? _legacyBuffer;
+    private int _legacyBufferLength;
 
     protected FixedHeaderSequenceReceiveFilter(int headerSize)
     {
         if (headerSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(headerSize));
 
-        m_HeaderSize = headerSize;
+        _headerSize = headerSize;
     }
 
-    public int LeftBufferSize => m_LeftBufferSize;
+    public int LeftBufferSize => _leftBufferSize;
 
     public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
     public FilterState State { get; protected set; }
 
-    protected int HeaderSize => m_HeaderSize;
+    protected int HeaderSize => _headerSize;
 
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
     {
-        m_MaxRequestLength = session.Config.MaxRequestLength;
+        _maxRequestLength = session.Config.MaxRequestLength;
     }
 
     public TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
     {
         consumed = buffer.Start;
         examined = buffer.End;
-        m_LastConsumedLength = 0;
+        _lastConsumedLength = 0;
 
-        if (buffer.Length < m_HeaderSize)
+        if (buffer.Length < _headerSize)
         {
-            m_LeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = ToInt32BufferSize(buffer.Length);
             return default;
         }
 
-        var header = buffer.Slice(0, m_HeaderSize);
+        var header = buffer.Slice(0, _headerSize);
         var bodyLength = GetBodyLengthFromHeader(header);
 
         if (!ValidateBodyLength(bodyLength))
         {
             State = FilterState.Error;
-            m_LeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = ToInt32BufferSize(buffer.Length);
             return default;
         }
 
-        var requestLength = m_HeaderSize + bodyLength;
+        var requestLength = _headerSize + bodyLength;
 
         if (buffer.Length < requestLength)
         {
-            m_LeftBufferSize = ToInt32BufferSize(buffer.Length);
+            _leftBufferSize = ToInt32BufferSize(buffer.Length);
             return default;
         }
 
         consumed = buffer.GetPosition(requestLength);
         examined = consumed;
-        m_LastConsumedLength = requestLength;
-        m_LeftBufferSize = 0;
+        _lastConsumedLength = requestLength;
+        _leftBufferSize = 0;
 
         var body = bodyLength == 0
             ? ReadOnlySequence<byte>.Empty
-            : buffer.Slice(m_HeaderSize, bodyLength);
+            : buffer.Slice(_headerSize, bodyLength);
 
         return ResolveRequestInfo(header, body);
     }
 
     public TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
     {
-        var previousLength = m_LegacyBufferLength;
+        var previousLength = _legacyBufferLength;
         var totalLength = checked(previousLength + length);
         ReadOnlySequence<byte> sequence;
 
@@ -95,9 +95,9 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
         else
         {
             EnsureLegacyBufferCapacity(totalLength);
-            Buffer.BlockCopy(readBuffer, offset, m_LegacyBuffer!, previousLength, length);
-            m_LegacyBufferLength = totalLength;
-            sequence = new ReadOnlySequence<byte>(new ReadOnlyMemory<byte>(m_LegacyBuffer, 0, totalLength));
+            Buffer.BlockCopy(readBuffer, offset, _legacyBuffer!, previousLength, length);
+            _legacyBufferLength = totalLength;
+            sequence = new ReadOnlySequence<byte>(new ReadOnlyMemory<byte>(_legacyBuffer, 0, totalLength));
         }
 
         var requestInfo = Filter(sequence, out _, out _);
@@ -115,14 +115,14 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
             if (previousLength == 0)
             {
                 EnsureLegacyBufferCapacity(length);
-                Buffer.BlockCopy(readBuffer, offset, m_LegacyBuffer!, 0, length);
-                m_LegacyBufferLength = length;
+                Buffer.BlockCopy(readBuffer, offset, _legacyBuffer!, 0, length);
+                _legacyBufferLength = length;
             }
 
             return default;
         }
 
-        var consumedLength = checked((int)m_LastConsumedLength);
+        var consumedLength = checked((int)_lastConsumedLength);
         var consumedFromCurrentBuffer = Math.Max(0, consumedLength - previousLength);
         rest = Math.Max(0, length - consumedFromCurrentBuffer);
         ClearLegacyBuffer();
@@ -132,8 +132,8 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
     public virtual void Reset()
     {
         State = FilterState.Normal;
-        m_LeftBufferSize = 0;
-        m_LastConsumedLength = 0;
+        _leftBufferSize = 0;
+        _lastConsumedLength = 0;
         ClearLegacyBuffer();
     }
 
@@ -144,7 +144,7 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
         if (bodyLength < 0)
             return false;
 
-        return m_MaxRequestLength <= 0 || m_HeaderSize + bodyLength < m_MaxRequestLength;
+        return _maxRequestLength <= 0 || _headerSize + bodyLength < _maxRequestLength;
     }
 
     protected abstract TRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body);
@@ -156,30 +156,30 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
 
     private void EnsureLegacyBufferCapacity(int requiredLength)
     {
-        if (m_LegacyBuffer != null && m_LegacyBuffer.Length >= requiredLength)
+        if (_legacyBuffer != null && _legacyBuffer.Length >= requiredLength)
             return;
 
-        var newLength = Math.Max(requiredLength, m_HeaderSize * 2);
+        var newLength = Math.Max(requiredLength, _headerSize * 2);
         var newBuffer = ArrayPool<byte>.Shared.Rent(newLength);
 
-        if (m_LegacyBuffer != null)
+        if (_legacyBuffer != null)
         {
-            if (m_LegacyBufferLength > 0)
-                Buffer.BlockCopy(m_LegacyBuffer, 0, newBuffer, 0, m_LegacyBufferLength);
+            if (_legacyBufferLength > 0)
+                Buffer.BlockCopy(_legacyBuffer, 0, newBuffer, 0, _legacyBufferLength);
 
-            ArrayPool<byte>.Shared.Return(m_LegacyBuffer);
+            ArrayPool<byte>.Shared.Return(_legacyBuffer);
         }
 
-        m_LegacyBuffer = newBuffer;
+        _legacyBuffer = newBuffer;
     }
 
     private void ClearLegacyBuffer()
     {
-        if (m_LegacyBuffer == null)
+        if (_legacyBuffer == null)
             return;
 
-        ArrayPool<byte>.Shared.Return(m_LegacyBuffer);
-        m_LegacyBuffer = null;
-        m_LegacyBufferLength = 0;
+        ArrayPool<byte>.Shared.Return(_legacyBuffer);
+        _legacyBuffer = null;
+        _legacyBufferLength = 0;
     }
 }

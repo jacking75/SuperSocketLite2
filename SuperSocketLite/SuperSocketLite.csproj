@@ -4,6 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- .editorconfig 의 네이밍/단순화 규칙을 빌드 경고로 강제한다. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- IDE0005(사용하지 않는 using)는 문서 파일 생성이 켜져 있어야 빌드에서 동작한다. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591: public 멤버 XML 주석 누락. 문서화는 필요한 곳에만 한다. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <PackageVersion>0.90.0</PackageVersion>
     <Version>0.90.0</Version>	
 	<PackageId>SuperSocketLite</PackageId>

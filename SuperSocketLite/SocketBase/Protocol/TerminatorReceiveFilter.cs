@@ -11,16 +11,16 @@ namespace SuperSocketLite.SocketBase.Protocol;
 public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer, ISequenceReceiveFilter<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
-    private readonly SearchMarkState<byte> m_SearchState;
+    private readonly SearchMarkState<byte> _searchState;
 
-    private IAppSession? m_Session;
+    private IAppSession? _session;
 
     /// <summary>
     /// Gets the session assosiated with the Receive filter.
     /// </summary>
     protected IAppSession? Session
     {
-        get { return m_Session; }
+        get { return _session; }
     }
 
     /// <summary>
@@ -28,7 +28,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// </summary>
     protected static readonly TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
-    private int m_ParsedLengthInBuffer = 0;
+    private int _parsedLengthInBuffer = 0;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TerminatorReceiveFilter&lt;TRequestInfo&gt;"/> class.
@@ -36,12 +36,12 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     /// <param name="terminator">The terminator.</param>
     protected TerminatorReceiveFilter(byte[] terminator)
     {
-        m_SearchState = new SearchMarkState<byte>(terminator);
+        _searchState = new SearchMarkState<byte>(terminator);
     }
 
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
     {
-        m_Session = session;
+        _session = session;
     }
 
     /// <summary>
@@ -57,47 +57,47 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     {
         rest = 0;
 
-        int prevMatched = m_SearchState.Matched;
+        int prevMatched = _searchState.Matched;
 
-        int result = readBuffer.SearchMark(offset, length, m_SearchState);
+        int result = readBuffer.SearchMark(offset, length, _searchState);
 
         if (result < 0)
         {
-            if (m_OffsetDelta != m_ParsedLengthInBuffer)
+            if (_offsetDelta != _parsedLengthInBuffer)
             {
-                Buffer.BlockCopy(readBuffer, offset - m_ParsedLengthInBuffer, readBuffer, offset - m_OffsetDelta, m_ParsedLengthInBuffer + length);
+                Buffer.BlockCopy(readBuffer, offset - _parsedLengthInBuffer, readBuffer, offset - _offsetDelta, _parsedLengthInBuffer + length);
 
-                m_ParsedLengthInBuffer += length;
-                m_OffsetDelta = m_ParsedLengthInBuffer;
+                _parsedLengthInBuffer += length;
+                _offsetDelta = _parsedLengthInBuffer;
             }
             else
             {
-                m_ParsedLengthInBuffer += length;
+                _parsedLengthInBuffer += length;
 
-                if (m_ParsedLengthInBuffer >= m_Session!.Config.ReceiveBufferSize)
+                if (_parsedLengthInBuffer >= _session!.Config.ReceiveBufferSize)
                 {
-                    this.AddArraySegment(readBuffer, offset + length - m_ParsedLengthInBuffer, m_ParsedLengthInBuffer, toBeCopied);
-                    m_ParsedLengthInBuffer = 0;
-                    m_OffsetDelta = 0;
+                    this.AddArraySegment(readBuffer, offset + length - _parsedLengthInBuffer, _parsedLengthInBuffer, toBeCopied);
+                    _parsedLengthInBuffer = 0;
+                    _offsetDelta = 0;
 
                     return NullRequestInfo;
                 }
 
-                m_OffsetDelta += length;
+                _offsetDelta += length;
             }
 
             return NullRequestInfo;
         }
 
         var findLen = result - offset;
-        var currentMatched = m_SearchState.Mark.Length - prevMatched;
+        var currentMatched = _searchState.Mark.Length - prevMatched;
 
         //The prev matched part is not belong to the current matched terminator mark
         if (prevMatched > 0 && findLen != 0)
         {
             //rest prevMatched to 0
             prevMatched = 0;
-            currentMatched = m_SearchState.Mark.Length;
+            currentMatched = _searchState.Mark.Length;
         }
 
         rest = length - findLen - currentMatched;
@@ -108,33 +108,33 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         {
             if(this.BufferSegments != null && this.BufferSegments.Count > 0)
             {
-                this.AddArraySegment(readBuffer, offset - m_ParsedLengthInBuffer, findLen + m_ParsedLengthInBuffer, toBeCopied);
+                this.AddArraySegment(readBuffer, offset - _parsedLengthInBuffer, findLen + _parsedLengthInBuffer, toBeCopied);
                 requestInfo = ProcessMatchedRequest(BufferSegments, 0, BufferSegments.Count);
             }
             else
             {
-                requestInfo = ProcessMatchedRequest(readBuffer, offset - m_ParsedLengthInBuffer, findLen + m_ParsedLengthInBuffer);
+                requestInfo = ProcessMatchedRequest(readBuffer, offset - _parsedLengthInBuffer, findLen + _parsedLengthInBuffer);
             }
         }
         else if (prevMatched > 0)
         {
-            if (m_ParsedLengthInBuffer > 0)
+            if (_parsedLengthInBuffer > 0)
             {
-                if (m_ParsedLengthInBuffer < prevMatched)
+                if (_parsedLengthInBuffer < prevMatched)
                 {
-                    BufferSegments.TrimEnd(prevMatched - m_ParsedLengthInBuffer);
+                    BufferSegments.TrimEnd(prevMatched - _parsedLengthInBuffer);
                     requestInfo = ProcessMatchedRequest(BufferSegments, 0, BufferSegments.Count);
                 }
                 else
                 {
                     if (this.BufferSegments != null && this.BufferSegments.Count > 0)
                     {
-                        this.AddArraySegment(readBuffer, offset - m_ParsedLengthInBuffer, m_ParsedLengthInBuffer - prevMatched, toBeCopied);
+                        this.AddArraySegment(readBuffer, offset - _parsedLengthInBuffer, _parsedLengthInBuffer - prevMatched, toBeCopied);
                         requestInfo = ProcessMatchedRequest(BufferSegments, 0, BufferSegments.Count);
                     }
                     else
                     {
-                        requestInfo = ProcessMatchedRequest(readBuffer, offset - m_ParsedLengthInBuffer, m_ParsedLengthInBuffer - prevMatched);
+                        requestInfo = ProcessMatchedRequest(readBuffer, offset - _parsedLengthInBuffer, _parsedLengthInBuffer - prevMatched);
                     }
                 }
             }
@@ -148,16 +148,16 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         {
             if (this.BufferSegments != null && this.BufferSegments.Count > 0)
             {
-                if (m_ParsedLengthInBuffer > 0)
+                if (_parsedLengthInBuffer > 0)
                 {
-                    this.BufferSegments.AddSegment(readBuffer, offset, m_ParsedLengthInBuffer);
+                    this.BufferSegments.AddSegment(readBuffer, offset, _parsedLengthInBuffer);
                 }
 
                 requestInfo = ProcessMatchedRequest(BufferSegments, 0, BufferSegments.Count);
             }
             else
             {
-                requestInfo = ProcessMatchedRequest(readBuffer, offset - m_ParsedLengthInBuffer, m_ParsedLengthInBuffer);
+                requestInfo = ProcessMatchedRequest(readBuffer, offset - _parsedLengthInBuffer, _parsedLengthInBuffer);
             }
         }
 
@@ -165,11 +165,11 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 
         if(rest == 0)
         {
-            m_OffsetDelta = 0;
+            _offsetDelta = 0;
         }
         else
         {
-            m_OffsetDelta += (length - rest);
+            _offsetDelta += (length - rest);
         }
 
         return requestInfo;
@@ -192,7 +192,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
         var reader = new SequenceReader<byte>(buffer);
 
         // TryReadTo handles a multi-byte terminator that straddles a segment boundary.
-        if (!reader.TryReadTo(out ReadOnlySequence<byte> body, m_SearchState.Mark, advancePastDelimiter: true))
+        if (!reader.TryReadTo(out ReadOnlySequence<byte> body, _searchState.Mark, advancePastDelimiter: true))
         {
             consumed = buffer.Start;
             examined = buffer.End;
@@ -208,8 +208,8 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 
     private void InternalReset()
     {
-        m_ParsedLengthInBuffer = 0;
-        m_SearchState.Matched = 0;
+        _parsedLengthInBuffer = 0;
+        _searchState.Matched = 0;
         base.Reset();
     }
 
@@ -219,7 +219,7 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     public override void Reset()
     {
         InternalReset();
-        m_OffsetDelta = 0;
+        _offsetDelta = 0;
     }
 
 
@@ -239,11 +239,11 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
     protected abstract TRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length);
 
     
-    private int m_OffsetDelta;
+    private int _offsetDelta;
 
     int IOffsetAdapter.OffsetDelta
     {
-        get { return m_OffsetDelta; }
+        get { return _offsetDelta; }
     }
 }
 
@@ -252,8 +252,8 @@ public abstract class TerminatorReceiveFilter<TRequestInfo> : ReceiveFilterBase<
 /// </summary>
 public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo>
 {
-    private readonly Encoding m_Encoding;
-    private readonly IRequestInfoParser<StringRequestInfo> m_RequestParser;
+    private readonly Encoding _encoding;
+    private readonly IRequestInfoParser<StringRequestInfo> _requestParser;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TerminatorReceiveFilter"/> class.
@@ -274,8 +274,8 @@ public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo
     public TerminatorReceiveFilter(byte[] terminator, Encoding encoding, IRequestInfoParser<StringRequestInfo> requestParser)
         : base(terminator)
     {
-        m_Encoding = encoding;
-        m_RequestParser = requestParser;
+        _encoding = encoding;
+        _requestParser = requestParser;
     }
 
     /// <summary>
@@ -288,8 +288,8 @@ public class TerminatorReceiveFilter : TerminatorReceiveFilter<StringRequestInfo
     protected override StringRequestInfo? ProcessMatchedRequest(byte[] data, int offset, int length)
     {
         if(length == 0)
-            return m_RequestParser.ParseRequestInfo(string.Empty);
+            return _requestParser.ParseRequestInfo(string.Empty);
 
-        return m_RequestParser.ParseRequestInfo(m_Encoding.GetString(data, offset, length));
+        return _requestParser.ParseRequestInfo(_encoding.GetString(data, offset, length));
     }
 }

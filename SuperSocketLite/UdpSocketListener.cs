@@ -15,9 +15,9 @@ class UdpSocketListener : SocketListenerBase
     /// </summary>
     private const int MaxConcurrentReceives = 8;
 
-    private Socket? m_ListenSocket;
+    private Socket? _listenSocket;
 
-    private SocketAsyncEventArgs[]? m_ReceiveSAEs;
+    private SocketAsyncEventArgs[]? _receiveSAEs;
 
     public UdpSocketListener(ListenerInfo info)
         : base(info)
@@ -34,9 +34,9 @@ class UdpSocketListener : SocketListenerBase
     {
         try
         {
-            m_ListenSocket = new Socket(this.EndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
-            m_ListenSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            m_ListenSocket.Bind(this.EndPoint);
+            _listenSocket = new Socket(this.EndPoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+            _listenSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            _listenSocket.Bind(this.EndPoint);
 
             //SIO_UDP_CONNRESET is a Windows only ioctl that stops an ICMP port-unreachable from
             //failing the next receive. It is an improvement, not a requirement, so a failure here
@@ -49,9 +49,9 @@ class UdpSocketListener : SocketListenerBase
                     uint IOC_VENDOR = 0x18000000;
                     uint SIO_UDP_CONNRESET = IOC_IN | IOC_VENDOR | 12;
 
-                    byte[] optionInValue = { Convert.ToByte(false) };
+                    byte[] optionInValue = [Convert.ToByte(false)];
                     byte[] optionOutValue = new byte[4];
-                    m_ListenSocket.IOControl((int)SIO_UDP_CONNRESET, optionInValue, optionOutValue);
+                    _listenSocket.IOControl((int)SIO_UDP_CONNRESET, optionInValue, optionOutValue);
                 }
                 catch (Exception ioControlException)
                 {
@@ -62,7 +62,7 @@ class UdpSocketListener : SocketListenerBase
             int receiveBufferSize = config.ReceiveBufferSize <= 0 ? 2048 : config.ReceiveBufferSize;
             var receiveCount = Math.Max(1, Math.Min(Environment.ProcessorCount, MaxConcurrentReceives));
             var receiveSAEs = new SocketAsyncEventArgs[receiveCount];
-            m_ReceiveSAEs = receiveSAEs;
+            _receiveSAEs = receiveSAEs;
 
             for (var i = 0; i < receiveCount; i++)
             {
@@ -83,9 +83,9 @@ class UdpSocketListener : SocketListenerBase
             {
                 var eventArgs = receiveSAEs[i];
 
-                if (!m_ListenSocket.ReceiveFromAsync(eventArgs))
+                if (!_listenSocket.ReceiveFromAsync(eventArgs))
                 {
-                    eventArgs_Completed(m_ListenSocket, eventArgs);
+                    eventArgs_Completed(_listenSocket, eventArgs);
                 }
             }
 
@@ -108,7 +108,7 @@ class UdpSocketListener : SocketListenerBase
             if (!ProcessReceivedFrom(e))
                 return;
 
-            var listenSocket = m_ListenSocket;
+            var listenSocket = _listenSocket;
 
             if (listenSocket == null)
                 return;
@@ -159,7 +159,7 @@ class UdpSocketListener : SocketListenerBase
 
             //Handled inline: with several outstanding receives the parallelism comes from the
             //receive loops themselves, so there is no need to pay a Task plus closure per datagram.
-            OnNewClientAccepted(m_ListenSocket!, packet);
+            OnNewClientAccepted(_listenSocket!, packet);
         }
         catch (Exception exc)
         {
@@ -171,16 +171,16 @@ class UdpSocketListener : SocketListenerBase
 
     public override void Stop()
     {
-        if (m_ListenSocket == null)
+        if (_listenSocket == null)
             return;
 
         lock(this)
         {
-            if (m_ListenSocket == null)
+            if (_listenSocket == null)
                 return;
 
-            var listenSocket = m_ListenSocket;
-            var receiveSAEs = m_ReceiveSAEs;
+            var listenSocket = _listenSocket;
+            var receiveSAEs = _receiveSAEs;
 
             try
             {
@@ -195,7 +195,7 @@ class UdpSocketListener : SocketListenerBase
             catch { }
             finally
             {
-                m_ListenSocket = null;
+                _listenSocket = null;
             }
 
             if (receiveSAEs != null)
@@ -203,7 +203,7 @@ class UdpSocketListener : SocketListenerBase
                 for (var i = 0; i < receiveSAEs.Length; i++)
                     CleanupReceiveSAE(receiveSAEs[i]);
 
-                m_ReceiveSAEs = null;
+                _receiveSAEs = null;
             }
         }
 

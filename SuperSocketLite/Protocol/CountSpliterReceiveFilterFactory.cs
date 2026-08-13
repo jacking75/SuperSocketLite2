@@ -46,9 +46,9 @@ public class CountSpliterReceiveFilterFactory<TRequestFilter> : CountSpliterRece
 /// </summary>
 public class  CountSpliterReceiveFilterFactory : IReceiveFilterFactory<StringRequestInfo>
 {
-    private readonly byte m_Spliter;
+    private readonly byte _spliter;
 
-    private readonly int m_SpliterCount;
+    private readonly int _spliterCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CountSpliterReceiveFilterFactory"/> class.
@@ -57,8 +57,8 @@ public class  CountSpliterReceiveFilterFactory : IReceiveFilterFactory<StringReq
     /// <param name="count">The count.</param>
     public CountSpliterReceiveFilterFactory(byte spliter, int count)
     {
-        m_Spliter = spliter;
-        m_SpliterCount = count;
+        _spliter = spliter;
+        _spliterCount = count;
     }
 
     /// <summary>
@@ -70,6 +70,6 @@ public class  CountSpliterReceiveFilterFactory : IReceiveFilterFactory<StringReq
     /// <returns></returns>
     public IReceiveFilter<StringRequestInfo> CreateFilter(IAppServer appServer, IAppSession appSession, IPEndPoint? remoteEndPoint)
     {
-        return new CountSpliterReceiveFilter(m_Spliter, m_SpliterCount);
+        return new CountSpliterReceiveFilter(_spliter, _spliterCount);
     }
 }

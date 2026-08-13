@@ -24,7 +24,7 @@ namespace SuperSocketLite.SocketBase.Logging;
 /// </remarks>
 public sealed class MicrosoftLoggingLogFactory : ILogFactory
 {
-    private readonly MsILoggerFactory m_LoggerFactory;
+    private readonly MsILoggerFactory _loggerFactory;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MicrosoftLoggingLogFactory"/> class.
@@ -32,7 +32,7 @@ public sealed class MicrosoftLoggingLogFactory : ILogFactory
     /// <param name="loggerFactory">The logger factory to create loggers from.</param>
     public MicrosoftLoggingLogFactory(MsILoggerFactory loggerFactory)
     {
-        m_LoggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
     }
 
     /// <summary>
@@ -42,6 +42,6 @@ public sealed class MicrosoftLoggingLogFactory : ILogFactory
     /// <returns></returns>
     public ILog GetLog(string name)
     {
-        return new MicrosoftLoggingLog(m_LoggerFactory.CreateLogger(name));
+        return new MicrosoftLoggingLog(_loggerFactory.CreateLogger(name));
     }
 }

@@ -21,7 +21,7 @@ public sealed class MicrosoftLoggingLog : ILog
 
     private const string SessionMessageTemplate = "[{SessionId}/{RemoteEndPoint}] {Message}";
 
-    private readonly MsILogger m_Logger;
+    private readonly MsILogger _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MicrosoftLoggingLog"/> class.
@@ -29,29 +29,29 @@ public sealed class MicrosoftLoggingLog : ILog
     /// <param name="logger">The logger to write to.</param>
     public MicrosoftLoggingLog(MsILogger logger)
     {
-        m_Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <inheritdoc />
-    public bool IsTraceEnabled => m_Logger.IsEnabled(MsLogLevel.Trace);
+    public bool IsTraceEnabled => _logger.IsEnabled(MsLogLevel.Trace);
 
     /// <inheritdoc />
-    public bool IsDebugEnabled => m_Logger.IsEnabled(MsLogLevel.Debug);
+    public bool IsDebugEnabled => _logger.IsEnabled(MsLogLevel.Debug);
 
     /// <inheritdoc />
-    public bool IsInfoEnabled => m_Logger.IsEnabled(MsLogLevel.Information);
+    public bool IsInfoEnabled => _logger.IsEnabled(MsLogLevel.Information);
 
     /// <inheritdoc />
-    public bool IsWarnEnabled => m_Logger.IsEnabled(MsLogLevel.Warning);
+    public bool IsWarnEnabled => _logger.IsEnabled(MsLogLevel.Warning);
 
     /// <inheritdoc />
-    public bool IsErrorEnabled => m_Logger.IsEnabled(MsLogLevel.Error);
+    public bool IsErrorEnabled => _logger.IsEnabled(MsLogLevel.Error);
 
     /// <inheritdoc />
-    public bool IsFatalEnabled => m_Logger.IsEnabled(MsLogLevel.Critical);
+    public bool IsFatalEnabled => _logger.IsEnabled(MsLogLevel.Critical);
 
     /// <inheritdoc />
-    public bool IsEnabled(LogEventLevel level) => m_Logger.IsEnabled(ToMsLevel(level));
+    public bool IsEnabled(LogEventLevel level) => _logger.IsEnabled(ToMsLevel(level));
 
     /// <inheritdoc />
     public void Trace(string message) => Write(MsLogLevel.Trace, message, null);
@@ -98,22 +98,22 @@ public sealed class MicrosoftLoggingLog : ILog
     {
         var msLevel = ToMsLevel(level);
 
-        if (!m_Logger.IsEnabled(msLevel))
+        if (!_logger.IsEnabled(msLevel))
             return;
 
         if (session.IsEmpty)
         {
-            m_Logger.Log(msLevel, exception, MessageTemplate, message);
+            _logger.Log(msLevel, exception, MessageTemplate, message);
             return;
         }
 
-        m_Logger.Log(msLevel, exception, SessionMessageTemplate, session.SessionId, session.RemoteEndPoint, message);
+        _logger.Log(msLevel, exception, SessionMessageTemplate, session.SessionId, session.RemoteEndPoint, message);
     }
 
     private void Write(MsLogLevel level, string message, Exception? exception)
     {
-        if (m_Logger.IsEnabled(level))
-            m_Logger.Log(level, exception, MessageTemplate, message);
+        if (_logger.IsEnabled(level))
+            _logger.Log(level, exception, MessageTemplate, message);
     }
 
     private static MsLogLevel ToMsLevel(LogEventLevel level) => level switch

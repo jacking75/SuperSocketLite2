@@ -5,21 +5,21 @@ namespace SuperSocketLite.SocketBase.Protocol;
 /// </summary>
 public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
 {
-    private readonly string m_Spliter;
-    private readonly string[] m_ParameterSpliters;
+    private readonly string _spliter;
+    private readonly string[] _parameterSpliters;
 
-    private const string m_OneSpace = " ";
+    private const string OneSpace = " ";
 
     /// <summary>
     /// The default singlegton instance
     /// </summary>
-    public static readonly BasicRequestInfoParser DefaultInstance = new BasicRequestInfoParser();
+    public static readonly BasicRequestInfoParser DefaultInstance = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="BasicRequestInfoParser"/> class.
     /// </summary>
     public BasicRequestInfoParser()
-        : this(m_OneSpace, m_OneSpace)
+        : this(OneSpace, OneSpace)
     {
     }
 
@@ -30,8 +30,8 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
     /// <param name="parameterSpliter">The parameter spliter.</param>
     public BasicRequestInfoParser(string spliter, string parameterSpliter)
     {
-        m_Spliter = spliter;
-        m_ParameterSpliters = new string[] { parameterSpliter };
+        _spliter = spliter;
+        _parameterSpliters = [parameterSpliter];
     }
 
     
@@ -43,7 +43,7 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
     /// <returns></returns>
     public StringRequestInfo ParseRequestInfo(string source)
     {
-        int pos = source.IndexOf(m_Spliter);
+        int pos = source.IndexOf(_spliter);
 
         string name = string.Empty;
         string param = string.Empty;
@@ -51,7 +51,7 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
         if (pos > 0)
         {
             name = source.Substring(0, pos);
-            param = source.Substring(pos + m_Spliter.Length);
+            param = source.Substring(pos + _spliter.Length);
         }
         else
         {
@@ -59,7 +59,7 @@ public class BasicRequestInfoParser : IRequestInfoParser<StringRequestInfo>
         }
 
         return new StringRequestInfo(name, param,
-            param.Split(m_ParameterSpliters, StringSplitOptions.RemoveEmptyEntries));
+            param.Split(_parameterSpliters, StringSplitOptions.RemoveEmptyEntries));
     }
             
 }

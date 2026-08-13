@@ -7,14 +7,14 @@ namespace SuperSocketLite.SocketEngine;
 
 abstract partial class SocketSession
 {
-    private const string m_GeneralErrorMessage = "Unexpected error";
-    private const string m_GeneralSocketErrorMessage = "Unexpected socket error: {0}";
-    private const string m_CallerInformation = "caller: {0}, file path: {1}, line number: {2}";
+    private const string GeneralErrorMessage = "Unexpected error";
+    private const string GeneralSocketErrorMessage = "Unexpected socket error: {0}";
+    private const string CallerInformation = "caller: {0}, file path: {1}, line number: {2}";
 
     /// <summary>
     /// Gets this session's identity for structured logging.
     /// </summary>
-    private LogSessionContext SessionLogContext => new LogSessionContext(SessionID, RemoteEndPoint);
+    private LogSessionContext SessionLogContext => new(SessionID, RemoteEndPoint);
 
     /// <summary>
     /// Logs the error, skip the ignored exception
@@ -31,7 +31,7 @@ abstract partial class SocketSession
         if (IsIgnorableException(exception, out socketErrorCode))
             return;
 
-        var message = socketErrorCode > 0 ? string.Format(m_GeneralSocketErrorMessage, socketErrorCode) : m_GeneralErrorMessage;
+        var message = socketErrorCode > 0 ? string.Format(GeneralSocketErrorMessage, socketErrorCode) : GeneralErrorMessage;
 
         Write(message, exception, caller, callerFilePath, callerLineNumber);
     }
@@ -69,7 +69,7 @@ abstract partial class SocketSession
                 return;
         }
 
-        Write(string.Format(m_GeneralSocketErrorMessage, socketErrorCode), new SocketException(socketErrorCode), caller, callerFilePath, callerLineNumber);
+        Write(string.Format(GeneralSocketErrorMessage, socketErrorCode), new SocketException(socketErrorCode), caller, callerFilePath, callerLineNumber);
     }
 
     /// <summary>
@@ -84,7 +84,7 @@ abstract partial class SocketSession
             return;
 
         logger.Log(LogEventLevel.Error, SessionLogContext,
-            string.Concat(message, " (", string.Format(m_CallerInformation, caller, callerFilePath, callerLineNumber), ")"),
+            string.Concat(message, " (", string.Format(CallerInformation, caller, callerFilePath, callerLineNumber), ")"),
             exception);
     }
 }

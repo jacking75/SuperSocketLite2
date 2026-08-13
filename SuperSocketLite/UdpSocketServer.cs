@@ -9,13 +9,13 @@ namespace SuperSocketLite.SocketEngine;
 class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     where TRequestInfo : IRequestInfo
 {
-    private bool m_IsUdpRequestInfo = false;
+    private bool _isUdpRequestInfo = false;
 
-    private IReceiveFilterFactory<TRequestInfo> m_ReceiveFilterFactory;
+    private IReceiveFilterFactory<TRequestInfo> _receiveFilterFactory;
 
-    private int m_ConnectionCount = 0;
+    private int _connectionCount = 0;
 
-    private IRequestHandler<TRequestInfo>? m_RequestHandler;
+    private IRequestHandler<TRequestInfo>? _requestHandler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UdpSocketServer&lt;TRequestInfo&gt;"/> class.
@@ -25,11 +25,11 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
     public UdpSocketServer(IAppServer appServer, ListenerInfo[] listeners)
         : base(appServer, listeners)
     {
-        m_RequestHandler = appServer as IRequestHandler<TRequestInfo>;
+        _requestHandler = appServer as IRequestHandler<TRequestInfo>;
 
-        m_IsUdpRequestInfo = typeof(UdpRequestInfo).IsAssignableFrom(typeof(TRequestInfo));
+        _isUdpRequestInfo = typeof(UdpRequestInfo).IsAssignableFrom(typeof(TRequestInfo));
 
-        m_ReceiveFilterFactory = (IReceiveFilterFactory<TRequestInfo>)appServer.ReceiveFilterFactory;
+        _receiveFilterFactory = (IReceiveFilterFactory<TRequestInfo>)appServer.ReceiveFilterFactory;
     }
 
     /// <summary>
@@ -47,7 +47,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
         try
         {
-            if (m_IsUdpRequestInfo)
+            if (_isUdpRequestInfo)
             {
                 ProcessPackageWithSessionID(client, packet.RemoteEndPoint, packet.Buffer, packet.Offset, packet.Count);
             }
@@ -84,7 +84,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         if (!AppServer.RegisterSession(appSession))
             return null;
 
-        Interlocked.Increment(ref m_ConnectionCount);
+        Interlocked.Increment(ref _connectionCount);
 
         socketSession.Closed += OnSocketSessionClosed;
         socketSession.Start();
@@ -114,7 +114,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
             if (requestFilter == null)
             {
-                requestFilter = m_ReceiveFilterFactory.CreateFilter(AppServer, null!, remoteEndPoint);
+                requestFilter = _receiveFilterFactory.CreateFilter(AppServer, null!, remoteEndPoint);
                 s_SessionIdFilter = requestFilter;
             }
             else
@@ -173,7 +173,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
             socketSession?.UpdateRemoteEndPoint(remoteEndPoint);
         }
 
-        m_RequestHandler?.ExecuteCommand(appSession, requestInfo!);
+        _requestHandler?.ExecuteCommand(appSession, requestInfo!);
     }
 
     void ProcessPackageWithoutSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData, int offset, int count)
@@ -199,12 +199,12 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
     void OnSocketSessionClosed(ISocketSession socketSession, CloseReason closeReason)
     {
-        Interlocked.Decrement(ref m_ConnectionCount);
+        Interlocked.Decrement(ref _connectionCount);
     }
 
     bool DetectConnectionNumber(EndPoint remoteEndPoint)
     {
-        if (m_ConnectionCount >= AppServer.Config.MaxConnectionNumber)
+        if (_connectionCount >= AppServer.Config.MaxConnectionNumber)
         {
             if (AppServer.Logger.IsErrorEnabled)
                 AppServer.Logger.Error($"Cannot accept a new UDP connection from {remoteEndPoint.ToString()}, the max connection number {AppServer.Config.MaxConnectionNumber} has been exceed!");

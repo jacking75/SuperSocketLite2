@@ -60,13 +60,13 @@ public sealed class MyAppServer : AppServer
 
 public sealed class SwitchReceiveFilter : IReceiveFilter<StringRequestInfo>
 {
-    private readonly LineReceiveFilter m_FilterA;
-    private readonly LineReceiveFilter m_FilterB;
+    private readonly LineReceiveFilter _filterA;
+    private readonly LineReceiveFilter _filterB;
 
     public SwitchReceiveFilter()
     {
-        m_FilterA = new LineReceiveFilter(this, (byte)'Y', "FilterA");
-        m_FilterB = new LineReceiveFilter(this, (byte)'*', "FilterB");
+        _filterA = new LineReceiveFilter(this, (byte)'Y', "FilterA");
+        _filterB = new LineReceiveFilter(this, (byte)'*', "FilterB");
     }
 
     public StringRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
@@ -81,11 +81,11 @@ public sealed class SwitchReceiveFilter : IReceiveFilter<StringRequestInfo>
 
         if (flag == (byte)'Y')
         {
-            NextReceiveFilter = m_FilterA;
+            NextReceiveFilter = _filterA;
         }
         else if (flag == (byte)'*')
         {
-            NextReceiveFilter = m_FilterB;
+            NextReceiveFilter = _filterB;
         }
         else
         {
@@ -104,8 +104,8 @@ public sealed class SwitchReceiveFilter : IReceiveFilter<StringRequestInfo>
     {
         State = FilterState.Normal;
         NextReceiveFilter = null;
-        m_FilterA.Reset();
-        m_FilterB.Reset();
+        _filterA.Reset();
+        _filterB.Reset();
     }
 
     public FilterState State { get; private set; }
@@ -113,16 +113,16 @@ public sealed class SwitchReceiveFilter : IReceiveFilter<StringRequestInfo>
 
 internal sealed class LineReceiveFilter : IReceiveFilter<StringRequestInfo>
 {
-    private readonly IReceiveFilter<StringRequestInfo> m_SwitchFilter;
-    private readonly byte m_Marker;
-    private readonly string m_Key;
-    private readonly List<byte> m_Buffer = new();
+    private readonly IReceiveFilter<StringRequestInfo> _switchFilter;
+    private readonly byte _marker;
+    private readonly string _key;
+    private readonly List<byte> _buffer = new();
 
     public LineReceiveFilter(IReceiveFilter<StringRequestInfo> switchFilter, byte marker, string key)
     {
-        m_SwitchFilter = switchFilter;
-        m_Marker = marker;
-        m_Key = key;
+        _switchFilter = switchFilter;
+        _marker = marker;
+        _key = key;
     }
 
     public StringRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
@@ -133,14 +133,14 @@ internal sealed class LineReceiveFilter : IReceiveFilter<StringRequestInfo>
         {
             var value = readBuffer[offset + i];
 
-            if (m_Buffer.Count == 0 && value != m_Marker)
+            if (_buffer.Count == 0 && value != _marker)
             {
                 State = FilterState.Error;
                 rest = 0;
                 return null;
             }
 
-            m_Buffer.Add(value);
+            _buffer.Add(value);
 
             if (value != (byte)'\n')
                 continue;
@@ -148,7 +148,7 @@ internal sealed class LineReceiveFilter : IReceiveFilter<StringRequestInfo>
             rest = length - i - 1;
             var requestInfo = ResolveRequest();
             Reset();
-            NextReceiveFilter = m_SwitchFilter;
+            NextReceiveFilter = _switchFilter;
             return requestInfo;
         }
 
@@ -156,13 +156,13 @@ internal sealed class LineReceiveFilter : IReceiveFilter<StringRequestInfo>
         return null;
     }
 
-    public int LeftBufferSize => m_Buffer.Count;
+    public int LeftBufferSize => _buffer.Count;
 
     public IReceiveFilter<StringRequestInfo> NextReceiveFilter { get; private set; }
 
     public void Reset()
     {
-        m_Buffer.Clear();
+        _buffer.Clear();
         State = FilterState.Normal;
         NextReceiveFilter = null;
     }
@@ -171,8 +171,8 @@ internal sealed class LineReceiveFilter : IReceiveFilter<StringRequestInfo>
 
     private StringRequestInfo ResolveRequest()
     {
-        var line = Encoding.UTF8.GetString(m_Buffer.ToArray()).TrimEnd('\r', '\n');
-        var body = line.Length > 0 && line[0] == (char)m_Marker ? line.Substring(1).TrimStart() : line;
-        return new StringRequestInfo(m_Key, body, body.Length == 0 ? Array.Empty<string>() : body.Split(' '));
+        var line = Encoding.UTF8.GetString(_buffer.ToArray()).TrimEnd('\r', '\n');
+        var body = line.Length > 0 && line[0] == (char)_marker ? line.Substring(1).TrimStart() : line;
+        return new StringRequestInfo(_key, body, body.Length == 0 ? Array.Empty<string>() : body.Split(' '));
     }
 }

@@ -10,17 +10,17 @@ namespace SuperSocketLite.SocketEngine;
 /// </summary>
 class TcpAsyncSocketListener : SocketListenerBase
 {
-    private int m_ListenBackLog;
+    private int _listenBackLog;
 
-    private Socket? m_ListenSocket;
+    private Socket? _listenSocket;
 
     // CTS that drives the accept loop; cancelled by Stop() to unblock AcceptAsync.
-    private CancellationTokenSource? m_StopCts;
+    private CancellationTokenSource? _stopCts;
 
     public TcpAsyncSocketListener(ListenerInfo info)
         : base(info)
     {
-        m_ListenBackLog = info.BackLog;
+        _listenBackLog = info.BackLog;
     }
 
     /// <summary>
@@ -31,22 +31,22 @@ class TcpAsyncSocketListener : SocketListenerBase
     public override bool Start(IServerConfig config)
     {
         var listenSocket = new Socket(this.Info.EndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-        m_ListenSocket = listenSocket;
+        _listenSocket = listenSocket;
 
         try
         {
             listenSocket.Bind(this.Info.EndPoint);
-            listenSocket.Listen(m_ListenBackLog);
+            listenSocket.Listen(_listenBackLog);
 
-            m_StopCts = new CancellationTokenSource();
-            _ = AcceptLoopAsync(listenSocket, m_StopCts.Token);
+            _stopCts = new CancellationTokenSource();
+            _ = AcceptLoopAsync(listenSocket, _stopCts.Token);
 
             return true;
         }
         catch (Exception e)
         {
             listenSocket.Dispose();
-            m_ListenSocket = null;
+            _listenSocket = null;
             OnError(e);
             return false;
         }
@@ -119,26 +119,26 @@ class TcpAsyncSocketListener : SocketListenerBase
 
     public override void Stop()
     {
-        if (m_ListenSocket == null)
+        if (_listenSocket == null)
             return;
 
         lock (this)
         {
-            if (m_ListenSocket == null)
+            if (_listenSocket == null)
                 return;
 
             // Cancel the accept loop first so AcceptAsync unblocks immediately.
-            m_StopCts?.Cancel();
-            m_StopCts?.Dispose();
-            m_StopCts = null;
+            _stopCts?.Cancel();
+            _stopCts?.Dispose();
+            _stopCts = null;
 
             try
             {
-                m_ListenSocket.Close();
+                _listenSocket.Close();
             }
             finally
             {
-                m_ListenSocket = null;
+                _listenSocket = null;
             }
         }
 

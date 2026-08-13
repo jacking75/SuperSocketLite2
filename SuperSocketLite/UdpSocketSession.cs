@@ -7,25 +7,25 @@ namespace SuperSocketLite.SocketEngine;
 
 class UdpSocketSession : SocketSession
 {
-    private Socket m_ServerSocket;
+    private Socket _serverSocket;
 
     public UdpSocketSession(Socket serverSocket, IPEndPoint remoteEndPoint)
         : base(remoteEndPoint.ToString())
     {
-        m_ServerSocket = serverSocket;
+        _serverSocket = serverSocket;
         RemoteEndPoint = remoteEndPoint;
     }
 
     public UdpSocketSession(Socket serverSocket, IPEndPoint remoteEndPoint, string sessionID)
         : base(sessionID)
     {
-        m_ServerSocket = serverSocket;
+        _serverSocket = serverSocket;
         RemoteEndPoint = remoteEndPoint;
     }
 
     public override IPEndPoint LocalEndPoint
     {
-        get { return (IPEndPoint)m_ServerSocket.LocalEndPoint!; }
+        get { return (IPEndPoint)_serverSocket.LocalEndPoint!; }
     }
 
     /// <summary>
@@ -45,22 +45,22 @@ class UdpSocketSession : SocketSession
     // One SocketAsyncEventArgs per session, reused for every datagram. Sending is single-flight
     // per session (the InSending state flag), so it can never be used concurrently. The previous
     // code allocated and disposed a SocketAsyncEventArgs for every single segment.
-    private SocketAsyncEventArgs? m_SendSAE;
-    private readonly UdpSendState m_SendState = new UdpSendState();
+    private SocketAsyncEventArgs? _sendSAE;
+    private readonly UdpSendState _sendState = new();
 
     protected override void SendAsync(IList<ArraySegment<byte>> queue)
     {
-        var e = m_SendSAE;
+        var e = _sendSAE;
 
         if (e == null)
         {
             e = new SocketAsyncEventArgs();
             e.Completed += new EventHandler<SocketAsyncEventArgs>(OnSendingCompleted);
-            m_SendSAE = e;
+            _sendSAE = e;
         }
 
-        m_SendState.Items = queue;
-        m_SendState.Position = 0;
+        _sendState.Items = queue;
+        _sendState.Position = 0;
 
         if (PostCurrentSegment(e, queue))
             OnSendingCompleted(this, e);
@@ -72,19 +72,19 @@ class UdpSocketSession : SocketSession
     /// <returns>true when it completed synchronously and the caller must process the completion.</returns>
     private bool PostCurrentSegment(SocketAsyncEventArgs e, IList<ArraySegment<byte>> queue)
     {
-        var item = queue[m_SendState.Position];
+        var item = queue[_sendState.Position];
 
         try
         {
             e.RemoteEndPoint = RemoteEndPoint;
             e.SetBuffer(item.Array, item.Offset, item.Count);
 
-            return !m_ServerSocket.SendToAsync(e);
+            return !_serverSocket.SendToAsync(e);
         }
         catch (Exception exc)
         {
             LogError(exc);
-            m_SendState.Items = null;
+            _sendState.Items = null;
             OnSendError(queue, CloseReason.SocketError);
             return false;
         }
@@ -95,7 +95,7 @@ class UdpSocketSession : SocketSession
         //Synchronous completions are drained in a loop instead of recursing per segment.
         while (true)
         {
-            var queue = m_SendState.Items;
+            var queue = _sendState.Items;
 
             if (queue == null)
                 return;
@@ -107,23 +107,23 @@ class UdpSocketSession : SocketSession
                 if (log != null && log.IsErrorEnabled)
                     log.Error(new SocketException((int)e.SocketError).ToString());
 
-                m_SendState.Items = null;
+                _sendState.Items = null;
                 OnSendError(queue, CloseReason.SocketError);
                 return;
             }
 
             AppSession?.AppServer.RecordBytesSent(e.BytesTransferred);
 
-            var newPos = m_SendState.Position + 1;
+            var newPos = _sendState.Position + 1;
 
             if (newPos >= queue.Count)
             {
-                m_SendState.Items = null;
+                _sendState.Items = null;
                 OnSendingCompleted(queue);
                 return;
             }
 
-            m_SendState.Position = newPos;
+            _sendState.Position = newPos;
 
             if (!PostCurrentSegment(e, queue))
                 return;
@@ -137,7 +137,7 @@ class UdpSocketSession : SocketSession
             for (var i = 0; i < queue.Count; i++)
             {
                 var item = queue[i];
-                var sent = m_ServerSocket.SendTo(item.Array!, item.Offset, item.Count, SocketFlags.None, RemoteEndPoint!);
+                var sent = _serverSocket.SendTo(item.Array!, item.Offset, item.Count, SocketFlags.None, RemoteEndPoint!);
                 AppSession?.AppServer.RecordBytesSent(sent);
             }
         }
@@ -153,7 +153,7 @@ class UdpSocketSession : SocketSession
 
     protected override void OnClosed(CloseReason reason)
     {
-        var e = Interlocked.Exchange(ref m_SendSAE, null);
+        var e = Interlocked.Exchange(ref _sendSAE, null);
 
         if (e != null)
         {

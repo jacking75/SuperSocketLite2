@@ -30,16 +30,16 @@ public class ArraySegmentList
         public int To { get; set; }
     }
 
-    private readonly List<Segment> m_Segments = new List<Segment>();
+    private readonly List<Segment> _segments = [];
 
-    private int m_Count;
+    private int _count;
 
     /// <summary>
     /// Gets the total number of bytes held by all segments.
     /// </summary>
     public int Count
     {
-        get { return m_Count; }
+        get { return _count; }
     }
 
     /// <summary>
@@ -69,11 +69,11 @@ public class ArraySegmentList
             ? new Segment(array.CloneRange(offset, length), 0, length)
             : new Segment(array, offset, length);
 
-        segment.From = m_Count;
-        m_Count += length;
-        segment.To = m_Count - 1;
+        segment.From = _count;
+        _count += length;
+        segment.To = _count - 1;
 
-        m_Segments.Add(segment);
+        _segments.Add(segment);
     }
 
     /// <summary>
@@ -81,8 +81,8 @@ public class ArraySegmentList
     /// </summary>
     public void ClearSegements()
     {
-        m_Segments.Clear();
-        m_Count = 0;
+        _segments.Clear();
+        _count = 0;
     }
 
     /// <summary>
@@ -91,7 +91,7 @@ public class ArraySegmentList
     /// <returns></returns>
     public byte[] ToArrayData()
     {
-        return ToArrayData(0, m_Count);
+        return ToArrayData(0, _count);
     }
 
     /// <summary>
@@ -117,9 +117,9 @@ public class ArraySegmentList
             from = startIndex - startSegment.From;
         }
 
-        for (var i = startSegmentIndex; i < m_Segments.Count; i++)
+        for (var i = startSegmentIndex; i < _segments.Count; i++)
         {
-            var currentSegment = m_Segments[i];
+            var currentSegment = _segments[i];
             var len = Math.Min(currentSegment.Count - from, length - total);
             Array.Copy(currentSegment.Array, currentSegment.Offset + from, result, total, len);
             total += len;
@@ -153,7 +153,7 @@ public class ArraySegmentList
         }
         else
         {
-            offsetSegment = m_Segments[0];
+            offsetSegment = _segments[0];
             offsetSegmentIndex = 0;
         }
 
@@ -167,9 +167,9 @@ public class ArraySegmentList
         if (copied >= length)
             return copied;
 
-        for (var i = offsetSegmentIndex + 1; i < m_Segments.Count; i++)
+        for (var i = offsetSegmentIndex + 1; i < _segments.Count; i++)
         {
-            var segment = m_Segments[i];
+            var segment = _segments[i];
             thisCopied = Math.Min(segment.Count, length - copied);
             Array.Copy(segment.Array, segment.Offset, to, copied + toIndex, thisCopied);
             copied += thisCopied;
@@ -190,16 +190,16 @@ public class ArraySegmentList
         if (trimSize <= 0)
             return;
 
-        int expectedTo = m_Count - trimSize - 1;
+        int expectedTo = _count - trimSize - 1;
 
-        for (int i = m_Segments.Count - 1; i >= 0; i--)
+        for (int i = _segments.Count - 1; i >= 0; i--)
         {
-            var s = m_Segments[i];
+            var s = _segments[i];
 
             if (s.From <= expectedTo && expectedTo < s.To)
             {
                 s.To = expectedTo;
-                m_Count -= trimSize;
+                _count -= trimSize;
                 return;
             }
 
@@ -209,19 +209,19 @@ public class ArraySegmentList
 
     private void RemoveSegmentAt(int index)
     {
-        var removedSegment = m_Segments[index];
+        var removedSegment = _segments[index];
         int removedLen = removedSegment.To - removedSegment.From + 1;
 
-        m_Segments.RemoveAt(index);
+        _segments.RemoveAt(index);
 
         //the removed item is not the last item
-        for (int i = index; i < m_Segments.Count; i++)
+        for (int i = index; i < _segments.Count; i++)
         {
-            m_Segments[i].From -= removedLen;
-            m_Segments[i].To -= removedLen;
+            _segments[i].From -= removedLen;
+            _segments[i].To -= removedLen;
         }
 
-        m_Count -= removedLen;
+        _count -= removedLen;
     }
 
     /// <summary>
@@ -230,12 +230,12 @@ public class ArraySegmentList
     private Segment? QuickSearchSegment(int index, out int segmentIndex)
     {
         int from = 0;
-        int to = m_Segments.Count - 1;
+        int to = _segments.Count - 1;
 
         while (from <= to)
         {
             int middle = from + (to - from) / 2;
-            var segment = m_Segments[middle];
+            var segment = _segments[middle];
 
             if (index < segment.From)
                 to = middle - 1;

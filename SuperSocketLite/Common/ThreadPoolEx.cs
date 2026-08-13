@@ -1,9 +1,9 @@
-namespace SuperSocketLite.Common;
+﻿namespace SuperSocketLite.Common;
 
 /// <summary>
 /// Thread pool extension class
 /// </summary>
-public static class TheadPoolEx
+public static class ThreadPoolEx
 {
     /// <summary>
     /// Resets the thread pool.

@@ -1,5 +1,13 @@
 ﻿# 작업 로그
 
+## 2026-08-13 12:14:29 KST - 빌드 산출물 이름 충돌 해소 및 실행 스크립트 갱신
+
+- 같은 폴더에 같은 이름으로 출력해 서로 덮어쓰던 프로젝트 4개에 고유한 `AssemblyName`을 지정했다: `GameServer_MoDedicated` / `GameServer_MoDedicated2`(둘 다 `GameServer`였음), `EchoClient` / `PvPGameServer_Client`(둘 다 `csharp_test_client`였음).
+- 실행 스크립트 12개가 전부 `net9.0\`(GateServer는 `net5.0\`)을 가리켜 동작하지 않던 것을 `net10.0\`으로 고쳤다. 실행 스크립트가 없던 `GameServer_MoDedicated2`용을 새로 추가했다.
+- 결과: 출력 충돌 0건, `MSB3061`(파일 삭제 거부) 경고 소멸. 32개 프로젝트 빌드 오류 0개, CS 경고 0개, 회귀 테스트 36개 통과.
+- 남은 `MSB3026`은 9개 서버가 같은 `00_server_bins` 폴더로 동일한 NuGet 의존성을 동시에 복사할 때 간헐적으로 뜨는 재시도 경고다. MSBuild가 재시도해 성공하며, 폴더를 공유하는 현재 구성(모든 `run_*.bat`이 그 폴더에 있음)에 따른 것이라 그대로 두었다.
+
+
 ## 2026-08-13 11:53:51 KST - 빌드 점검, net10.0 통일, MessagePack→MemoryPack 전환
 
 - 디스크의 32개 프로젝트가 모두 솔루션에 등록된 것을 확인하고, obj 전체 삭제 후 프로젝트별로 각각 클린 빌드해 전부 성공(CS 경고 0개)을 확인했다.

@@ -10,6 +10,12 @@ public static class PayloadFactory
     /// </summary>
     public const int MaxBodySize = short.MaxValue - Shared.BinaryPacket.HeaderSize;
 
+    /// <summary>크기를 바이트로 직접 정해 본문을 만듭니다. 선언적 시나리오의 payloadBytes 가 씁니다.</summary>
+    public static byte[] CreateExact(int clientId, int sequence, int size)
+    {
+        return Fill(clientId, sequence, Math.Clamp(size, 0, MaxBodySize));
+    }
+
     public static byte[] Create(int clientId, int sequence, string profile)
     {
         var size = profile switch
@@ -25,6 +31,11 @@ public static class PayloadFactory
             _ => 32
         };
 
+        return Fill(clientId, sequence, size);
+    }
+
+    private static byte[] Fill(int clientId, int sequence, int size)
+    {
         var prefix = Encoding.UTF8.GetBytes($"{clientId:D8}:{sequence:D8}:");
         var payload = new byte[size];
         prefix.AsSpan(0, Math.Min(prefix.Length, payload.Length)).CopyTo(payload);

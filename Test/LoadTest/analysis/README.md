@@ -51,6 +51,7 @@ analysis_latency
 analysis_client_machine_summary
 analysis_distributed_client_throughput
 analysis_server_handler_latency
+analysis_server_backpressure
 analysis_memory_trend
 analysis_error_summary
 analysis_server_event_summary
@@ -74,6 +75,19 @@ with zero steady samples produced no comparable measurement.
 Runs recorded before the column existed report `unknown` and are treated as load-bearing, so
 older results still appear in the aggregates rather than silently vanishing.
 
+## Runtime Gauges
+
+`analysis_server_backpressure` reports the send-queue depth and SAEA pool headroom the server
+observed during the steady phase. A queue that stays deep means the server accepts sends faster
+than the socket drains them; a pool whose available count reaches zero means new connections are
+about to be refused.
+
+These columns come from the SuperSocketLite meter, so they are absent from runs recorded before
+the gauges existed and are written as `-1` by runs started with `--metrics no-gauges` or
+`--metrics off`. Both cases normalize to `-1` and are excluded from the aggregates. Check
+`instrumented_samples` before reading the row: zero means the run carries no gauges, which is not
+the same as "the queues were empty".
+
 ## Common Queries
 
 ```sql
@@ -81,6 +95,7 @@ SELECT * FROM analysis_run_summary;
 SELECT * FROM analysis_phase_breakdown;
 SELECT * FROM analysis_throughput;
 SELECT * FROM analysis_latency;
+SELECT * FROM analysis_server_backpressure;
 SELECT * FROM analysis_client_machine_summary;
 SELECT * FROM analysis_distributed_client_throughput;
 SELECT * FROM analysis_memory_trend;

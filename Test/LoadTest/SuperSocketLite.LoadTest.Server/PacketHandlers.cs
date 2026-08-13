@@ -17,7 +17,11 @@ public static class PacketHandlers
     public const short RoomLeaveRequest = 209;
     public const short RoomLeaveResponse = 210;
 
-    public static void Handle(LoadTestSession session, LoadTestRequestInfo request, ServerMetricsCollector metrics)
+    /// <summary>
+    /// 요청을 되돌려 보냅니다.
+    /// <paramref name="metrics"/>가 null이면 계측 없이 응답만 합니다(<c>--metrics off</c>).
+    /// </summary>
+    public static void Handle(LoadTestSession session, LoadTestRequestInfo request, ServerMetricsCollector? metrics)
     {
         var responsePacketId = request.PacketId switch
         {
@@ -34,11 +38,11 @@ public static class PacketHandlers
         try
         {
             session.Send(response, 0, response.Length);
-            metrics.OnBytesOut(response.Length);
+            metrics?.OnBytesOut(response.Length);
         }
         catch (Exception ex)
         {
-            metrics.OnSendFailed(session.SessionID, response.Length, ex.Message);
+            metrics?.OnSendFailed(session.SessionID, response.Length, ex.Message);
             throw;
         }
     }

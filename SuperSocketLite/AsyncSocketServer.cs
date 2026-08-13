@@ -45,6 +45,21 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         }
     }
 
+    internal override SocketAsyncEventArgsPoolUsage? GetPoolUsage()
+    {
+        var receivePool = _receiveSAEAPool;
+        var sendPool = _sendSAEAPool;
+
+        if (receivePool == null || sendPool == null)
+            return null;
+
+        return new SocketAsyncEventArgsPoolUsage(
+            receivePool.AvailableItemsCount,
+            receivePool.TotalItemsCount,
+            sendPool.AvailableItemsCount,
+            sendPool.TotalItemsCount);
+    }
+
     protected override void OnNewClientAccepted(ISocketListener listener, Socket client, object? state)
     {
         if (IsStopped)

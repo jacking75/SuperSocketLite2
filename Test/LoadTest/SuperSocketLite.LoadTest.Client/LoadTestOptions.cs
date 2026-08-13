@@ -17,6 +17,7 @@ public sealed class LoadTestOptions
         "  --duration <hh:mm:ss>",
         "  --send-rate-per-client <rate>",
         "  --scenario <echo|game-like|idle-heartbeat|reconnect-storm|burst>",
+        "  --scenario-file <path.json>   (--scenario 대신 요청 조합을 파일로 기술한다)",
         "  --payload <small|medium|large|huge|mixed|mixed-huge>",
         "  --pacing <open|closed>",
         "  --max-in-flight <count>",
@@ -24,6 +25,8 @@ public sealed class LoadTestOptions
         "  --burst-every <hh:mm:ss>",
         "  --burst-size <count>",
         "  --operation-sampling <0.0-1.0>",
+        "  --reconnect-on-drop",
+        "  --reconnect-delay-ms <milliseconds>",
         "  --machine-id <id>",
         "  --run-id <id>",
         "  --output <directory>",
@@ -82,12 +85,43 @@ public sealed class LoadTestOptions
     public double UdpLossPercent { get; set; }
     public double OperationSampling { get; set; } = 1.0;
     public TimeSpan SlowReceiverDelay { get; set; }
+
+    /// <summary>
+    /// 연결이 예기치 않게 끊겼을 때 실행이 끝날 때까지 다시 붙을지 여부입니다.
+    /// 서버 장애 주입에서 씁니다. 이것 없이는 서버가 죽는 순간 클라이언트가 그대로 빠져
+    /// 서버가 살아난 뒤의 회복을 볼 수 없습니다.
+    /// </summary>
+    public bool ReconnectOnDrop { get; set; }
+
+    /// <summary>재접속을 시도하기 전에 기다리는 시간입니다.</summary>
+    public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(1);
+    /// <summary>
+    /// 선언적 시나리오 파일의 경로입니다.
+    /// 지정하면 <see cref="Scenario"/> 대신 이 파일이 요청 조합과 간격을 정합니다.
+    /// </summary>
+    public string ScenarioFile { get; set; } = string.Empty;
+
+    /// <summary>읽어 들인 선언적 시나리오입니다. 파일을 주지 않았으면 null입니다.</summary>
+    public Scenarios.DeclarativeScenario? DeclarativeScenario { get; set; }
+
     public string RunId { get; set; } = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss");
     public string MachineId { get; set; } = string.IsNullOrWhiteSpace(Environment.MachineName) ? "unknown" : Environment.MachineName;
 
     public static bool IsHelpRequest(string[] args)
     {
         return args.Any(arg => arg is "--help" or "-h" or "/?");
+    }
+
+    /// <summary>
+    /// 시나리오 파일을 아직 읽지 않았다면 읽습니다.
+    /// 실행이 시작되기 전에 부르므로, 파일이 잘못되었으면 부하를 걸기 전에 알 수 있습니다.
+    /// </summary>
+    public void EnsureDeclarativeScenarioLoaded()
+    {
+        if (DeclarativeScenario is not null || string.IsNullOrWhiteSpace(ScenarioFile))
+            return;
+
+        DeclarativeScenario = Scenarios.DeclarativeScenario.Load(ScenarioFile);
     }
 
     public static LoadTestOptions Parse(string[] args)
@@ -133,6 +167,9 @@ public sealed class LoadTestOptions
                 case "--scenario":
                     options.Scenario = Next();
                     break;
+                case "--scenario-file":
+                    options.ScenarioFile = Next();
+                    break;
                 case "--pacing":
                     options.Pacing = Next();
                     break;
@@ -162,6 +199,12 @@ public sealed class LoadTestOptions
                     break;
                 case "--reconnect-percent":
                     options.ReconnectPercent = int.Parse(Next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--reconnect-on-drop":
+                    options.ReconnectOnDrop = true;
+                    break;
+                case "--reconnect-delay-ms":
+                    options.ReconnectDelay = TimeSpan.FromMilliseconds(int.Parse(Next(), CultureInfo.InvariantCulture));
                     break;
                 case "--storm-at":
                     options.StormAt = TimeSpan.Parse(Next(), CultureInfo.InvariantCulture);
@@ -251,6 +294,10 @@ public sealed class LoadTestOptions
             throw new ArgumentOutOfRangeException(nameof(BurstEvery), "BurstEvery must be greater than zero.");
         if (BurstSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(BurstSize), "BurstSize must be greater than zero.");
+        if (ReconnectDelay <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(ReconnectDelay), "ReconnectDelay must be greater than zero.");
+
+        EnsureDeclarativeScenarioLoaded();
     }
 
     /// <summary>이 클라이언트가 실행 종료 시 RST로 끊을 대상인지입니다.</summary>

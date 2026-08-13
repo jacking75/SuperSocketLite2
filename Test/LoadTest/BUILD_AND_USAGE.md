@@ -76,8 +76,41 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Server -- `
 | `--sample-interval-ms` | `1000` | 서버 샘플 메트릭 기록 주기입니다. |
 | `--server-metrics-interval-ms` | `1000` | `--sample-interval-ms`와 같은 옵션입니다. |
 | `--server-event-request-sampling` | `0` | 요청 이벤트 CSV 샘플링 비율입니다. `1.0`은 전체 기록, `0.001`은 0.1% 기록입니다. |
+| `--metrics` | `full` | 서버 계측 수준입니다. `full`·`no-gauges`·`off`를 씁니다. 아래 표를 참고합니다. |
 | `--duration` | 없음 | 서버 자동 종료까지의 실행 시간입니다. 예: `00:06:00`. |
 | `--run-id` | UTC 타임스탬프 | CSV에 기록할 실행 식별자입니다. |
+
+### 서버 계측 수준 (`--metrics`)
+
+| 값 | 요청 계측·주기 표본 | 런타임 게이지 | 쓰임 |
+| --- | --- | --- | --- |
+| `full` | 켬 | 켬 | 기본값입니다. 평소 실행은 이 상태입니다. |
+| `no-gauges` | 켬 | 끔 | 송신 큐 깊이와 SAEA 풀 계기만 뺍니다. 그 게이지가 더한 비용을 가려낼 때 씁니다. |
+| `off` | 끔 | 끔 | 서버 계측을 전부 끕니다. **서버 CSV가 남지 않습니다.** 계측 전체의 비용을 잴 때 씁니다. |
+
+`off`로 돌려도 에코 응답은 그대로 하므로 클라이언트 쪽 수치는 두 실행에서 그대로 견줄 수 있습니다.
+서버 표본이 없는 실행을 비교하면 판정 도구가 처리량을 **클라이언트 기준**으로 바꿔 보고,
+서버 예외·세션 정리 같은 서버 쪽 판정은 통과가 아니라 **보류**로 남깁니다.
+확인하지 않은 것을 확인했다고 말하지 않기 위해서입니다.
+
+계측 비용을 재는 절차는 [계측 오버헤드 측정](#계측-오버헤드-측정-measure-metrics-overheadps1)에 있습니다.
+
+### 런타임 게이지가 남기는 값
+
+`full`로 돌리면 `server_samples.csv`에 다음 컬럼이 함께 남습니다.
+라이브러리가 이 값들을 공개 속성이 아니라 `Meter("SuperSocketLite")`의 계기로 내보내므로,
+서버 프로브가 `MeterListener`로 받아 적습니다.
+
+| 컬럼 | 뜻 |
+| --- | --- |
+| `send_queue_depth_total` | 모든 세션의 송신 대기 요청 수 합계입니다. 계속 쌓이면 서버가 받는 속도만큼 내보내지 못하고 있는 것입니다. |
+| `send_queue_depth_max` | 가장 밀린 세션 하나의 대기량입니다. 특정 세션만 막혔는지 전체가 느려졌는지 가릅니다. |
+| `receive_saea_pool_available` / `receive_saea_pool_total` | 수신 SAEA 풀의 잔량과 지금까지 만든 총수입니다. 잔량이 0에 닿으면 새 접속이 곧 거부됩니다. |
+| `send_saea_pool_available` / `send_saea_pool_total` | 송신 SAEA 풀의 잔량과 총수입니다. |
+
+값이 `-1`이면 **계측이 없었다는 뜻**이지 0이었다는 뜻이 아닙니다.
+게이지가 없던 시절의 실행, `--metrics no-gauges`로 돌린 실행, 서버가 멈춘 뒤 찍힌 마지막 표본이 여기에 해당합니다.
+분석 뷰와 리포트는 음수를 집계에서 빼며, 리포트는 값이 없으면 "계측 없음"으로 적습니다.
 
 ## 클라이언트 실행
 
@@ -114,7 +147,10 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--burst-every` | `00:00:10` | 순간 폭주 간격입니다. `--scenario burst`에서만 씁니다. |
 | `--burst-size` | `20` | 폭주 한 번에 몰아서 보낼 요청 수입니다. |
 | `--output` | `logs\loadtest\client` | 클라이언트 CSV 출력 디렉토리입니다. |
-| `--scenario` | `echo` | 실행 시나리오입니다. 예: `echo`, `game-like`, `idle-heartbeat`, `reconnect-storm`. |
+| `--scenario` | `echo` | 실행 시나리오입니다. 예: `echo`, `game-like`, `idle-heartbeat`, `reconnect-storm`, `burst`. |
+| `--scenario-file` | 없음 | 요청 조합을 기술한 JSON 파일입니다. 지정하면 `--scenario` 대신 이 파일이 요청을 정합니다. |
+| `--reconnect-on-drop` | 꺼짐 | 연결이 예기치 않게 끊기면 실행이 끝날 때까지 다시 붙습니다. 서버 장애 주입에서 씁니다. |
+| `--reconnect-delay-ms` | `1000` | 재접속을 시도하기 전에 기다리는 시간입니다. |
 | `--pacing` | `open` | 송신 페이싱 방식입니다. `open` 또는 `closed`를 지정합니다. 아래 설명을 참고합니다. |
 | `--max-in-flight` | 자동 | 응답을 기다리는 동안 동시에 떠 있을 수 있는 요청 수입니다. 지정하지 않으면 `송신 레이트 × 수신 타임아웃`으로 잡습니다. |
 | `--receive-timeout` | `00:00:05` | 응답 수신 타임아웃입니다. |
@@ -237,6 +273,83 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 패킷 헤더의 `totalSize`가 `Int16`이므로 본문은 최대 32,762바이트입니다.
 `huge`는 그 한계에 붙여 보내 서버의 조립 경로를 흔듭니다.
 `mixed-huge`는 대부분 작은 요청 사이에 가끔 큰 요청을 섞습니다.
+
+#### 서버 장애 주입 (`-KillServerAt`)
+
+부하가 도는 중에 서버를 강제 종료했다가 다시 띄웁니다.
+클라이언트가 재접속하는지, 서버가 얼마 만에 다시 응답하는지를 봅니다.
+
+```powershell
+# 30초 지점에서 서버를 죽이고 5초 뒤 다시 띄운다.
+Test\LoadTest\run-loadtest.ps1 -RunId fault -Clients 200 -Duration 00:01:30 `
+  -KillServerAt 00:00:30 -ServerDowntime 00:00:05
+```
+
+러너가 클라이언트에 `--reconnect-on-drop`을 자동으로 붙입니다.
+이 옵션이 없으면 클라이언트는 서버가 사라진 순간 그대로 빠지므로 회복을 볼 수 없습니다.
+재기동한 서버는 `<실행>-server-restart` 디렉토리에 CSV를 씁니다. 리포트는 `run_id`로 묶으므로 한 실행으로 합쳐집니다.
+
+확인할 값은 `client_summary.csv`의 세 줄입니다.
+
+| 키 | 뜻 |
+| --- | --- |
+| `outage_total` | 연결이 예기치 않게 끊긴 횟수입니다. 실행 종료로 인한 정상 종료는 세지 않습니다. |
+| `reconnect_total` | 끊긴 뒤 다시 붙는 데 성공한 횟수입니다. |
+| `max_outage_ms` | 끊긴 시각부터 **응답을 다시 받기까지**의 최대 시간, 곧 서버 회복 시간입니다. |
+
+회복을 접속이 아니라 응답으로 재는 이유가 있습니다.
+서버가 리슨을 다시 열었어도 아직 요청을 처리하지 못하는 구간이 있기 때문입니다.
+접속 성공을 회복으로 세면 그 구간이 통째로 빠집니다.
+
+### 선언적 시나리오 (`--scenario-file`)
+
+요청 조합을 JSON으로 기술하면 코드를 고치지 않고 부하 구성을 바꿀 수 있습니다.
+`--scenario`로 고른 내장 시나리오는 그대로 남으며, 파일을 주면 그것이 우선합니다.
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
+  --host 127.0.0.1 --port 2012 --clients 200 --duration 00:05:00 `
+  --send-rate-per-client 2.0 `
+  --scenario-file Test\LoadTest\scenarios\game-mix.json `
+  --output logs\loadtest\game-mix
+```
+
+예제 파일은 `Test\LoadTest\scenarios\game-mix.json`입니다.
+
+```jsonc
+{
+  "name": "game-mix",
+  "prologue": [
+    { "type": "login",      "packetId": 201, "payload": "small" },
+    { "type": "room-enter", "packetId": 207, "payload": "small" }
+  ],
+  "operations": [
+    { "type": "heartbeat", "packetId": 203, "weight": 70, "payloadBytes": 0 },
+    { "type": "chat",      "packetId": 205, "weight": 25, "payload": "medium" },
+    { "type": "echo",      "packetId": 101, "weight":  5, "payload": "small" }
+  ],
+  "thinkTime": { "minMs": 150, "maxMs": 400 }
+}
+```
+
+| 항목 | 설명 |
+| --- | --- |
+| `name` | 요약 CSV의 `scenario` 값으로 남습니다. 리포트에서 실행을 구분하는 이름입니다. |
+| `prologue` | **접속할 때마다** 순서대로 한 번씩 보냅니다. 재접속하면 처음부터 다시 보냅니다. |
+| `operations` | 그 뒤로 `weight` 비율대로 섞어 보냅니다. 어떤 요청을 잠시 빼려면 `weight`를 `0`으로 둡니다. |
+| `payload` | 본문 크기 프로필입니다. `--payload`와 같은 이름을 씁니다. |
+| `payloadBytes` | 본문 크기를 바이트로 직접 정합니다. 있으면 `payload`보다 우선합니다. 상한은 32,762바이트입니다. |
+| `thinkTime` | 요청 간격입니다. `minMs`와 `maxMs`를 함께 적습니다. |
+
+주석(`//`)과 마지막 쉼표를 허용합니다.
+
+> **`thinkTime`은 닫힌 루프에서만 쓰입니다.**
+> 열린 루프(`--pacing open`, 기본값)는 미리 정한 절대 시각 일정대로 보내므로 간격을 `--send-rate-per-client`로 정합니다.
+> 둘을 함께 주면 클라이언트가 경고를 찍고 `thinkTime`을 무시합니다.
+
+잘못된 정의는 부하를 걸기 전에 걸러집니다.
+이름이 없거나, 요청이 하나도 없거나, `weight` 합이 0이거나, `packetId`가 `Int16`을 넘거나,
+`payloadBytes`가 프로토콜 상한을 넘으면 실행이 시작되지 않고 이유를 알려 줍니다.
 
 ### 재접속 폭주 시나리오
 
@@ -413,7 +526,7 @@ UDP와 text-line은 `--pacing open`을 지정해도 항상 닫힌 루프로 동�
 
 | 파일 | 생성 주체 | 설명 |
 | --- | --- | --- |
-| `server_samples.csv` | 서버 | 활성 세션, 요청 수, 처리량, GC, 메모리, CPU, 핸들러 지연 시간 등 주기 샘플입니다. |
+| `server_samples.csv` | 서버 | 활성 세션, 요청 수, 처리량, GC, 메모리, CPU, 핸들러 지연 시간, 송신 큐 깊이, SAEA 풀 잔량 등 주기 샘플입니다. |
 | `server_events.csv` | 서버 | 접속, 종료, 오류, 샘플링된 요청 이벤트입니다. |
 | `client_samples.csv` | 클라이언트 | 활성 클라이언트, 접속/종료, 송수신, 타임아웃, RTT 분위수 등 주기 샘플입니다. |
 | `client_operations.csv` | 클라이언트 | 샘플링된 개별 요청/응답 지연 시간입니다. |
@@ -462,6 +575,10 @@ UDP와 text-line은 `--pacing open`을 지정해도 항상 닫힌 루프로 동�
 | `send_schedule_delay_p99_us` | 예정 시각 대비 송신 지연입니다. 클라이언트 포화를 판단합니다. |
 | `send_skipped_in_flight` | 동시 요청 한도에 걸려 건너뛴 송신 수입니다. |
 | `max_in_flight_observed` | 관측된 최대 동시 요청 수입니다. |
+| `scenario` | 실행한 시나리오 이름입니다. `--scenario-file`로 돌렸으면 파일의 `name`입니다. |
+| `outage_total` | 연결이 예기치 않게 끊긴 횟수입니다. 서버 장애 주입 실행에서만 0이 아닙니다. |
+| `reconnect_total` | 끊긴 뒤 다시 붙는 데 성공한 횟수입니다. |
+| `max_outage_ms` | 끊긴 시각부터 응답을 다시 받기까지의 최대 시간, 곧 서버 회복 시간입니다. |
 
 `rtt_total_*` 값은 모든 응답을 세는 히스토그램에서 나옵니다.
 따라서 `--operation-sampling` 값에 영향을 받지 않습니다.
@@ -499,6 +616,9 @@ Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
 | `-Pacing` | `open` | 송신 페이싱입니다. |
 | `-Port` | `2012` | 서버 포트입니다. |
 | `-ExtraClientArgs` | 없음 | 클라이언트에 그대로 넘길 추가 인자입니다. |
+| `-Metrics` | `full` | 서버 계측 수준입니다. `full`·`no-gauges`·`off`. |
+| `-KillServerAt` | 없음 | 이 시각에 서버를 강제 종료했다가 다시 띄웁니다. 예: `00:00:30`. |
+| `-ServerDowntime` | `00:00:05` | 서버를 내려 둘 시간입니다. |
 | `-SkipReport` | 꺼짐 | 리포트를 만들지 않습니다. |
 
 ### 시나리오 매트릭스 (`run-matrix.ps1`)
@@ -509,8 +629,38 @@ Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
 Test\LoadTest\run-matrix.ps1 -Prefix nightly -Clients 200 -Duration 00:01:00
 ```
 
-기본 매트릭스는 `echo`, `game-like`, `burst`, `mixed-huge`, `abort`, `reconnect-storm` 여섯 조합입니다.
+기본 매트릭스는 `echo`, `game-like`, `burst`, `mixed-huge`, `abort`, `reconnect-storm`,
+그리고 서버를 죽였다 살리는 `fault` 일곱 조합입니다.
 조합마다 포트를 다르게 잡아 앞선 실행의 `TIME_WAIT` 소켓과 부딪히지 않게 합니다.
+
+조합에는 `Metrics`, `KillServerAt`, `ServerDowntime`도 넣을 수 있습니다.
+
+```powershell
+Test\LoadTest\run-matrix.ps1 -Prefix quick -Matrix @(
+    @{ Name = 'echo';  Scenario = 'echo' },
+    @{ Name = 'fault'; Scenario = 'echo'; KillServerAt = '00:00:15'; ServerDowntime = '00:00:05' }
+)
+```
+
+### 계측 오버헤드 측정 (`measure-metrics-overhead.ps1`)
+
+같은 부하를 서버 계측 수준만 바꿔 세 번 돌리고 비교합니다.
+계측이 측정 대상 프로세스 안에서 도는 이상, 그 비용을 수치로 알아야 결과를 믿을 수 있습니다.
+
+```powershell
+Test\LoadTest\measure-metrics-overhead.ps1 -Prefix ovh -Clients 300 -Duration 00:01:00 -Repeat 3
+```
+
+두 개의 비교 리포트가 나옵니다.
+
+| 리포트 | 기준 → 대상 | 읽는 것 |
+| --- | --- | --- |
+| `<Prefix>-all-instrumentation.html` | `off` → `full` | 서버 계측 전체의 비용 |
+| `<Prefix>-runtime-gauges.html` | `no-gauges` → `full` | 송신 큐·풀 게이지만의 비용 |
+
+두 리포트의 `p99 지연`과 `처리량` 줄이 곧 계측의 비용입니다.
+판정이 불합격으로 나와도 성능 회귀가 아니라 계측 비용이 임계값을 넘었다는 뜻입니다.
+꼬리 지연은 실행마다 흔들리므로 `-Repeat`는 3회 이상을 권장합니다.
 
 ### 리포트와 회귀 판정 (`LoadTest.Report`)
 
@@ -586,6 +736,11 @@ SELECT * FROM analysis_phase_breakdown;
 
 SELECT * FROM analysis_throughput;
 SELECT * FROM analysis_latency;
+
+-- 송신 적체와 SAEA 풀 여유. instrumented_samples가 0이면 계기가 없던 실행이며,
+-- "큐가 비어 있었다"가 아니라 "재지 않았다"는 뜻입니다.
+SELECT * FROM analysis_server_backpressure;
+
 SELECT * FROM analysis_client_machine_summary;
 SELECT * FROM analysis_distributed_client_throughput;
 SELECT * FROM analysis_memory_trend;

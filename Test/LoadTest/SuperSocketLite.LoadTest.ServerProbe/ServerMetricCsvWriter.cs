@@ -44,7 +44,13 @@ public sealed class ServerMetricCsvWriter : IDisposable
         "handler_latency_p99_us",
         "handler_latency_max_us",
         "dropped_metric_rows",
-        "phase");
+        "phase",
+        "send_queue_depth_total",
+        "send_queue_depth_max",
+        "receive_saea_pool_available",
+        "receive_saea_pool_total",
+        "send_saea_pool_available",
+        "send_saea_pool_total");
 
     private static readonly CsvSchema EventSchema = new(
         "timestamp_utc",
@@ -159,7 +165,13 @@ public sealed class ServerMetricCsvWriter : IDisposable
                 sample.HandlerLatencyP99Us,
                 sample.HandlerLatencyMaxUs,
                 sample.DroppedMetricRows,
-                sample.Phase);
+                sample.Phase,
+                sample.SendQueueDepthTotal,
+                sample.SendQueueDepthMax,
+                sample.ReceiveSaeaPoolAvailable,
+                sample.ReceiveSaeaPoolTotal,
+                sample.SendSaeaPoolAvailable,
+                sample.SendSaeaPoolTotal);
             return;
         }
 

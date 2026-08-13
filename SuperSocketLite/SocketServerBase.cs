@@ -27,6 +27,12 @@ abstract class SocketServerBase : ISocketServer, IDisposable
         Listeners = new List<ISocketListener>(listeners.Length);
     }
 
+    /// <summary>
+    /// The state of the SAEA pools, for metrics.
+    /// Returns null on servers that do not pool SocketAsyncEventArgs (UDP).
+    /// </summary>
+    internal virtual SocketAsyncEventArgsPoolUsage? GetPoolUsage() => null;
+
     public virtual bool Start()
     {
         IsStopped = false;

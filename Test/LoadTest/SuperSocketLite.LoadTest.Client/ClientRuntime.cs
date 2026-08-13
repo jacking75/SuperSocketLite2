@@ -21,6 +21,9 @@ public sealed class ClientRuntime
     public ClientRuntime(LoadTestOptions options)
     {
         _options = options;
+
+        // 시나리오 파일이 잘못되었으면 부하를 걸기 전에 여기서 드러난다.
+        _options.EnsureDeclarativeScenarioLoaded();
     }
 
     public static void EnsureOutputFiles(LoadTestOptions options)
@@ -34,6 +37,14 @@ public sealed class ClientRuntime
     {
         // 수천 클라이언트가 한꺼번에 뜰 때 스레드풀 증가 속도가 램프업을 늦추지 않도록 미리 확보한다.
         LoadGeneratorHost.PrepareThreadPool(_options);
+
+        // 열린 루프는 미리 정한 절대 시각 일정대로 보내므로 요청 간격을 시나리오가 정할 수 없다.
+        // 조용히 무시하면 파일에 적은 값이 반영된 줄 알게 된다.
+        if (_options.DeclarativeScenario is { ThinkTimeMin: not null } && _options.UsesOpenLoop())
+        {
+            Console.Error.WriteLine(
+                "경고: 열린 루프는 --send-rate-per-client 로 송신 일정을 세운다. 시나리오의 thinkTime은 쓰이지 않는다.");
+        }
 
         using var writers = new ClientCsvWriters(_options.Output, _options.MachineId);
         using var duration = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -133,7 +144,8 @@ public sealed class ClientRuntime
 
         writers.WriteSummary(_options.RunId, "clients", _options.Clients);
         writers.WriteSummary(_options.RunId, "duration_ms", elapsedMs);
-        writers.WriteSummary(_options.RunId, "scenario", _options.Scenario);
+        // 시나리오 파일로 돌렸으면 그 이름을 남긴다. 리포트에서 실행을 구분하는 이름이다.
+        writers.WriteSummary(_options.RunId, "scenario", _options.DeclarativeScenario?.Name ?? _options.Scenario);
         writers.WriteSummary(_options.RunId, "transport", _options.Transport);
         writers.WriteSummary(_options.RunId, "pacing", _options.UsesOpenLoop() ? "open" : "closed");
         writers.WriteSummary(_options.RunId, "max_in_flight", _options.ResolveMaxInFlight());
@@ -172,6 +184,12 @@ public sealed class ClientRuntime
         writers.WriteSummary(_options.RunId, "send_skipped_in_flight", _metrics.SendSkippedInFlight);
         writers.WriteSummary(_options.RunId, "max_in_flight_observed", _metrics.MaxInFlightObserved);
         writers.WriteSummary(_options.RunId, "local_resource_exhaustion", _metrics.LocalResourceExhaustion);
+
+        // 서버 장애 주입에서 읽는 값이다. max_outage_ms는 연결이 끊긴 시각부터
+        // 응답을 다시 받기까지 걸린 시간의 최댓값이므로 곧 서버 회복 시간이다.
+        writers.WriteSummary(_options.RunId, "outage_total", _metrics.OutageTotal);
+        writers.WriteSummary(_options.RunId, "reconnect_total", _metrics.ReconnectTotal);
+        writers.WriteSummary(_options.RunId, "max_outage_ms", _metrics.MaxOutageMs);
 
         var targetRate = _options.Clients * _options.SendRatePerClient;
         writers.WriteSummary(_options.RunId, "target_send_rate_per_sec", Format(targetRate));

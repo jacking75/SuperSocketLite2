@@ -32,6 +32,9 @@ public sealed class ClientMetricsCollector
     private long _socketErrorTotal;
     private long _protocolErrorTotal;
     private long _runtimeErrorTotal;
+    private long _outageTotal;
+    private long _reconnectTotal;
+    private long _maxOutageMs;
     private readonly object _rateLock = new();
     private long _lastRateElapsedMs;
     private long _lastRateSendSuccess;
@@ -88,6 +91,37 @@ public sealed class ClientMetricsCollector
 
     public long SendSkippedInFlight => Volatile.Read(ref _sendSkippedInFlight);
     public long MaxInFlightObserved => Volatile.Read(ref _maxInFlightObserved);
+    /// <summary>
+    /// 연결이 예기치 않게 끊긴 것을 기록합니다.
+    /// 실행 종료로 인한 정상 종료는 여기 들어오지 않습니다.
+    /// </summary>
+    public void OnOutageStarted() => Interlocked.Increment(ref _outageTotal);
+
+    /// <summary>끊긴 뒤 다시 붙는 데 성공한 것을 기록합니다.</summary>
+    public void OnReconnected() => Interlocked.Increment(ref _reconnectTotal);
+
+    /// <summary>
+    /// 끊긴 시각부터 응답을 다시 받기까지 걸린 시간을 기록합니다.
+    /// 접속이 아니라 응답을 기준으로 삼습니다. 서버가 리슨을 다시 열었어도
+    /// 요청을 처리하기 전이라면 아직 회복이 아니기 때문입니다.
+    /// </summary>
+    public void OnRecovered(long outageMs)
+    {
+        var observed = Volatile.Read(ref _maxOutageMs);
+        while (outageMs > observed)
+        {
+            var previous = Interlocked.CompareExchange(ref _maxOutageMs, outageMs, observed);
+            if (previous == observed)
+                break;
+
+            observed = previous;
+        }
+    }
+
+    public long OutageTotal => Volatile.Read(ref _outageTotal);
+    public long ReconnectTotal => Volatile.Read(ref _reconnectTotal);
+    public long MaxOutageMs => Volatile.Read(ref _maxOutageMs);
+
     public void OnSocketError() => Interlocked.Increment(ref _socketErrorTotal);
     public void OnProtocolError() => Interlocked.Increment(ref _protocolErrorTotal);
     public void OnRuntimeError() => Interlocked.Increment(ref _runtimeErrorTotal);

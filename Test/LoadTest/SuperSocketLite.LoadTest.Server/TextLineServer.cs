@@ -37,7 +37,7 @@ public sealed class TextLineServer : AppServer<TextLineSession, TextLineRequestI
     /// GC·메모리·CPU는 프로세스 단위 값이므로 리스너마다 따로 재는 것이 의미가 없고,
     /// 세션과 요청 수는 합산해 보는 편이 서버 전체 부하를 읽기 쉽습니다.
     /// </summary>
-    public bool Configure(LoadTestServerOptions options, ServerMetricsCollector metrics)
+    public bool Configure(LoadTestServerOptions options, ServerMetricsCollector? metrics)
     {
         _metrics = metrics;
 
@@ -67,10 +67,8 @@ public sealed class TextLineServer : AppServer<TextLineSession, TextLineRequestI
 
     private void OnRequestReceived(TextLineSession session, TextLineRequestInfo request)
     {
-        if (_metrics is null)
-            return;
-
-        using var recorder = _metrics.BeginRequest(session.SessionID, packetId: 0, bytesIn: request.Line.Length);
+        // 계측기가 없어도(--metrics off) 에코는 그대로 한다.
+        using var recorder = _metrics?.BeginRequest(session.SessionID, packetId: 0, bytesIn: request.Line.Length);
 
         // 클라이언트가 줄 단위로 응답을 읽으므로 종결자를 붙여 되돌려준다.
         var response = Encoding.UTF8.GetBytes(request.Line + "\r\n");
@@ -78,11 +76,11 @@ public sealed class TextLineServer : AppServer<TextLineSession, TextLineRequestI
         try
         {
             session.Send(response, 0, response.Length);
-            _metrics.OnBytesOut(response.Length);
+            _metrics?.OnBytesOut(response.Length);
         }
         catch (Exception ex)
         {
-            _metrics.OnSendFailed(session.SessionID, response.Length, ex.Message);
+            _metrics?.OnSendFailed(session.SessionID, response.Length, ex.Message);
             throw;
         }
     }

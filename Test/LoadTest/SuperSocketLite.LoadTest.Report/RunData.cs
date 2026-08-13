@@ -26,6 +26,10 @@ public sealed record ClientSample(
     long TotalTimeout,
     long TotalSendFail);
 
+/// <summary>
+/// 서버가 남긴 한 행입니다.
+/// 뒤쪽 네 항목은 라이브러리 계기에서 온 값이며, 계기가 없던 실행과 계측을 끈 실행에서는 -1입니다.
+/// </summary>
 public sealed record ServerSample(
     long ElapsedMs,
     string Phase,
@@ -35,4 +39,8 @@ public sealed record ServerSample(
     long GcHeapBytes,
     long ExceptionTotal,
     long HandlerLatencyP99Us,
-    double CpuPercent);
+    double CpuPercent,
+    long SendQueueDepthTotal = -1,
+    long SendQueueDepthMax = -1,
+    long ReceivePoolAvailable = -1,
+    long SendPoolAvailable = -1);

@@ -40,10 +40,19 @@ SELECT
     COALESCE(json_extract_string(to_json(client_samples), '$.phase'), 'unknown') AS normalized_phase
 FROM client_samples;
 
+-- The runtime columns come from the SuperSocketLite meter. Runs recorded before those
+-- gauges existed have no column at all, and runs with instrumentation turned off write -1,
+-- so both cases normalize to -1 and are excluded from the aggregates below.
 CREATE OR REPLACE VIEW normalized_server_samples AS
 SELECT
     *,
-    COALESCE(json_extract_string(to_json(server_samples), '$.phase'), 'unknown') AS normalized_phase
+    COALESCE(json_extract_string(to_json(server_samples), '$.phase'), 'unknown') AS normalized_phase,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.send_queue_depth_total') AS BIGINT), -1) AS normalized_send_queue_depth_total,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.send_queue_depth_max') AS BIGINT), -1) AS normalized_send_queue_depth_max,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.receive_saea_pool_available') AS BIGINT), -1) AS normalized_receive_saea_pool_available,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.receive_saea_pool_total') AS BIGINT), -1) AS normalized_receive_saea_pool_total,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.send_saea_pool_available') AS BIGINT), -1) AS normalized_send_saea_pool_available,
+    COALESCE(TRY_CAST(json_extract_string(to_json(server_samples), '$.send_saea_pool_total') AS BIGINT), -1) AS normalized_send_saea_pool_total
 FROM server_samples;
 
 CREATE OR REPLACE VIEW normalized_client_operations AS
@@ -235,6 +244,10 @@ SELECT
     max(CASE WHEN key = 'send_schedule_delay_p99_us' THEN TRY_CAST(value AS BIGINT) END) AS send_delay_p99_us,
     max(CASE WHEN key = 'send_skipped_in_flight' THEN TRY_CAST(value AS BIGINT) END) AS send_skipped_in_flight,
     max(CASE WHEN key = 'max_in_flight_observed' THEN TRY_CAST(value AS BIGINT) END) AS max_in_flight_observed,
+    -- 서버 장애 주입에서 읽는 값. max_outage_ms 는 연결이 끊긴 뒤 응답을 다시 받기까지의 최대 시간이다.
+    max(CASE WHEN key = 'outage_total' THEN TRY_CAST(value AS BIGINT) END) AS outage_total,
+    max(CASE WHEN key = 'reconnect_total' THEN TRY_CAST(value AS BIGINT) END) AS reconnect_total,
+    max(CASE WHEN key = 'max_outage_ms' THEN TRY_CAST(value AS BIGINT) END) AS max_outage_ms,
     max(CASE WHEN key = 'operation_sampling' THEN TRY_CAST(value AS DOUBLE) END) AS operation_sampling,
     max(CASE WHEN key = 'dropped_client_operation_rows' THEN TRY_CAST(value AS BIGINT) END) AS dropped_operation_rows,
     max(CASE WHEN key = 'rtt_total_count' THEN TRY_CAST(value AS BIGINT) END) AS rtt_total_count,
@@ -290,6 +303,25 @@ SELECT
     max(handler_latency_p99_us) / 1000.0 AS max_handler_p99_ms,
     max(handler_latency_max_us) / 1000.0 AS max_handler_max_ms,
     count(*) AS steady_samples
+FROM steady_server_samples
+GROUP BY run_id
+ORDER BY run_id;
+
+-- Send backpressure and pool headroom, steady phase only. A send queue that stays deep means
+-- the server accepts sends faster than the socket drains them; a pool whose available count
+-- reaches zero means new connections are about to be refused. instrumented_samples = 0 says the
+-- run carries no runtime gauges, which is not the same as "the queues were empty".
+CREATE OR REPLACE VIEW analysis_server_backpressure AS
+SELECT
+    run_id,
+    max(normalized_send_queue_depth_total) AS max_send_queue_depth_total,
+    max(normalized_send_queue_depth_max) AS max_send_queue_depth_session,
+    avg(CASE WHEN normalized_send_queue_depth_total >= 0 THEN normalized_send_queue_depth_total END) AS avg_send_queue_depth_total,
+    min(CASE WHEN normalized_receive_saea_pool_available >= 0 THEN normalized_receive_saea_pool_available END) AS min_receive_pool_available,
+    max(normalized_receive_saea_pool_total) AS max_receive_pool_total,
+    min(CASE WHEN normalized_send_saea_pool_available >= 0 THEN normalized_send_saea_pool_available END) AS min_send_pool_available,
+    max(normalized_send_saea_pool_total) AS max_send_pool_total,
+    count(*) FILTER (WHERE normalized_send_queue_depth_total >= 0) AS instrumented_samples
 FROM steady_server_samples
 GROUP BY run_id
 ORDER BY run_id;

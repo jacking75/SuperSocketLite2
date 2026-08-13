@@ -1,5 +1,21 @@
 namespace SuperSocketLite.LoadTest.Server;
 
+/// <summary>
+/// 서버가 자신을 얼마나 재는지입니다.
+/// 계측이 결과에 주는 영향을 보려면 같은 부하를 세 단계로 돌려 비교합니다.
+/// </summary>
+public enum ServerMetricsMode
+{
+    /// <summary>요청 계측 · 주기 표본 · 런타임 게이지를 모두 켭니다.</summary>
+    Full,
+
+    /// <summary>런타임 게이지(송신 큐·SAEA 풀)만 끕니다. 게이지가 더한 비용을 가려냅니다.</summary>
+    NoGauges,
+
+    /// <summary>서버 계측을 전부 끕니다. 서버 CSV도 남지 않습니다.</summary>
+    Off
+}
+
 public sealed class LoadTestServerOptions
 {
     public static string HelpText { get; } = string.Join(Environment.NewLine, [
@@ -13,6 +29,7 @@ public sealed class LoadTestServerOptions
         "  --output <directory>",
         "  --sample-interval-ms <milliseconds>",
         "  --server-event-request-sampling <0.0-1.0>",
+        "  --metrics <full|no-gauges|off>",
         "  --duration <hh:mm:ss>",
         "  --run-id <id>",
         "  --help"
@@ -32,6 +49,9 @@ public sealed class LoadTestServerOptions
     public string RunId { get; set; } = DateTimeOffset.UtcNow.ToString("yyyyMMdd-HHmmss");
     public TimeSpan? Duration { get; set; }
     public double RequestEventSampling { get; set; }
+
+    /// <summary>서버 계측 수준입니다. 기본은 전부 켬입니다.</summary>
+    public ServerMetricsMode Metrics { get; set; } = ServerMetricsMode.Full;
 
     public static bool IsHelpRequest(string[] args)
     {
@@ -76,6 +96,9 @@ public sealed class LoadTestServerOptions
                 case "--server-event-request-sampling":
                     options.RequestEventSampling = double.Parse(value);
                     break;
+                case "--metrics":
+                    options.Metrics = ParseMetricsMode(value);
+                    break;
                 default:
                     throw new ArgumentException($"Unknown option '{arg}'.");
             }
@@ -83,6 +106,17 @@ public sealed class LoadTestServerOptions
 
         options.Validate();
         return options;
+    }
+
+    private static ServerMetricsMode ParseMetricsMode(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "full" or "on" => ServerMetricsMode.Full,
+            "no-gauges" or "nogauges" => ServerMetricsMode.NoGauges,
+            "off" or "none" => ServerMetricsMode.Off,
+            _ => throw new ArgumentException($"Unknown metrics mode '{value}'. Use full, no-gauges, or off.")
+        };
     }
 
     public void Validate()

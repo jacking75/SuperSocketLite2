@@ -10,6 +10,7 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
 {
     private ServerMetricsCollector? _metrics;
     private IDisposable? _metricsLoop;
+    private bool _configured;
     private bool _stopped;
 
     public LoadTestServer()
@@ -33,34 +34,39 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
             NoDelay = true
         };
 
-        _metrics = ServerMetricsCollector.Create(new ServerMetricsOptions
-        {
-            RunId = options.RunId,
-            OutputDirectory = options.Output,
-            SampleInterval = TimeSpan.FromMilliseconds(options.SampleIntervalMs),
-            ServerName = "LoadTestServer",
-            RequestEventSampling = options.RequestEventSampling
-        });
+        // --metrics off 은 수집기를 아예 만들지 않는다.
+        // 계측이 결과에 주는 영향을 재려면 계측 코드가 실제로 돌지 않아야 한다.
+        _metrics = options.Metrics == ServerMetricsMode.Off
+            ? null
+            : ServerMetricsCollector.Create(new ServerMetricsOptions
+            {
+                RunId = options.RunId,
+                OutputDirectory = options.Output,
+                SampleInterval = TimeSpan.FromMilliseconds(options.SampleIntervalMs),
+                ServerName = "LoadTestServer",
+                RequestEventSampling = options.RequestEventSampling,
+                CollectRuntimeGauges = options.Metrics == ServerMetricsMode.Full
+            });
 
+        _configured = true;
         return Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory());
     }
 
     /// <summary>
-    /// 이 서버의 계측기입니다. <see cref="Configure"/> 이후에 유효합니다.
+    /// 이 서버의 계측기입니다. <see cref="Configure"/> 이후에 유효하며, <c>--metrics off</c>이면 null입니다.
     /// 부가 리스너(text-line·UDP)가 같은 수집기를 공유하도록 노출합니다.
     /// </summary>
-    public ServerMetricsCollector Metrics =>
-        _metrics ?? throw new InvalidOperationException("Server is not configured.");
+    public ServerMetricsCollector? Metrics => _metrics;
 
     public bool StartWithMetrics()
     {
-        if (_metrics is null)
+        if (!_configured)
             throw new InvalidOperationException("Server is not configured.");
 
         if (!Start())
             return false;
 
-        _metricsLoop = _metrics.Start();
+        _metricsLoop = _metrics?.Start();
         return true;
     }
 
@@ -76,8 +82,12 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
 
     private void OnRequestReceived(LoadTestSession session, LoadTestRequestInfo request)
     {
+        // 계측을 껐어도 에코는 그대로 해야 한다. 클라이언트 쪽 수치를 두 실행에서 비교하기 때문이다.
         if (_metrics is null)
+        {
+            PacketHandlers.Handle(session, request, null);
             return;
+        }
 
         using var recorder = _metrics.BeginRequest(session.SessionID, request.PacketId, request.TotalSize);
         PacketHandlers.Handle(session, request, _metrics);

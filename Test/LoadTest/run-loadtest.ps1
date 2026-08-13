@@ -18,6 +18,16 @@
     .\run-loadtest.ps1 -RunId base -Repeat 3 -Clients 500 -Duration 00:02:00
     .\run-loadtest.ps1 -RunId cand -Repeat 3 -Clients 500 -Duration 00:02:00
     .\run-loadtest.ps1 -ReportOnly -Baseline base -Candidate cand -FailOnRegression
+
+.EXAMPLE
+    # 서버 장애 주입: 30초 지점에서 서버를 죽이고 5초 뒤 다시 띄운다.
+    .\run-loadtest.ps1 -RunId fault -Clients 200 -Duration 00:01:30 -KillServerAt 00:00:30
+
+.EXAMPLE
+    # 계측 오버헤드: 같은 부하를 계측 수준만 바꿔 돌리고 비교한다.
+    .\run-loadtest.ps1 -RunId m-full -Repeat 3 -Metrics full -SkipReport
+    .\run-loadtest.ps1 -RunId m-off  -Repeat 3 -Metrics off  -SkipReport
+    .\run-loadtest.ps1 -ReportOnly -Baseline m-full -Candidate m-off
 #>
 [CmdletBinding()]
 param(
@@ -39,6 +49,15 @@ param(
     [int]      $MaxConnections = 0,
     [string]   $LogRoot = "logs\loadtest",
     [string[]] $ExtraClientArgs = @(),
+
+    # 서버 계측 수준. off 로 두면 서버 CSV가 남지 않는다. 계측 자체의 비용을 잴 때 쓴다.
+    [ValidateSet('full', 'no-gauges', 'off')]
+    [string]   $Metrics = 'full',
+
+    # 서버 장애 주입. 부하가 도는 중에 서버를 강제 종료했다가 다시 띄운다.
+    # 클라이언트가 재접속하도록 -ExtraClientArgs 에 --reconnect-on-drop 이 자동으로 붙는다.
+    [string]   $KillServerAt,
+    [string]   $ServerDowntime = "00:00:05",
 
     # 리포트만 다시 만들 때 쓴다. 부하 실행은 건너뛴다.
     [switch]   $ReportOnly,
@@ -72,11 +91,8 @@ function Wait-ForListener {
     return $false
 }
 
-function Invoke-SingleRun {
-    param([string] $Id)
-
-    $serverOutput = Join-Path $LogRoot "$Id-server"
-    $clientOutput = Join-Path $LogRoot "$Id-client"
+function Start-LoadTestServer {
+    param([string] $Id, [string] $OutputDir)
 
     # 서버는 클라이언트보다 넉넉히 오래 살아야 한다. 클라이언트가 끝나면 이 스크립트가 정리한다.
     $connections = if ($MaxConnections -gt 0) { $MaxConnections } else { [Math]::Max(100, $Clients * 2) }
@@ -85,14 +101,65 @@ function Invoke-SingleRun {
         'run', '--project', $serverProject, '-c', 'Release', '--no-build', '--',
         '--port', "$Port",
         '--max-connections', "$connections",
-        '--output', $serverOutput,
+        '--output', $OutputDir,
         '--run-id', $Id
     )
-    if ($TextPort -gt 0) { $serverArgs += @('--text-port', "$TextPort") }
-    if ($UdpPort  -gt 0) { $serverArgs += @('--udp-port',  "$UdpPort") }
+    if ($TextPort -gt 0)      { $serverArgs += @('--text-port', "$TextPort") }
+    if ($UdpPort  -gt 0)      { $serverArgs += @('--udp-port',  "$UdpPort") }
+    if ($Metrics -ne 'full')  { $serverArgs += @('--metrics',   $Metrics) }
+
+    return Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden -ArgumentList $serverArgs
+}
+
+function Stop-LoadTestServer {
+    param($Server)
+
+    if ($null -eq $Server) { return }
+    if (-not $Server.HasExited) {
+        $Server | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
+    $Server | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue
+}
+
+<#
+.SYNOPSIS
+    부하가 도는 중에 서버를 강제 종료했다가 다시 띄운다.
+.DESCRIPTION
+    재기동한 서버는 별도 디렉토리에 CSV를 쓴다. 같은 파일에 이어 쓰면 헤더가 두 번 들어가고,
+    리포트는 run_id 로 묶으므로 디렉토리가 나뉘어도 한 실행으로 합쳐진다.
+#>
+function Invoke-ServerFaultInjection {
+    param([string] $Id, [string] $ServerOutput, [int] $ListenPort, $Server)
+
+    $killAt = [TimeSpan]::Parse($KillServerAt)
+    $downtime = [TimeSpan]::Parse($ServerDowntime)
+
+    Start-Sleep -Seconds $killAt.TotalSeconds
+    Write-Host "[$Id] 서버 강제 종료 ($KillServerAt 경과)"
+    Stop-LoadTestServer -Server $Server
+
+    Start-Sleep -Seconds $downtime.TotalSeconds
+    Write-Host "[$Id] 서버 재기동"
+    $restarted = Start-LoadTestServer -Id $Id -OutputDir "$ServerOutput-restart"
+
+    if ($Transport -eq 'udp') {
+        Start-Sleep -Seconds 3
+    }
+    elseif (-not (Wait-ForListener -ListenPort $ListenPort)) {
+        throw "[$Id] 재기동한 서버가 $ListenPort 포트를 열지 못했다."
+    }
+
+    return $restarted
+}
+
+function Invoke-SingleRun {
+    param([string] $Id)
+
+    $serverOutput = Join-Path $LogRoot "$Id-server"
+    $clientOutput = Join-Path $LogRoot "$Id-client"
 
     Write-Host "[$Id] 서버 기동 (port $Port)"
-    $server = Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden -ArgumentList $serverArgs
+    $server = Start-LoadTestServer -Id $Id -OutputDir $serverOutput
 
     try {
         $listenPort = if ($Transport -eq 'udp' -and $UdpPort -gt 0) { $UdpPort }
@@ -125,16 +192,35 @@ function Invoke-SingleRun {
             '--run-id', $Id
         ) + $ExtraClientArgs
 
+        # 서버를 죽였다 살릴 것이라면 클라이언트가 다시 붙어야 회복을 볼 수 있다.
+        if ($KillServerAt -and ($ExtraClientArgs -notcontains '--reconnect-on-drop')) {
+            $clientArgs += '--reconnect-on-drop'
+        }
+
         Write-Host "[$Id] 클라이언트 실행 ($Clients 클라이언트, $Duration)"
-        & dotnet @clientArgs | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw "[$Id] 클라이언트가 코드 $LASTEXITCODE 로 끝났다." }
+
+        if (-not $KillServerAt) {
+            & dotnet @clientArgs | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "[$Id] 클라이언트가 코드 $LASTEXITCODE 로 끝났다." }
+        }
+        else {
+            # 장애를 주입하려면 클라이언트가 도는 동안 이 스크립트가 서버를 조작해야 하므로
+            # 클라이언트를 비동기로 띄운다.
+            $clientLog = Join-Path $LogRoot "$Id-client.log"
+            New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
+            $client = Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden `
+                -ArgumentList $clientArgs -RedirectStandardOutput $clientLog
+
+            $server = Invoke-ServerFaultInjection -Id $Id -ServerOutput $serverOutput `
+                -ListenPort $listenPort -Server $server
+
+            $client.WaitForExit()
+            if ($client.ExitCode -ne 0) { throw "[$Id] 클라이언트가 코드 $($client.ExitCode) 로 끝났다. 로그: $clientLog" }
+        }
     }
     finally {
         # 서버는 --duration 없이 띄웠으므로 여기서 확실히 내린다.
-        if (-not $server.HasExited) {
-            $server | Stop-Process -Force -ErrorAction SilentlyContinue
-        }
-        $server | Wait-Process -Timeout 15 -ErrorAction SilentlyContinue
+        Stop-LoadTestServer -Server $server
     }
 
     Write-Host "[$Id] 완료"

@@ -154,7 +154,7 @@ public sealed partial class ClientActor
 
                 var endedMs = ElapsedMs();
                 var rttUs = TicksToMicroseconds(completedTicks - request.StartedTicks);
-                _metrics.OnReceive(response.BytesRead, rttUs);
+                RecordReceive(response.BytesRead, rttUs);
                 WriteOperation(
                     endedMs,
                     request.OperationId,

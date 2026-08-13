@@ -8,6 +8,7 @@ public sealed class ServerMetricsCollector : IDisposable
     private readonly ServerMetricsOptions _options;
     private readonly ProcessMetricReader _processMetricReader = new();
     private readonly ServerMetricCsvWriter _writer;
+    private readonly RuntimeGaugeReader _runtimeGauges;
     private readonly LatencyHistogram _handlerLatency = new();
     private readonly Stopwatch _elapsed = Stopwatch.StartNew();
     private readonly object _rateLock = new();
@@ -31,6 +32,7 @@ public sealed class ServerMetricsCollector : IDisposable
     {
         _options = options;
         _writer = new ServerMetricCsvWriter(options.OutputDirectory, options.WriterChannelCapacity, options.AutoStartWriter);
+        _runtimeGauges = RuntimeGaugeReader.Create(options.CollectRuntimeGauges);
     }
 
     public static ServerMetricsCollector Create(ServerMetricsOptions options)
@@ -118,6 +120,7 @@ public sealed class ServerMetricsCollector : IDisposable
     {
         var now = DateTimeOffset.UtcNow;
         var process = _processMetricReader.Read();
+        var runtime = _runtimeGauges.Read();
         var latency = _handlerLatency.Snapshot(resetLatency);
         var elapsedMs = _elapsed.ElapsedMilliseconds;
         var activeSessions = ActiveSessions;
@@ -184,7 +187,13 @@ public sealed class ServerMetricsCollector : IDisposable
             latency.P99Us,
             latency.MaxUs,
             Volatile.Read(ref _droppedMetricRows),
-            phase);
+            phase,
+            runtime.SendQueueDepthTotal,
+            runtime.SendQueueDepthMax,
+            runtime.ReceivePoolAvailable,
+            runtime.ReceivePoolTotal,
+            runtime.SendPoolAvailable,
+            runtime.SendPoolTotal);
     }
 
     /// <summary>
@@ -275,5 +284,6 @@ public sealed class ServerMetricsCollector : IDisposable
     public void Dispose()
     {
         _writer.Dispose();
+        _runtimeGauges.Dispose();
     }
 }

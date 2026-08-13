@@ -33,7 +33,7 @@ public sealed class UdpEchoServer : AppServer<UdpEchoSession, UdpEchoRequestInfo
     }
 
     /// <summary>TCP 서버와 같은 수집기를 공유합니다. 프로세스 자원은 하나이기 때문입니다.</summary>
-    public bool Configure(LoadTestServerOptions options, ServerMetricsCollector metrics)
+    public bool Configure(LoadTestServerOptions options, ServerMetricsCollector? metrics)
     {
         _metrics = metrics;
 
@@ -62,21 +62,20 @@ public sealed class UdpEchoServer : AppServer<UdpEchoSession, UdpEchoRequestInfo
 
     private void OnRequestReceived(UdpEchoSession session, UdpEchoRequestInfo request)
     {
-        if (_metrics is null)
-            return;
-
         var payload = Encoding.UTF8.GetBytes(request.Value);
-        using var recorder = _metrics.BeginRequest(session.SessionID, packetId: 0, bytesIn: payload.Length);
+
+        // 계측기가 없어도(--metrics off) 에코는 그대로 한다.
+        using var recorder = _metrics?.BeginRequest(session.SessionID, packetId: 0, bytesIn: payload.Length);
 
         // 클라이언트는 받은 바이트 수만 세므로 페이로드만 돌려주면 된다.
         try
         {
             session.Send(payload, 0, payload.Length);
-            _metrics.OnBytesOut(payload.Length);
+            _metrics?.OnBytesOut(payload.Length);
         }
         catch (Exception ex)
         {
-            _metrics.OnSendFailed(session.SessionID, payload.Length, ex.Message);
+            _metrics?.OnSendFailed(session.SessionID, payload.Length, ex.Message);
             throw;
         }
     }

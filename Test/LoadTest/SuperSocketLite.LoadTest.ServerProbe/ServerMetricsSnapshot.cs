@@ -1,5 +1,9 @@
 namespace SuperSocketLite.LoadTest.ServerProbe;
 
+/// <summary>
+/// 한 시점의 서버 상태입니다.
+/// 뒤쪽 여섯 항목은 SuperSocketLite Meter에서 읽은 값이며, 계측이 없으면 -1입니다.
+/// </summary>
 public sealed record ServerMetricsSnapshot(
     DateTimeOffset TimestampUtc,
     long ElapsedMs,
@@ -38,4 +42,10 @@ public sealed record ServerMetricsSnapshot(
     long HandlerLatencyP99Us,
     long HandlerLatencyMaxUs,
     long DroppedMetricRows,
-    string Phase);
+    string Phase,
+    int SendQueueDepthTotal,
+    int SendQueueDepthMax,
+    int ReceiveSaeaPoolAvailable,
+    int ReceiveSaeaPoolTotal,
+    int SendSaeaPoolAvailable,
+    int SendSaeaPoolTotal);

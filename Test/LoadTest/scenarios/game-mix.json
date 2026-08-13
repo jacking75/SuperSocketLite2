@@ -1,0 +1,22 @@
+{
+  // 게임 서버에 가까운 요청 조합이다. --scenario game-like 를 파일로 옮겨 적은 것이며,
+  // 비율만 고쳐 다시 돌리면 되므로 빌드가 필요 없다.
+  "name": "game-mix",
+
+  // 접속할 때마다 이 순서로 한 번씩 보낸다. 재접속하면 다시 처음부터 보낸다.
+  "prologue": [
+    { "type": "login", "packetId": 201, "payload": "small" },
+    { "type": "room-enter", "packetId": 207, "payload": "small" }
+  ],
+
+  // 그 뒤로는 weight 비율대로 섞어 보낸다. 어떤 요청을 잠시 빼려면 weight를 0으로 둔다.
+  "operations": [
+    { "type": "heartbeat", "packetId": 203, "weight": 70, "payloadBytes": 0 },
+    { "type": "chat", "packetId": 205, "weight": 25, "payload": "medium" },
+    { "type": "echo", "packetId": 101, "weight": 5, "payload": "small" }
+  ],
+
+  // 요청 간격이다. 닫힌 루프(--pacing closed)에서만 쓰인다.
+  // 열린 루프는 --send-rate-per-client 로 일정을 세우므로 이 값을 보지 않는다.
+  "thinkTime": { "minMs": 150, "maxMs": 400 }
+}

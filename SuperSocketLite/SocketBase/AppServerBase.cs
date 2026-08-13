@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Net;
 using System.Text;
 using SuperSocketLite.SocketBase.Config;
@@ -128,8 +127,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         }
 
         // Initialize active connections counter for metrics
-        s_ActiveConnectionsCounter ??= s_Meter.CreateUpDownCounter<int>("active-connections", "connections", "Number of active connections");
-        _sessionCountGauge ??= s_Meter.CreateObservableGauge("session-count", () => new Measurement<int>(SessionCount, ServerTag), "sessions", "Number of sessions currently registered");
+        RegisterMetrics();
 
         if (!_socketServer.Start())
         {

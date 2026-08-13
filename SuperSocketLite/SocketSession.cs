@@ -450,6 +450,12 @@ abstract partial class SocketSession : ISocketSession
     /// <summary>Gets whether the session has nothing left to send.</summary>
     public bool IsSendIdle => _sendQueue == null || (_sendQueue.Count == 0 && !CheckState(SocketState.InSending));
 
+    /// <summary>
+    /// How many send requests are waiting in this session's queue.
+    /// Metrics only; the queue keeps an advisory count, so this may lag by a moment.
+    /// </summary>
+    internal int SendQueueDepth => _sendQueue?.Count ?? 0;
+
     private Socket? _client;
     /// <summary>Gets or sets the client.</summary>
     public Socket? Client => _client;

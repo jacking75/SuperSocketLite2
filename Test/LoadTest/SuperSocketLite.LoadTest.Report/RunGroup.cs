@@ -62,16 +62,36 @@ public sealed class RunGroup
             RttP999Ms = MedianOf(runs, r => r.RttP999Ms),
             RttMaxMs = MedianOf(runs, r => r.RttMaxMs),
             ServerSteadyRps = MedianOf(runs, r => r.ServerSteadyRps),
+            // 한 번이라도 서버 표본이 빠졌다면 이 묶음의 서버 수치는 믿을 수 없다.
+            HasServerSamples = runs.All(r => r.HasServerSamples),
             // 예외와 세션 누수는 중앙값을 쓰면 한 번이라도 일어난 사고가 묻힌다.
             // 안전한 쪽으로 최악값을 남긴다.
             ServerExceptions = runs.Max(r => r.ServerExceptions),
             FinalActiveSessions = runs.Max(r => r.FinalActiveSessions),
+            OutageTotal = runs.Max(r => r.OutageTotal),
+            ReconnectTotal = runs.Max(r => r.ReconnectTotal),
+            MaxOutageMs = runs.Max(r => r.MaxOutageMs),
             MemoryGrowthMb = MedianOf(runs, r => r.MemoryGrowthMb),
             PeakWorkingSetMb = MedianOf(runs, r => r.PeakWorkingSetMb),
-            SteadySampleCount = (int)MedianOf(runs, r => r.SteadySampleCount)
+            SteadySampleCount = (int)MedianOf(runs, r => r.SteadySampleCount),
+            // 적체와 풀 소진도 사고에 가까우므로 최악값을 남긴다.
+            // 계측이 없던 실행(-1)은 빼고 계산하며, 전부 없으면 -1이 그대로 남는다.
+            MaxSendQueueDepthTotal = WorstOf(runs, r => r.MaxSendQueueDepthTotal, takeMax: true),
+            MaxSendQueueDepthSession = WorstOf(runs, r => r.MaxSendQueueDepthSession, takeMax: true),
+            MinReceivePoolAvailable = WorstOf(runs, r => r.MinReceivePoolAvailable, takeMax: false),
+            MinSendPoolAvailable = WorstOf(runs, r => r.MinSendPoolAvailable, takeMax: false)
         };
 
         return new RunGroup(name, runs, median);
+    }
+
+    private static long WorstOf(IReadOnlyList<RunMetrics> runs, Func<RunMetrics, long> selector, bool takeMax)
+    {
+        var observed = runs.Select(selector).Where(value => value >= 0).ToList();
+        if (observed.Count == 0)
+            return -1;
+
+        return takeMax ? observed.Max() : observed.Min();
     }
 
     private static double MedianOf(IReadOnlyList<RunMetrics> runs, Func<RunMetrics, double> selector)

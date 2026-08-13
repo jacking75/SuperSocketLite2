@@ -187,7 +187,16 @@ thread_count, threadpool_worker_available, threadpool_worker_max
 threadpool_io_available, threadpool_io_max, cpu_percent
 handler_latency_p50_us, handler_latency_p95_us, handler_latency_p99_us, handler_latency_max_us
 phase
+send_queue_depth_total, send_queue_depth_max
+receive_saea_pool_available, receive_saea_pool_total
+send_saea_pool_available, send_saea_pool_total
 ```
+
+The last six columns are read from the `SuperSocketLite` meter rather than from server code, so
+they are `-1` — not `0` — when the run carries no gauges: runs recorded before the gauges
+existed, runs started with `--metrics no-gauges` or `--metrics off`, and the final sample taken
+after the server has stopped. `-1` means "not measured", which is not the same as "the queue was
+empty".
 
 The `phase` column marks whether a row carries real load. The server does not know the client's
 schedule, so it infers the phase from how the active session count moves:
@@ -332,6 +341,46 @@ too low the burst is trimmed and the shortfall lands in `send_skipped_in_flight`
 For abort runs, the values that matter are on the server side: `exception_total` should stay 0
 and `active_sessions` should return to 0.
 
+### Server Fault Injection
+
+The runner can kill the server mid-run and bring it back:
+
+```powershell
+Test\LoadTest\run-loadtest.ps1 -RunId fault -Clients 200 -Duration 00:01:30 `
+  -KillServerAt 00:00:30 -ServerDowntime 00:00:05
+```
+
+It adds `--reconnect-on-drop` to the client for you; without it the clients simply leave when the
+server disappears and there is no recovery to observe. The restarted server writes to
+`<run>-server-restart`, and the report joins both directories by `run_id`.
+
+Read the outcome from three keys in `client_summary.csv`: `outage_total`, `reconnect_total`, and
+`max_outage_ms`. Recovery is measured to the next *response*, not the next successful connect —
+a server can be listening again while still unable to answer.
+
+### Declarative Scenarios
+
+`--scenario-file <path.json>` describes the request mix in a file so a load composition can change
+without a rebuild. `prologue` entries are sent once per connection (and again after a reconnect);
+`operations` are then mixed by `weight`. See `scenarios/game-mix.json`.
+
+`thinkTime` applies to closed-loop pacing only. Open loop sends on a fixed schedule derived from
+`--send-rate-per-client`, and the client warns rather than silently ignoring the file's value.
+
+### Instrumentation Cost
+
+`--metrics <full|no-gauges|off>` sets how much the server measures itself. `off` writes no server
+CSV but still echoes, so the client-side numbers stay comparable:
+
+```powershell
+Test\LoadTest\measure-metrics-overhead.ps1 -Prefix ovh -Clients 300 -Duration 00:01:00 -Repeat 3
+```
+
+That runs the same load at all three levels and produces two comparisons: `off → full` for the
+cost of all server instrumentation, and `no-gauges → full` for the cost of the runtime gauges
+alone. When a run has no server samples the verdict compares throughput from the client side and
+leaves the server-side checks inconclusive rather than passing them on absent data.
+
 ### `client_operations.csv`
 
 Sampled per-operation latency records.
@@ -371,6 +420,7 @@ throughput (all)     every phase, for comparison
 phase breakdown      how long each phase lasted
 latency
 server handler latency
+server backpressure   send-queue depth and SAEA pool headroom
 memory trend
 error summary
 server event summary
@@ -384,6 +434,7 @@ Run the common reports:
 SELECT * FROM analysis_run_summary;
 SELECT * FROM analysis_throughput;
 SELECT * FROM analysis_phase_breakdown;
+SELECT * FROM analysis_server_backpressure;
 SELECT * FROM analysis_memory_trend;
 SELECT * FROM analysis_error_summary;
 SELECT * FROM analysis_session_leak_check;

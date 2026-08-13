@@ -93,6 +93,32 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// <summary>Gets the total session count.</summary>
     public override int SessionCount => _sessionDict.Count;
 
+    /// <summary>
+    /// Sums the pending send requests over the live sessions.
+    /// The sweep runs only when a metrics collector observes the gauge, so it walks the live
+    /// dictionary rather than the periodic snapshot; a stale snapshot would report queues that
+    /// belong to sessions which have already closed.
+    /// </summary>
+    private protected override (int Total, int Max)? CollectSendQueueDepth()
+    {
+        var total = 0;
+        var max = 0;
+
+        foreach (var pair in _sessionDict)
+        {
+            if (pair.Value.SocketSession is not SocketEngine.SocketSession socketSession)
+                continue;
+
+            var depth = socketSession.SendQueueDepth;
+            total += depth;
+
+            if (depth > max)
+                max = depth;
+        }
+
+        return (total, max);
+    }
+
 
     /// <summary>
     /// Starts a periodic timer whose callback never re-enters itself.

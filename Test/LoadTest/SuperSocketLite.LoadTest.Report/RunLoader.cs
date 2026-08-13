@@ -151,7 +151,12 @@ public static class RunLoader
                 table.GetLong(row, "gc_heap_bytes"),
                 table.GetLong(row, "exception_total"),
                 table.GetLong(row, "handler_latency_p99_us"),
-                table.GetDouble(row, "cpu_percent")));
+                table.GetDouble(row, "cpu_percent"),
+                // 계기가 없던 실행에는 컬럼 자체가 없다. 0으로 읽으면 "큐가 비었다"로 오독된다.
+                table.GetLong(row, "send_queue_depth_total", -1),
+                table.GetLong(row, "send_queue_depth_max", -1),
+                table.GetLong(row, "receive_saea_pool_available", -1),
+                table.GetLong(row, "send_saea_pool_available", -1)));
         }
     }
 

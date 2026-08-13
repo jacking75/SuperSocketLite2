@@ -31,6 +31,353 @@ internal static class LoadTestIntegrationTests
         yield return new TestCase(nameof(BurstScenarioSendsMoreThanSteadyRate), BurstScenarioSendsMoreThanSteadyRate);
         yield return new TestCase(nameof(AbortedConnectionsDoNotBreakServer), AbortedConnectionsDoNotBreakServer);
         yield return new TestCase(nameof(HugePayloadRoundTripsThroughServer), HugePayloadRoundTripsThroughServer);
+        yield return new TestCase(nameof(ServerSamplesReportSendQueueAndPoolGauges), ServerSamplesReportSendQueueAndPoolGauges);
+        yield return new TestCase(nameof(MetricsOffKeepsEchoingWithoutServerCsv), MetricsOffKeepsEchoingWithoutServerCsv);
+        yield return new TestCase(nameof(MetricsNoGaugesLeavesRuntimeColumnsUnavailable), MetricsNoGaugesLeavesRuntimeColumnsUnavailable);
+        yield return new TestCase(nameof(ClientReconnectsAfterServerRestart), ClientReconnectsAfterServerRestart);
+        yield return new TestCase(nameof(ClientWithoutReconnectOnDropStopsAtServerLoss), ClientWithoutReconnectOnDropStopsAtServerLoss);
+        yield return new TestCase(nameof(DeclarativeScenarioFileDrivesTheRun), DeclarativeScenarioFileDrivesTheRun);
+    }
+
+    /// <summary>
+    /// 시나리오 파일로 돌리면 파일이 정한 요청들이 실제로 나가고, 요약의 시나리오 이름도 그것이어야 한다.
+    /// 코드를 고치지 않고 부하 조합을 바꿀 수 있다는 것이 이 기능의 목적이다.
+    /// </summary>
+    private static void DeclarativeScenarioFileDrivesTheRun()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "declarative-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+        var scenarioPath = Path.Combine(temp.Path, "scenario.json");
+
+        File.WriteAllText(scenarioPath, """
+            {
+              "name": "file-driven",
+              "prologue": [ { "type": "login", "packetId": 201 } ],
+              "operations": [ { "type": "heartbeat", "packetId": 203, "weight": 1, "payloadBytes": 0 } ]
+            }
+            """);
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                SampleIntervalMs = 200,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 10,
+                Output = clientOutput,
+                RunId = runId,
+                ScenarioFile = scenarioPath
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var operations = File.ReadAllLines(Path.Combine(clientOutput, "client_operations.csv"));
+        AssertEx.True(operations.Skip(1).Any(line => line.Contains(",login,")), "The prologue request should be sent.");
+        AssertEx.True(operations.Skip(1).Any(line => line.Contains(",heartbeat,")), "The weighted request should be sent.");
+        AssertEx.False(operations.Skip(1).Any(line => line.Contains(",echo,")), "The built-in echo scenario should not run when a file is given.");
+
+        var summary = ReadSummary(Path.Combine(clientOutput, "client_summary.csv"));
+        AssertEx.Equal("file-driven", summary["scenario"], "The summary should name the scenario from the file.");
+    }
+
+    /// <summary>
+    /// 부하 중 서버가 죽었다 살아나면 클라이언트가 다시 붙어 응답을 받아야 한다.
+    /// 회복 시간은 끊긴 시각부터 응답을 다시 받기까지로 재며 요약에 남는다.
+    /// </summary>
+    private static void ClientReconnectsAfterServerRestart()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "fault-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        var options = new LoadTestOptions
+        {
+            Host = "127.0.0.1",
+            Port = port,
+            Clients = 2,
+            Duration = TimeSpan.FromSeconds(6),
+            SendRatePerClient = 10,
+            Output = clientOutput,
+            RunId = runId,
+            ReconnectOnDrop = true,
+            ReconnectDelay = TimeSpan.FromMilliseconds(100),
+            ReceiveTimeout = TimeSpan.FromMilliseconds(500)
+        };
+
+        var first = StartLoadTestServer(port, Path.Combine(temp.Path, "server-1"), runId);
+        var runtime = new ClientRuntime(options);
+        var clientTask = Task.Run(() => runtime.RunAsync());
+
+        // 부하가 자리를 잡은 뒤 서버를 내리고, 잠시 두었다가 같은 포트로 다시 띄운다.
+        Thread.Sleep(1500);
+        first.Stop();
+        first.Dispose();
+
+        Thread.Sleep(1000);
+        using var second = StartLoadTestServer(port, Path.Combine(temp.Path, "server-2"), runId);
+
+        AssertEx.Equal(0, clientTask.GetAwaiter().GetResult());
+        second.Stop();
+
+        var summary = ReadSummary(Path.Combine(clientOutput, "client_summary.csv"));
+        AssertEx.True(long.Parse(summary["outage_total"]) > 0, "Killing the server should register an outage.");
+        AssertEx.True(long.Parse(summary["reconnect_total"]) > 0, "Clients should reconnect after the server comes back.");
+        AssertEx.True(long.Parse(summary["max_outage_ms"]) > 0, "Recovery time should be measured once responses resume.");
+
+        var operations = File.ReadAllLines(Path.Combine(clientOutput, "client_operations.csv"));
+        var successAfterRestart = operations
+            .Skip(1)
+            .Where(line => line.Contains(",True,"))
+            .Select(line => long.Parse(line.Split(',')[1]))
+            .Any(elapsedMs => elapsedMs > 2500);
+
+        AssertEx.True(successAfterRestart, "Clients should complete operations again after the restart.");
+    }
+
+    /// <summary>
+    /// 재접속 옵션이 없으면 서버가 사라진 시점에 클라이언트가 그대로 빠져야 한다.
+    /// 기본 동작이 바뀌지 않았음을 고정한다.
+    /// </summary>
+    private static void ClientWithoutReconnectOnDropStopsAtServerLoss()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "no-reconnect-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        var options = new LoadTestOptions
+        {
+            Host = "127.0.0.1",
+            Port = port,
+            Clients = 2,
+            Duration = TimeSpan.FromSeconds(4),
+            SendRatePerClient = 10,
+            Output = clientOutput,
+            RunId = runId,
+            ReconnectPercent = 0,
+            ReceiveTimeout = TimeSpan.FromMilliseconds(500)
+        };
+
+        var server = StartLoadTestServer(port, Path.Combine(temp.Path, "server"), runId);
+        var runtime = new ClientRuntime(options);
+        var clientTask = Task.Run(() => runtime.RunAsync());
+
+        Thread.Sleep(1000);
+        server.Stop();
+        server.Dispose();
+
+        AssertEx.Equal(0, clientTask.GetAwaiter().GetResult());
+
+        var summary = ReadSummary(Path.Combine(clientOutput, "client_summary.csv"));
+        AssertEx.Equal(0L, long.Parse(summary["reconnect_total"]), "Without --reconnect-on-drop the clients should not come back.");
+    }
+
+    private static LoadTestServer StartLoadTestServer(int port, string output, string runId)
+    {
+        var server = new LoadTestServer();
+        AssertEx.True(server.Configure(new LoadTestServerOptions
+        {
+            Port = port,
+            MaxConnections = 10,
+            Output = output,
+            SampleIntervalMs = 200,
+            RunId = runId
+        }), "Server should configure.");
+        AssertEx.True(server.StartWithMetrics(), "Server should start.");
+        return server;
+    }
+
+    private static Dictionary<string, string> ReadSummary(string path)
+    {
+        var lines = File.ReadAllLines(path);
+        var headers = lines[0].Split(',');
+        var keyIndex = Array.IndexOf(headers, "key");
+        var valueIndex = Array.IndexOf(headers, "value");
+        AssertEx.True(keyIndex >= 0 && valueIndex >= 0, "client_summary.csv should have key/value columns.");
+
+        var summary = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var line in lines.Skip(1))
+        {
+            var fields = line.Split(',');
+            if (fields.Length > Math.Max(keyIndex, valueIndex))
+                summary[fields[keyIndex]] = fields[valueIndex];
+        }
+
+        return summary;
+    }
+
+    /// <summary>
+    /// 서버 표본이 라이브러리 계기에서 읽은 송신 큐 깊이와 SAEA 풀 잔량을 담아야 한다.
+    /// 세션이 붙어 있는 동안에는 풀에서 꺼내 간 만큼 잔량이 총수보다 적어야 한다.
+    /// </summary>
+    private static void ServerSamplesReportSendQueueAndPoolGauges()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "gauge-" + Guid.NewGuid().ToString("N");
+        var serverOutput = Path.Combine(temp.Path, "server");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = serverOutput,
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 2,
+                Duration = TimeSpan.FromSeconds(1),
+                SendRatePerClient = 5,
+                Output = Path.Combine(temp.Path, "client"),
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var sampleLines = File.ReadAllLines(Path.Combine(serverOutput, "server_samples.csv"));
+        AssertEx.True(sampleLines.Length >= 2, "Server samples should be written.");
+
+        // 마지막 표본은 서버가 멈춘 뒤에 찍힌다. 그때는 관측할 대상이 없으므로 -1이 맞다.
+        var rows = sampleLines
+            .Skip(1)
+            .Where(row => ParseColumnAsLong(sampleLines, "active_sessions", row) > 0)
+            .ToArray();
+
+        AssertEx.True(rows.Length > 0, "The run should produce samples taken while sessions were connected.");
+        AssertEx.True(
+            rows.All(row => ParseColumnAsLong(sampleLines, "send_queue_depth_total", row) >= 0),
+            "Runtime gauges should be observed while the server runs, not reported as unavailable.");
+
+        AssertEx.True(
+            rows.Any(row => ParseColumnAsLong(sampleLines, "receive_saea_pool_total", row) > 0),
+            "Receive SAEA pool should report the items it created.");
+
+        AssertEx.True(
+            rows.Any(row =>
+                ParseColumnAsLong(sampleLines, "receive_saea_pool_available", row)
+                < ParseColumnAsLong(sampleLines, "receive_saea_pool_total", row)),
+            "While sessions are connected the pool should hold fewer items than it created.");
+    }
+
+    /// <summary>
+    /// <c>--metrics off</c>은 서버 계측을 통째로 끈다.
+    /// 서버 CSV는 남지 않지만 에코는 그대로 돌아야 한다. 클라이언트 쪽 수치를 두 실행에서 비교하기 때문이다.
+    /// </summary>
+    private static void MetricsOffKeepsEchoingWithoutServerCsv()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "metrics-off-" + Guid.NewGuid().ToString("N");
+        var serverOutput = Path.Combine(temp.Path, "server");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = serverOutput,
+                SampleIntervalMs = 100,
+                RunId = runId,
+                Metrics = ServerMetricsMode.Off
+            }), "Server should configure with metrics off.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start with metrics off.");
+            AssertEx.True(server.Metrics is null, "Metrics collector should not exist when metrics are off.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(1),
+                SendRatePerClient = 5,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var operations = File.ReadAllLines(Path.Combine(clientOutput, "client_operations.csv"));
+        AssertEx.True(operations.Skip(1).Any(line => line.Contains(",True,")), "Echo should still work with metrics off.");
+        AssertEx.False(
+            File.Exists(Path.Combine(serverOutput, "server_samples.csv")),
+            "Metrics off should not write server samples.");
+    }
+
+    /// <summary>
+    /// <c>--metrics no-gauges</c>는 주기 표본은 남기되 런타임 게이지만 끈다.
+    /// 그 실행의 게이지 컬럼은 0이 아니라 -1이어야 한다. 0이면 "큐가 비었다"로 오독된다.
+    /// </summary>
+    private static void MetricsNoGaugesLeavesRuntimeColumnsUnavailable()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "no-gauges-" + Guid.NewGuid().ToString("N");
+        var serverOutput = Path.Combine(temp.Path, "server");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = serverOutput,
+                SampleIntervalMs = 100,
+                RunId = runId,
+                Metrics = ServerMetricsMode.NoGauges
+            }), "Server should configure without gauges.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start without gauges.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(1),
+                SendRatePerClient = 5,
+                Output = Path.Combine(temp.Path, "client"),
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var sampleLines = File.ReadAllLines(Path.Combine(serverOutput, "server_samples.csv"));
+        AssertEx.True(sampleLines.Length >= 2, "Server samples should still be written without gauges.");
+        AssertEx.True(
+            sampleLines.Skip(1).All(row => ParseColumnAsLong(sampleLines, "send_queue_depth_total", row) == -1),
+            "Runtime gauge columns should read as unavailable when gauges are off.");
     }
 
     /// <summary>

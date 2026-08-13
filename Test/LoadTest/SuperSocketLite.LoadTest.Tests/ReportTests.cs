@@ -15,6 +15,45 @@ internal static class ReportTests
         yield return new TestCase(nameof(LowRateAchievementFails), LowRateAchievementFails);
         yield return new TestCase(nameof(LoadsRunsFromCsvDirectories), LoadsRunsFromCsvDirectories);
         yield return new TestCase(nameof(WritesSelfContainedHtmlReport), WritesSelfContainedHtmlReport);
+        yield return new TestCase(nameof(MissingServerSamplesLeaveServerChecksInconclusive), MissingServerSamplesLeaveServerChecksInconclusive);
+        yield return new TestCase(nameof(MissingServerSamplesCompareThroughputFromClient), MissingServerSamplesCompareThroughputFromClient);
+    }
+
+    /// <summary>
+    /// 계측을 끈 실행에는 서버 표본이 없다. 그 실행의 서버 쪽 판정은 통과가 아니라 보류여야 한다.
+    /// 0으로 읽어 통과시키면 확인하지 않은 것을 확인했다고 말하게 된다.
+    /// </summary>
+    private static void MissingServerSamplesLeaveServerChecksInconclusive()
+    {
+        var group = RunGroup.Create("off", [Metrics("off01", hasServerSamples: false)]);
+
+        var verdict = Verdict.Evaluate(group, new Thresholds());
+
+        var serverException = verdict.Checks.Single(c => c.Name == "서버 예외");
+        var sessionCleanup = verdict.Checks.Single(c => c.Name == "세션 정리");
+
+        AssertEx.True(serverException.Outcome == CheckOutcome.Inconclusive, "서버 표본이 없으면 서버 예외 판정은 보류여야 한다.");
+        AssertEx.True(sessionCleanup.Outcome == CheckOutcome.Inconclusive, "서버 표본이 없으면 세션 정리 판정은 보류여야 한다.");
+        AssertEx.False(verdict.Failed, "판정할 수 없는 것을 불합격으로 세면 안 된다.");
+    }
+
+    /// <summary>
+    /// 계측 오버헤드 비교는 한쪽에 서버 표본이 없다.
+    /// 그때 처리량은 클라이언트가 보낸 정상 구간 레이트로 견주어야 하며, 서버 수치가 없다고
+    /// 처리량이 0으로 떨어진 것처럼 불합격이 나오면 안 된다.
+    /// </summary>
+    private static void MissingServerSamplesCompareThroughputFromClient()
+    {
+        // 계측을 끈 실행이 기준. 서버 표본이 없지만 클라이언트 송신 레이트는 남아 있다.
+        var baseline = RunGroup.Create("off", [Metrics("off01", rps: 500, hasServerSamples: false)]);
+        var candidate = RunGroup.Create("full", [Metrics("full01", rps: 495)]);
+
+        var verdict = Verdict.Compare(baseline, candidate, new Thresholds { MinThroughputRatio = 0.95 });
+
+        var throughput = verdict.Checks.Single(c => c.Name.StartsWith("처리량", StringComparison.Ordinal));
+        AssertEx.True(throughput.Name.Contains("클라이언트", StringComparison.Ordinal), "서버 표본이 없으면 클라이언트 기준으로 견주어야 한다.");
+        AssertEx.True(throughput.Outcome == CheckOutcome.Pass, "1% 차이는 통과여야 한다.");
+        AssertEx.False(verdict.Failed, "계측 오버헤드 비교가 서버 표본 부재로 불합격이 되면 안 된다.");
     }
 
     private static RunMetrics Metrics(
@@ -26,10 +65,12 @@ internal static class ReportTests
         long exceptions = 0,
         long activeSessions = 0,
         string pacing = "open",
-        double memoryGrowth = 10)
+        double memoryGrowth = 10,
+        bool hasServerSamples = true)
     {
         return new RunMetrics
         {
+            HasServerSamples = hasServerSamples,
             RunId = runId,
             Pacing = pacing,
             Scenario = "echo",

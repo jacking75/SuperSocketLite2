@@ -24,6 +24,8 @@ public static class HtmlReportWriter
         WriteHeader(html, candidate, baseline, verdict, generatedAt);
         WriteVerdict(html, verdict);
         WriteSummaryTable(html, candidate, baseline);
+        WriteOutage(html, candidate, baseline);
+        WriteRuntimeState(html, candidate, baseline);
 
         if (candidate.Runs.Count > 1)
             WriteRunSpread(html, candidate);
@@ -109,6 +111,71 @@ public static class HtmlReportWriter
 
         html.Append("</tbody>\n</table>\n");
     }
+
+    /// <summary>
+    /// 연결이 끊겼다가 회복된 이력입니다.
+    /// 장애가 없던 실행에는 나오지 않습니다. 늘 0인 줄이 붙으면 표만 길어집니다.
+    /// </summary>
+    private static void WriteOutage(StringBuilder html, RunGroup candidate, RunGroup? baseline)
+    {
+        var hasOutage = candidate.Median.OutageTotal > 0 || (baseline?.Median.OutageTotal ?? 0) > 0;
+        if (!hasOutage)
+            return;
+
+        html.Append("<h2>장애와 회복</h2>\n");
+        html.Append("<p class=\"muted\">회복 시간은 연결이 끊긴 시각부터 응답을 다시 받기까지다. 접속이 아니라 응답을 기준으로 하므로 서버가 리슨만 열고 아직 처리하지 못하는 구간도 포함한다.</p>\n");
+        html.Append("<table>\n<thead><tr><th style=\"width:40%\">지표</th>");
+        if (baseline is not null)
+            html.Append("<th class=\"num\">기준</th>");
+        html.Append("<th class=\"num\">대상</th></tr></thead>\n<tbody>\n");
+
+        AddRuntimeRow(html, baseline, candidate, "끊김 횟수", m => m.OutageTotal);
+        AddRuntimeRow(html, baseline, candidate, "재접속 횟수", m => m.ReconnectTotal);
+        AddRuntimeRow(html, baseline, candidate, "최대 회복 시간 (ms)", m => m.MaxOutageMs);
+
+        html.Append("</tbody>\n</table>\n");
+    }
+
+    /// <summary>
+    /// 라이브러리 계기에서 읽은 서버 내부 상태입니다.
+    /// 계측이 없던 실행에는 이 절이 아예 나오지 않습니다. 0으로 채워 "여유가 있었다"로 읽히면 안 되기 때문입니다.
+    /// </summary>
+    private static void WriteRuntimeState(StringBuilder html, RunGroup candidate, RunGroup? baseline)
+    {
+        if (!candidate.Median.HasRuntimeGauges)
+            return;
+
+        html.Append("<h2>서버 내부 상태</h2>\n");
+        html.Append("<p class=\"muted\">정상 구간에서 관측한 최악값이다. 송신 큐가 계속 쌓이면 서버가 받는 속도만큼 내보내지 못하고 있다는 뜻이고, 풀 여유가 0에 닿으면 새 접속이 곧 거부된다.</p>\n");
+        html.Append("<table>\n<thead><tr><th style=\"width:40%\">지표</th>");
+        if (baseline is not null)
+            html.Append("<th class=\"num\">기준</th>");
+        html.Append("<th class=\"num\">대상</th></tr></thead>\n<tbody>\n");
+
+        AddRuntimeRow(html, baseline, candidate, "송신 큐 최대 (전체 합)", m => m.MaxSendQueueDepthTotal);
+        AddRuntimeRow(html, baseline, candidate, "송신 큐 최대 (세션 하나)", m => m.MaxSendQueueDepthSession);
+        AddRuntimeRow(html, baseline, candidate, "수신 SAEA 풀 최소 여유", m => m.MinReceivePoolAvailable);
+        AddRuntimeRow(html, baseline, candidate, "송신 SAEA 풀 최소 여유", m => m.MinSendPoolAvailable);
+
+        html.Append("</tbody>\n</table>\n");
+    }
+
+    private static void AddRuntimeRow(
+        StringBuilder html,
+        RunGroup? baseline,
+        RunGroup candidate,
+        string label,
+        Func<RunMetrics, long> selector)
+    {
+        html.Append($"<tr><td>{Html.Escape(label)}</td>");
+        if (baseline is not null)
+            html.Append($"<td class=\"num\">{FormatRuntimeValue(selector(baseline.Median))}</td>");
+        html.Append($"<td class=\"num\">{FormatRuntimeValue(selector(candidate.Median))}</td></tr>\n");
+    }
+
+    // 음수는 계측이 없었다는 표시다. 숫자로 보이면 안 된다.
+    private static string FormatRuntimeValue(long value)
+        => value < 0 ? "<span class=\"muted\">계측 없음</span>" : value.ToString("N0", CultureInfo.InvariantCulture);
 
     private static void WriteRunSpread(StringBuilder html, RunGroup group)
     {

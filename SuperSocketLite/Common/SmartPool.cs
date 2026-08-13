@@ -17,6 +17,8 @@ public sealed class SmartPool<T>
 
     private int _totalItemsCount;
 
+    private int _availableItemsCount;
+
     // 0 = nobody is growing the pool, 1 = one thread is inside Grow().
     private int _isIncreasing;
 
@@ -31,10 +33,20 @@ public sealed class SmartPool<T>
         Grow(minPoolSize);
     }
 
+    /// <summary>
+    /// How many items are sitting in the pool right now.
+    /// Only used for metrics, so it may lag a concurrent Push/TryGet by a moment.
+    /// </summary>
+    internal int AvailableItemsCount => Volatile.Read(ref _availableItemsCount);
+
+    /// <summary>How many items the pool has created so far, up to <c>maxPoolSize</c>.</summary>
+    internal int TotalItemsCount => Volatile.Read(ref _totalItemsCount);
+
     /// <summary>Returns an item to the pool.</summary>
     public void Push(T item)
     {
         _stack.Push(item);
+        Interlocked.Increment(ref _availableItemsCount);
     }
 
     /// <summary>
@@ -44,7 +56,7 @@ public sealed class SmartPool<T>
     /// <returns>false when the pool is exhausted at its maximum size.</returns>
     public bool TryGet(out T item)
     {
-        if (_stack.TryPop(out item!))
+        if (TryPop(out item))
             return true;
 
         if (Volatile.Read(ref _totalItemsCount) >= _maxPoolSize)
@@ -65,7 +77,7 @@ public sealed class SmartPool<T>
             Interlocked.Exchange(ref _isIncreasing, 0);
         }
 
-        return _stack.TryPop(out item!);
+        return TryPop(out item);
     }
 
     private void Grow(int count)
@@ -79,6 +91,16 @@ public sealed class SmartPool<T>
         }
 
         Interlocked.Add(ref _totalItemsCount, count);
+        Interlocked.Add(ref _availableItemsCount, count);
+    }
+
+    private bool TryPop(out T item)
+    {
+        if (!_stack.TryPop(out item!))
+            return false;
+
+        Interlocked.Decrement(ref _availableItemsCount);
+        return true;
     }
 
     private bool TryPopWithWait(out T item)
@@ -89,7 +111,7 @@ public sealed class SmartPool<T>
         {
             spinWait.SpinOnce();
 
-            if (_stack.TryPop(out item!))
+            if (TryPop(out item))
                 return true;
 
             if (spinWait.Count >= 100)

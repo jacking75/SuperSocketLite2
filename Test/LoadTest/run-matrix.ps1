@@ -42,7 +42,9 @@ if (-not $Matrix) {
         @{ Name = 'burst';     Scenario = 'burst';           Payload = 'mixed';      Extra = @('--burst-every','00:00:05','--burst-size','30') },
         @{ Name = 'huge';      Scenario = 'echo';            Payload = 'mixed-huge' },
         @{ Name = 'abort';     Scenario = 'echo';            Payload = 'small';      Extra = @('--abort-percent','30') },
-        @{ Name = 'reconnect'; Scenario = 'reconnect-storm'; Payload = 'small';      Extra = @('--reconnect-percent','100','--storm-at','00:00:10','--storm-percent','40','--storm-window','00:00:05') }
+        @{ Name = 'reconnect'; Scenario = 'reconnect-storm'; Payload = 'small';      Extra = @('--reconnect-percent','100','--storm-at','00:00:10','--storm-percent','40','--storm-window','00:00:05') },
+        # 부하 중 서버를 죽였다 살린다. 실행 시간의 절반쯤에서 내려야 회복까지 관측된다.
+        @{ Name = 'fault';     Scenario = 'echo';            Payload = 'small';      KillServerAt = '00:00:15'; ServerDowntime = '00:00:05' }
     )
 }
 
@@ -55,6 +57,12 @@ foreach ($case in $Matrix) {
     $extra = if ($case.ContainsKey('Extra')) { $case.Extra } else { @() }
     $scenario = if ($case.ContainsKey('Scenario')) { $case.Scenario } else { 'echo' }
     $payload = if ($case.ContainsKey('Payload')) { $case.Payload } else { 'small' }
+
+    # 조합마다 서버 계측 수준과 장애 주입을 따로 정할 수 있다.
+    $runnerArgs = @{}
+    if ($case.ContainsKey('Metrics'))        { $runnerArgs['Metrics'] = $case.Metrics }
+    if ($case.ContainsKey('KillServerAt'))   { $runnerArgs['KillServerAt'] = $case.KillServerAt }
+    if ($case.ContainsKey('ServerDowntime')) { $runnerArgs['ServerDowntime'] = $case.ServerDowntime }
 
     Write-Host ""
     Write-Host "=== $runId ===" -ForegroundColor Cyan
@@ -71,7 +79,8 @@ foreach ($case in $Matrix) {
             -Port $port `
             -LogRoot $LogRoot `
             -ExtraClientArgs $extra `
-            -SkipReport
+            -SkipReport `
+            @runnerArgs
     }
     catch {
         Write-Host "$runId 실패: $_" -ForegroundColor Red

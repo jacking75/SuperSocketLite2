@@ -15,8 +15,14 @@ public sealed partial class ClientActor
     private readonly long _runStartMs;
     private readonly Guid _udpSessionId;
     private readonly GameLikeScenario _gameScenario = new();
+    private readonly DeclarativeScenarioRunner? _declarativeScenario;
     private readonly Random _random;
     private ClientState _state = ClientState.Created;
+
+    /// <summary>연결이 끊긴 시각입니다. -1이면 지금은 끊긴 상태가 아닙니다.</summary>
+    private long _outageStartedMs = -1;
+
+    private int _connectAttempts;
 
     public ClientActor(int clientId, LoadTestOptions options, ClientMetricsCollector metrics, ClientCsvWriters writers, long runStartMs)
     {
@@ -27,6 +33,9 @@ public sealed partial class ClientActor
         _runStartMs = runStartMs;
         _udpSessionId = DeterministicGuid(clientId, options.RunId);
         _random = new Random(HashCode.Combine(clientId, options.RunId));
+        _declarativeScenario = options.DeclarativeScenario is { } scenario
+            ? new DeclarativeScenarioRunner(scenario)
+            : null;
     }
 
     public async Task RunAsync(TimeSpan connectDelay, CancellationToken cancellationToken)
@@ -45,6 +54,13 @@ public sealed partial class ClientActor
                 await connection.ConnectAsync(cancellationToken).ConfigureAwait(false);
                 connected = true;
                 _metrics.OnConnectSuccess();
+
+                if (++_connectAttempts > 1)
+                    _metrics.OnReconnected();
+
+                // 새 연결에서는 로그인 같은 도입 단계를 다시 밟아야 한다.
+                _declarativeScenario?.Reset();
+
                 SetState(ClientState.Active);
 
                 if (_options.Transport == "udp")
@@ -75,16 +91,20 @@ public sealed partial class ClientActor
                 if (LoadGeneratorHost.IsLocalResourceExhaustion(ex))
                     _metrics.OnLocalResourceExhaustion();
 
+                // 서버가 죽어 있는 동안의 접속 실패도 장애 구간의 일부다.
+                MarkOutageStarted();
+
                 SetState(ClientState.Reconnecting);
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(_options.ReconnectDelay, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception)
             {
                 _metrics.OnRuntimeError();
                 _metrics.OnSocketError();
+                MarkOutageStarted();
                 SetState(ClientState.Reconnecting);
-                if (_options.ReconnectPercent > 0)
-                    await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
+                if (_options.ReconnectPercent > 0 || _options.ReconnectOnDrop)
+                    await Task.Delay(_options.ReconnectDelay, cancellationToken).ConfigureAwait(false);
             }
             finally
             {
@@ -101,9 +121,37 @@ public sealed partial class ClientActor
                 SetState(ClientState.Closed);
             }
 
-            if (_options.ReconnectPercent <= 0)
+            if (_options.ReconnectPercent <= 0 && !_options.ReconnectOnDrop)
                 break;
         }
+    }
+
+    /// <summary>
+    /// 장애 구간이 시작된 시각을 기록합니다.
+    /// 이미 끊긴 상태면 처음 끊긴 시각을 그대로 둡니다. 재접속을 여러 번 실패해도
+    /// 장애 하나로 세야 회복 시간이 실제 값이 됩니다.
+    /// </summary>
+    private void MarkOutageStarted()
+    {
+        if (_outageStartedMs >= 0)
+            return;
+
+        _outageStartedMs = ElapsedMs();
+        _metrics.OnOutageStarted();
+    }
+
+    /// <summary>
+    /// 응답을 받았습니다. 장애 중이었다면 그 구간이 끝난 것입니다.
+    /// </summary>
+    private void RecordReceive(long bytes, long rttUs)
+    {
+        _metrics.OnReceive(bytes, rttUs);
+
+        if (_outageStartedMs < 0)
+            return;
+
+        _metrics.OnRecovered(ElapsedMs() - _outageStartedMs);
+        _outageStartedMs = -1;
     }
 
     private async Task RunTcpLoopAsync(ILoadTestConnection connection, CancellationToken cancellationToken)
@@ -162,7 +210,7 @@ public sealed partial class ClientActor
                     var response = await ReceiveBinaryResponseAsync(connection, receiveState, timeout.Token).ConfigureAwait(false);
                     var endedMs = ElapsedMs();
                     var rttUs = (long)((Stopwatch.GetTimestamp() - started) * 1_000_000.0 / Stopwatch.Frequency);
-                    _metrics.OnReceive(response.BytesRead, rttUs);
+                    RecordReceive(response.BytesRead, rttUs);
                     WriteOperation(endedMs, request.OperationId, request.OperationType, request.Packet.PacketId, request.Packet.Body.Length, startedMs, endedMs, rttUs, true, string.Empty, string.Empty);
                 }
             }
@@ -254,7 +302,7 @@ public sealed partial class ClientActor
                 var read = await connection.ReceiveAsync(receiveBuffer, timeout.Token).ConfigureAwait(false);
                 var endedMs = ElapsedMs();
                 var rttUs = (long)((Stopwatch.GetTimestamp() - started) * 1_000_000.0 / Stopwatch.Frequency);
-                _metrics.OnReceive(read, rttUs);
+                RecordReceive(read, rttUs);
                 WriteOperation(endedMs, operationId, "udp-echo", 0, payload.Length, startedMs, endedMs, rttUs, true, string.Empty, string.Empty);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -304,7 +352,7 @@ public sealed partial class ClientActor
                 var responseBytes = await ReceiveTextLineAsync(connection, receiveState, timeout.Token).ConfigureAwait(false);
                 var endedMs = ElapsedMs();
                 var rttUs = (long)((Stopwatch.GetTimestamp() - started) * 1_000_000.0 / Stopwatch.Frequency);
-                _metrics.OnReceive(responseBytes, rttUs);
+                RecordReceive(responseBytes, rttUs);
                 WriteOperation(endedMs, operationId, "text-ping", 0, payload.Length, startedMs, endedMs, rttUs, true, string.Empty, string.Empty);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -359,6 +407,13 @@ public sealed partial class ClientActor
 
     private (string OperationType, BinaryPacket Packet) CreateNextTcpPacket(int sequence)
     {
+        // 시나리오 파일이 있으면 그것이 요청 조합을 정한다. --scenario 는 무시된다.
+        if (_declarativeScenario is not null)
+        {
+            var declared = _declarativeScenario.Next(_random);
+            return (declared.Type, declared.CreatePacket(_clientId, sequence));
+        }
+
         if (_options.Scenario == "game-like" || _options.Protocol == "game-binary")
         {
             var operation = _gameScenario.NextOperation(_clientId, sequence, _options);

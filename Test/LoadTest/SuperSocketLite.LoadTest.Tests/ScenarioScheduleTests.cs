@@ -25,6 +25,127 @@ internal static class ScenarioScheduleTests
         yield return new TestCase(nameof(ParsesServerRequestSamplingOption), ParsesServerRequestSamplingOption);
         yield return new TestCase(nameof(RejectsInvalidServerSamplingOption), RejectsInvalidServerSamplingOption);
         yield return new TestCase(nameof(ServerHelpTextListsSamplingOption), ServerHelpTextListsSamplingOption);
+        yield return new TestCase(nameof(DeclarativeScenarioParsesPrologueAndWeights), DeclarativeScenarioParsesPrologueAndWeights);
+        yield return new TestCase(nameof(DeclarativeScenarioRejectsBrokenDefinitions), DeclarativeScenarioRejectsBrokenDefinitions);
+        yield return new TestCase(nameof(DeclarativeScenarioPicksByWeight), DeclarativeScenarioPicksByWeight);
+        yield return new TestCase(nameof(DeclarativeScenarioRunnerRepeatsPrologueAfterReset), DeclarativeScenarioRunnerRepeatsPrologueAfterReset);
+        yield return new TestCase(nameof(DeclarativeScenarioThinkTimeOverridesSendRate), DeclarativeScenarioThinkTimeOverridesSendRate);
+        yield return new TestCase(nameof(ShippedScenarioFileLoads), ShippedScenarioFileLoads);
+    }
+
+    private const string SampleScenarioJson = """
+        {
+          "name": "mix",
+          "prologue": [ { "type": "login", "packetId": 201 } ],
+          "operations": [
+            { "type": "heartbeat", "packetId": 203, "weight": 3, "payloadBytes": 0 },
+            { "type": "chat", "packetId": 205, "weight": 1, "payload": "medium" }
+          ],
+          "thinkTime": { "minMs": 100, "maxMs": 200 }
+        }
+        """;
+
+    private static void DeclarativeScenarioParsesPrologueAndWeights()
+    {
+        var scenario = DeclarativeScenario.Parse(SampleScenarioJson);
+
+        AssertEx.Equal("mix", scenario.Name);
+        AssertEx.Equal(1, scenario.Prologue.Count);
+        AssertEx.Equal((short)201, scenario.Prologue[0].PacketId);
+        AssertEx.Equal(2, scenario.Operations.Count);
+        AssertEx.Equal(TimeSpan.FromMilliseconds(100), scenario.ThinkTimeMin!.Value);
+        AssertEx.Equal(TimeSpan.FromMilliseconds(200), scenario.ThinkTimeMax!.Value);
+
+        // payloadBytes 0은 본문 없는 요청이다. 프로필 이름보다 우선한다.
+        var heartbeat = scenario.Operations.Single(o => o.Type == "heartbeat");
+        AssertEx.Equal(0, heartbeat.CreatePacket(1, 1).Body.Length);
+    }
+
+    /// <summary>
+    /// 잘못된 정의는 부하를 걸기 전에 걸러야 한다.
+    /// 실행 중에 드러나면 이미 결과가 망가진 뒤다.
+    /// </summary>
+    private static void DeclarativeScenarioRejectsBrokenDefinitions()
+    {
+        AssertThrows("""{ "operations": [ { "type": "a", "packetId": 1, "weight": 1 } ] }""", "이름이 없으면 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [] }""", "요청이 하나도 없으면 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [ { "type": "a", "packetId": 1, "weight": 0 } ] }""", "weight 합이 0이면 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [ { "type": "a", "packetId": 999999, "weight": 1 } ] }""", "Int16을 넘는 packetId는 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [ { "type": "a", "packetId": 1, "weight": 1, "payloadBytes": 999999 } ] }""", "프로토콜 상한을 넘는 본문은 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [ { "type": "a", "packetId": 1, "weight": 1 } ], "thinkTime": { "minMs": 500, "maxMs": 100 } }""", "min이 max보다 크면 거부해야 한다.");
+        AssertThrows("""{ "name": "x", "operations": [ { "type": "a", "packetId": 1, "weight": 1 } ], "thinkTime": { "minMs": 100 } }""", "thinkTime은 두 값을 함께 적어야 한다.");
+
+        static void AssertThrows(string json, string because)
+        {
+            try
+            {
+                DeclarativeScenario.Parse(json);
+            }
+            catch (ArgumentException)
+            {
+                return;
+            }
+
+            throw new Exception(because);
+        }
+    }
+
+    private static void DeclarativeScenarioPicksByWeight()
+    {
+        var scenario = DeclarativeScenario.Parse(SampleScenarioJson);
+        var random = new Random(1234);
+
+        var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (var i = 0; i < 4000; i++)
+        {
+            var picked = scenario.PickWeighted(random);
+            counts[picked.Type] = counts.GetValueOrDefault(picked.Type) + 1;
+        }
+
+        // 3:1 비율이므로 heartbeat가 대략 75%다. 난수이므로 폭을 넉넉히 둔다.
+        var heartbeatShare = counts["heartbeat"] / 4000.0;
+        AssertEx.True(heartbeatShare is > 0.70 and < 0.80, $"weight 3:1이면 heartbeat가 75% 근처여야 한다. 실제 {heartbeatShare:P1}");
+    }
+
+    /// <summary>재접속하면 로그인부터 다시 해야 하므로 도입 단계가 되풀이되어야 한다.</summary>
+    private static void DeclarativeScenarioRunnerRepeatsPrologueAfterReset()
+    {
+        var runner = new DeclarativeScenarioRunner(DeclarativeScenario.Parse(SampleScenarioJson));
+        var random = new Random(7);
+
+        AssertEx.Equal("login", runner.Next(random).Type);
+        AssertEx.True(runner.Next(random).Type != "login", "도입 단계는 접속당 한 번이어야 한다.");
+
+        runner.Reset();
+        AssertEx.Equal("login", runner.Next(random).Type, "재접속하면 도입 단계를 다시 밟아야 한다.");
+    }
+
+    private static void DeclarativeScenarioThinkTimeOverridesSendRate()
+    {
+        var options = new LoadTestOptions
+        {
+            SendRatePerClient = 100,
+            DeclarativeScenario = DeclarativeScenario.Parse(SampleScenarioJson)
+        };
+
+        var random = new Random(11);
+        for (var i = 0; i < 50; i++)
+        {
+            var thinkTime = LoadScenario.NextThinkTime(options, random);
+            AssertEx.True(
+                thinkTime >= TimeSpan.FromMilliseconds(100) && thinkTime <= TimeSpan.FromMilliseconds(200),
+                $"시나리오가 정한 간격 안이어야 한다. 실제 {thinkTime.TotalMilliseconds}ms");
+        }
+    }
+
+    /// <summary>저장소에 함께 넣은 예제 파일이 실제로 읽히는지 본다.</summary>
+    private static void ShippedScenarioFileLoads()
+    {
+        var scenario = DeclarativeScenario.Load(RepoPaths.Combine("Test", "LoadTest", "scenarios", "game-mix.json"));
+
+        AssertEx.Equal("game-mix", scenario.Name);
+        AssertEx.True(scenario.Prologue.Count > 0, "예제는 도입 단계를 보여 주어야 한다.");
+        AssertEx.True(scenario.Operations.Count > 1, "예제는 요청 조합을 보여 주어야 한다.");
     }
 
     private static void ParsesClientOptions()

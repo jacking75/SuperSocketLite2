@@ -106,7 +106,7 @@ internal static class CsvMetricWriterTests
 
     private static void AnalysisSqlContainsDistributedClientViews()
     {
-        var sql = File.ReadAllText(Path.Combine("Test", "LoadTest", "analysis", "duckdb_loadtest.sql"));
+        var sql = File.ReadAllText(RepoPaths.Combine("Test", "LoadTest", "analysis", "duckdb_loadtest.sql"));
 
         AssertEx.True(sql.Contains("analysis_client_machine_summary"), "DuckDB SQL should expose a per-client-machine summary view.");
         AssertEx.True(sql.Contains("analysis_distributed_client_throughput"), "DuckDB SQL should expose a distributed client throughput view.");
@@ -114,6 +114,8 @@ internal static class CsvMetricWriterTests
         AssertEx.True(sql.Contains("elapsed_bucket_ms"), "DuckDB SQL should align distributed samples with time buckets.");
         AssertEx.True(sql.Contains("analysis_smoke_verdict"), "DuckDB SQL should expose an automated smoke verdict view.");
         AssertEx.True(sql.Contains("machine_id"), "DuckDB SQL should preserve machine_id in distributed analysis.");
+        AssertEx.True(sql.Contains("analysis_server_backpressure"), "DuckDB SQL should expose a send-queue and pool view.");
+        AssertEx.True(sql.Contains("normalized_send_queue_depth_total"), "DuckDB SQL should normalize the send queue column for runs recorded without it.");
     }
 
     private static void ClientCsvWritersTrackDroppedOperationRows()

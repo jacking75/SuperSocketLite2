@@ -21,6 +21,10 @@ public static class LoadScenario
 
     public static TimeSpan NextThinkTime(LoadTestOptions options, Random random)
     {
+        // 시나리오 파일이 간격을 정했으면 그것이 송신 레이트보다 우선한다.
+        if (options.DeclarativeScenario is { ThinkTimeMin: not null } scenario)
+            return scenario.NextThinkTime(random);
+
         if (options.SendRatePerClient <= 0)
             return TimeSpan.FromSeconds(1);
 

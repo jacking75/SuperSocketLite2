@@ -46,20 +46,28 @@ public sealed class Verdict
             verdict.Add("목표 레이트 달성", CheckOutcome.Inconclusive, "목표 레이트가 기록되지 않은 실행이다.");
         }
 
+        // 서버 계측을 끈 실행에는 서버 표본이 없다. 0으로 읽어 통과시키면
+        // 확인하지 않은 것을 확인했다고 말하는 셈이 된다.
         if (thresholds.RequireZeroServerExceptions)
         {
             verdict.Add(
                 "서버 예외",
-                metrics.ServerExceptions == 0 ? CheckOutcome.Pass : CheckOutcome.Fail,
-                $"{metrics.ServerExceptions}건");
+                metrics.HasServerSamples
+                    ? metrics.ServerExceptions == 0 ? CheckOutcome.Pass : CheckOutcome.Fail
+                    : CheckOutcome.Inconclusive,
+                metrics.HasServerSamples ? $"{metrics.ServerExceptions}건" : "서버 표본이 없는 실행이다.");
         }
 
         if (thresholds.RequireZeroSessionLeak)
         {
             verdict.Add(
                 "세션 정리",
-                metrics.FinalActiveSessions == 0 ? CheckOutcome.Pass : CheckOutcome.Fail,
-                $"종료 후 활성 세션 {metrics.FinalActiveSessions}개");
+                metrics.HasServerSamples
+                    ? metrics.FinalActiveSessions == 0 ? CheckOutcome.Pass : CheckOutcome.Fail
+                    : CheckOutcome.Inconclusive,
+                metrics.HasServerSamples
+                    ? $"종료 후 활성 세션 {metrics.FinalActiveSessions}개"
+                    : "서버 표본이 없는 실행이다.");
         }
 
         if (thresholds.RequireNoLocalResourceExhaustion)
@@ -100,26 +108,49 @@ public sealed class Verdict
         AddRatioCheck(verdict, "p99 지연", a.RttP99Ms, b.RttP99Ms, thresholds.MaxRttP99IncreaseRatio, "ms");
         AddRatioCheck(verdict, "p99.9 지연", a.RttP999Ms, b.RttP999Ms, thresholds.MaxRttP999IncreaseRatio, "ms");
 
-        if (a.ServerSteadyRps > 0)
+        AddThroughputCheck(verdict, a, b, thresholds);
+
+        // 메모리도 서버 표본에서 온다. 한쪽이라도 없으면 비교할 것이 없다.
+        if (a.HasServerSamples && b.HasServerSamples)
         {
-            var ratio = b.ServerSteadyRps / a.ServerSteadyRps;
+            var memoryDelta = b.MemoryGrowthMb - a.MemoryGrowthMb;
             verdict.Add(
-                "처리량",
-                ratio >= thresholds.MinThroughputRatio ? CheckOutcome.Pass : CheckOutcome.Fail,
-                $"{a.ServerSteadyRps:F1} → {b.ServerSteadyRps:F1}/s ({ratio:P1}, 하한 {thresholds.MinThroughputRatio:P0})");
+                "메모리 증가",
+                memoryDelta <= thresholds.MaxMemoryGrowthIncreaseMb ? CheckOutcome.Pass : CheckOutcome.Fail,
+                $"{a.MemoryGrowthMb:F1} → {b.MemoryGrowthMb:F1} MB (차이 {memoryDelta:+0.0;-0.0;0} MB, 상한 +{thresholds.MaxMemoryGrowthIncreaseMb:F0} MB)");
         }
         else
         {
-            verdict.Add("처리량", CheckOutcome.Inconclusive, "기준 실행의 서버 처리량이 없다.");
+            verdict.Add("메모리 증가", CheckOutcome.Inconclusive, "서버 표본이 없는 실행이 있어 메모리를 견줄 수 없다.");
         }
 
-        var memoryDelta = b.MemoryGrowthMb - a.MemoryGrowthMb;
-        verdict.Add(
-            "메모리 증가",
-            memoryDelta <= thresholds.MaxMemoryGrowthIncreaseMb ? CheckOutcome.Pass : CheckOutcome.Fail,
-            $"{a.MemoryGrowthMb:F1} → {b.MemoryGrowthMb:F1} MB (차이 {memoryDelta:+0.0;-0.0;0} MB, 상한 +{thresholds.MaxMemoryGrowthIncreaseMb:F0} MB)");
-
         return verdict;
+    }
+
+    /// <summary>
+    /// 처리량을 견줍니다.
+    /// 서버 표본이 양쪽에 다 있으면 서버가 센 요청 수로, 한쪽이라도 없으면
+    /// 클라이언트가 보낸 정상 구간 송신 레이트로 봅니다.
+    /// 계측을 끈 실행을 비교할 때가 후자이며, 그때도 부하가 줄었는지는 알 수 있어야 합니다.
+    /// </summary>
+    private static void AddThroughputCheck(Verdict verdict, RunMetrics baseline, RunMetrics candidate, Thresholds thresholds)
+    {
+        var useServer = baseline.HasServerSamples && candidate.HasServerSamples;
+        var name = useServer ? "처리량" : "처리량 (클라이언트 기준)";
+        var a = useServer ? baseline.ServerSteadyRps : baseline.SteadyRatePerSec;
+        var b = useServer ? candidate.ServerSteadyRps : candidate.SteadyRatePerSec;
+
+        if (a <= 0)
+        {
+            verdict.Add(name, CheckOutcome.Inconclusive, "기준 실행의 처리량이 없다.");
+            return;
+        }
+
+        var ratio = b / a;
+        verdict.Add(
+            name,
+            ratio >= thresholds.MinThroughputRatio ? CheckOutcome.Pass : CheckOutcome.Fail,
+            $"{a:F1} → {b:F1}/s ({ratio:P1}, 하한 {thresholds.MinThroughputRatio:P0})");
     }
 
     private static void AddRatioCheck(Verdict verdict, string name, double baseline, double candidate, double maxIncrease, string unit)

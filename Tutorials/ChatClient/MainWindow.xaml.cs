@@ -1,5 +1,5 @@
 ﻿using CSBaseLib;
-using MessagePack;
+using MemoryPack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -238,7 +238,7 @@ namespace ChatClient2
 
             var reqLogin = new CSBaseLib.PKTReqLogin() { UserID = userID, AuthToken = authToken };
 
-            var Body = MessagePackSerializer.Serialize(reqLogin);
+            var Body = MemoryPackSerializer.Serialize(reqLogin);
             var sendData = CSBaseLib.PacketToBytes.Make(CSBaseLib.PACKETID.REQ_LOGIN, Body);
             PostSendPacket(sendData);
         }
@@ -266,7 +266,7 @@ namespace ChatClient2
                     }
                 case PACKETID.RES_LOGIN:
                     {
-                        var resData = MessagePackSerializer.Deserialize<PKTResLogin>(packet.BodyData);
+                        var resData = MemoryPackSerializer.Deserialize<PKTResLogin>(packet.BodyData);
 
                         if (resData.Result == (short)ERROR_CODE.NONE)
                         {
@@ -282,7 +282,7 @@ namespace ChatClient2
 
                 case PACKETID.RES_ROOM_ENTER:
                     {
-                        var resData = MessagePackSerializer.Deserialize<PKTResRoomEnter>(packet.BodyData);
+                        var resData = MemoryPackSerializer.Deserialize<PKTResRoomEnter>(packet.BodyData);
 
                         if (resData.Result == (short)ERROR_CODE.NONE)
                         {
@@ -297,7 +297,7 @@ namespace ChatClient2
                     break;
                 case PACKETID.NTF_ROOM_USER_LIST:
                     {
-                        var ntfData = MessagePackSerializer.Deserialize<PKTNtfRoomUserList>(packet.BodyData);
+                        var ntfData = MemoryPackSerializer.Deserialize<PKTNtfRoomUserList>(packet.BodyData);
 
                         foreach (var user in ntfData.UserIDList)
                         {
@@ -307,14 +307,14 @@ namespace ChatClient2
                     break;
                 case PACKETID.NTF_ROOM_NEW_USER:
                     {
-                        var ntfData = MessagePackSerializer.Deserialize<PKTNtfRoomNewUser>(packet.BodyData);
+                        var ntfData = MemoryPackSerializer.Deserialize<PKTNtfRoomNewUser>(packet.BodyData);
                         listBoxRoomUserList.Items.Add(ntfData.UserID);
                     }
                     break;
 
                 case PACKETID.RES_ROOM_LEAVE:
                     {
-                        var resData = MessagePackSerializer.Deserialize<PKTResRoomLeave>(packet.BodyData);
+                        var resData = MemoryPackSerializer.Deserialize<PKTResRoomLeave>(packet.BodyData);
 
                         if (resData.Result == (short)ERROR_CODE.NONE)
                         {
@@ -330,7 +330,7 @@ namespace ChatClient2
                     break;
                 case PACKETID.NTF_ROOM_LEAVE_USER:
                     {
-                        var ntfData = MessagePackSerializer.Deserialize<PKTNtfRoomLeaveUser>(packet.BodyData);
+                        var ntfData = MemoryPackSerializer.Deserialize<PKTNtfRoomLeaveUser>(packet.BodyData);
                         listBoxRoomUserList.Items.Remove(ntfData.UserID);
                     }
                     break;
@@ -339,7 +339,7 @@ namespace ChatClient2
                     {
                         textBoxSendChat.Text = "";
 
-                        var ntfData = MessagePackSerializer.Deserialize<PKTNtfRoomChat>(packet.BodyData);
+                        var ntfData = MemoryPackSerializer.Deserialize<PKTNtfRoomChat>(packet.BodyData);
                         listBoxChat.Items.Add($"[{ntfData.UserID}]: {ntfData.ChatMessage}");
                     }
                     break;
@@ -407,7 +407,7 @@ namespace ChatClient2
 
             var request = new CSBaseLib.PKTReqRoomEnter() { RoomNumber = roomNum };
 
-            var Body = MessagePackSerializer.Serialize(request);
+            var Body = MemoryPackSerializer.Serialize(request);
             var sendData = CSBaseLib.PacketToBytes.Make(CSBaseLib.PACKETID.REQ_ROOM_ENTER, Body);
             PostSendPacket(sendData);
         }
@@ -426,7 +426,7 @@ namespace ChatClient2
         {
             var request = new CSBaseLib.PKTReqRoomChat() { ChatMessage = textBoxSendChat.Text };
 
-            var Body = MessagePackSerializer.Serialize(request);
+            var Body = MemoryPackSerializer.Serialize(request);
             var sendData = CSBaseLib.PacketToBytes.Make(CSBaseLib.PACKETID.REQ_ROOM_CHAT, Body);
             PostSendPacket(sendData);
         }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-using MessagePack;
+using MemoryPack;
 
 using CSBaseLib;
 
@@ -36,7 +36,7 @@ class DBJobWorkHandler
         
         try
         {
-            var reqData = MessagePackSerializer.Deserialize<DBReqLogin>(dbQueue.Datas);
+            var reqData = MemoryPackSerializer.Deserialize<DBReqLogin>(dbQueue.Datas);
             userID = reqData.UserID;
 
             // 필드 단위로 읽어 올 때는 꼭 Key가 있는지 확인 해야 한다!!!
@@ -72,7 +72,7 @@ class DBJobWorkHandler
         };
 
         var resLoginData = new DBResLogin() { UserID = userID, Result = result };
-        returnData.Datas = MessagePackSerializer.Serialize(resLoginData);
+        returnData.Datas = MemoryPackSerializer.Serialize(resLoginData);
         
         return returnData;
     }

@@ -1,5 +1,5 @@
 ﻿using CSBaseLib;
-using MessagePack;
+using MemoryPack;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -80,7 +80,7 @@ public class Room
             packet.UserIDList.Add(user.UserID);
         }
 
-        var bodyData = MessagePackSerializer.Serialize(packet);
+        var bodyData = MemoryPackSerializer.Serialize(packet);
         var sendPacket = PacketToBytes.Make(PACKETID.NTF_ROOM_USER_LIST, bodyData);
 
         NetSendFunc(userNetSessionID, sendPacket);
@@ -91,7 +91,7 @@ public class Room
         var packet = new PKTNtfRoomNewUser();
         packet.UserID = newUserID;
         
-        var bodyData = MessagePackSerializer.Serialize(packet);
+        var bodyData = MemoryPackSerializer.Serialize(packet);
         var sendPacket = PacketToBytes.Make(PACKETID.NTF_ROOM_NEW_USER, bodyData);
 
         Broadcast(newUserNetSessionIndex, sendPacket);
@@ -107,7 +107,7 @@ public class Room
         var packet = new PKTNtfRoomLeaveUser();
         packet.UserID = userID;
         
-        var bodyData = MessagePackSerializer.Serialize(packet);
+        var bodyData = MemoryPackSerializer.Serialize(packet);
         var sendPacket = PacketToBytes.Make(PACKETID.NTF_ROOM_LEAVE_USER, bodyData);
 
         Broadcast(-1, sendPacket);

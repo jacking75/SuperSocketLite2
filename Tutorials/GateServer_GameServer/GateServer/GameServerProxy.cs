@@ -5,7 +5,7 @@ using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 
 using CommonLib;
-using MessagePack;
+using MemoryPack;
 
 
 namespace GateServer;

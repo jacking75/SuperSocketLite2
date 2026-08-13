@@ -1,4 +1,4 @@
-﻿using MessagePack; //https://github.com/neuecc/MessagePack-CSharp
+﻿using MemoryPack; //https://github.com/neuecc/MemoryPack
 using System;
 using System.Collections.Generic;
 
@@ -54,95 +54,82 @@ public class PacketToBytes
 }
 
 // 로그인 요청
-[MessagePackObject]
-public class PKTReqLogin
+[MemoryPackable]
+public partial class PKTReqLogin
 {
-    [Key(0)]
     public string UserID;
-    [Key(1)]
     public string AuthToken;
 }
 
-[MessagePackObject]
-public class PKTResLogin
+[MemoryPackable]
+public partial class PKTResLogin
 {
-    [Key(0)]
     public short Result;
 }
 
 
-[MessagePackObject]
-public class PKNtfMustClose
+[MemoryPackable]
+public partial class PKNtfMustClose
 {
-    [Key(0)]
     public short Result;
 }
 
 
 
-[MessagePackObject]
-public class PKTReqRoomEnter
+[MemoryPackable]
+public partial class PKTReqRoomEnter
 {
-    [Key(0)]
     public int RoomNumber;
 }
 
-[MessagePackObject]
-public class PKTResRoomEnter
+[MemoryPackable]
+public partial class PKTResRoomEnter
 {
-    [Key(0)]
     public short Result;
 }
 
-[MessagePackObject]
-public class PKTNtfRoomUserList
+[MemoryPackable]
+public partial class PKTNtfRoomUserList
 {
-    [Key(0)]
     public List<string> UserIDList = new List<string>();
 }
 
-[MessagePackObject]
-public class PKTNtfRoomNewUser
+[MemoryPackable]
+public partial class PKTNtfRoomNewUser
 {
-    [Key(0)]
     public string UserID;
 }
 
 
-[MessagePackObject]
-public class PKTReqRoomLeave
+[MemoryPackable]
+public partial class PKTReqRoomLeave
 {
 }
 
-[MessagePackObject]
-public class PKTResRoomLeave
+[MemoryPackable]
+public partial class PKTResRoomLeave
 {
-    [Key(0)]
     public short Result;
 }
 
-[MessagePackObject]
-public class PKTNtfRoomLeaveUser
+[MemoryPackable]
+public partial class PKTNtfRoomLeaveUser
 {
-    [Key(0)]
     public string UserID;
 }
 
 
-[MessagePackObject]
-public class PKTReqRoomChat
+[MemoryPackable]
+public partial class PKTReqRoomChat
 {
-    [Key(0)]
     public string ChatMessage;
 }
 
 
-[MessagePackObject]
-public class PKTNtfRoomChat
+[MemoryPackable]
+public partial class PKTNtfRoomChat
 {
-    [Key(0)]
     public string UserID;
 
-    [Key(1)]
     public string ChatMessage;
 }

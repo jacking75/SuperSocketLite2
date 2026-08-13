@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using MessagePack;
+using MemoryPack;
 
 using CSBaseLib;
 using DB;
@@ -81,7 +81,7 @@ public class PKHRoom : PKHandler
 
         try
         {
-             var reqData = MessagePackSerializer.Deserialize<PKTInternalReqRoomEnter>(packetData.BodyData);
+             var reqData = MemoryPackSerializer.Deserialize<PKTInternalReqRoomEnter>(packetData.BodyData);
 
             var room = GetRoom(reqData.RoomNumber);
 
@@ -120,7 +120,7 @@ public class PKHRoom : PKHandler
             UserID = userID,
         };
 
-        var packetBodyData = MessagePackSerializer.Serialize(packet);
+        var packetBodyData = MemoryPackSerializer.Serialize(packet);
 
         var internalPacket = new ServerPacketData();
         internalPacket.Assign(sessionID, sessionIndex, (Int16)PacketId.ResInRoomEnter, packetBodyData);
@@ -179,7 +179,7 @@ public class PKHRoom : PKHandler
             Result = (short)ErrorCode.None
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resRoomLeave);
+        var bodyData = MemoryPackSerializer.Serialize(resRoomLeave);
         var sendData = PacketToBytes.Make(PacketId.ResRoomLeave, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -209,7 +209,7 @@ public class PKHRoom : PKHandler
             }
 
 
-            var reqData = MessagePackSerializer.Deserialize<PKTReqRoomChat>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomChat>(packetData.BodyData);
 
             var notifyPacket = new PKTNtfRoomChat()
             {
@@ -217,7 +217,7 @@ public class PKHRoom : PKHandler
                 ChatMessage = reqData.ChatMessage
             };
 
-            var Body = MessagePackSerializer.Serialize(notifyPacket);
+            var Body = MemoryPackSerializer.Serialize(notifyPacket);
             var sendData = PacketToBytes.Make(PacketId.NtfRoomChat, Body);
 
             roomObject.Item2.Broadcast(-1, sendData);

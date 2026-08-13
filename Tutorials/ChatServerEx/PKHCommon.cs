@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-using MessagePack;
+using MemoryPack;
 
 using CSBaseLib;
 using DB;
@@ -71,7 +71,7 @@ public class PKHCommon : PKHandler
                 return;
             }
                             
-            var reqData = MessagePackSerializer.Deserialize< PKTReqLogin>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize< PKTReqLogin>(packetData.BodyData);
 
             // 세션의 상태를 바꾼다
             _sessionMgr.SetPreLogin(sessionIndex);
@@ -82,7 +82,7 @@ public class PKHCommon : PKHandler
                 UserID = reqData.UserID,
                 AuthToken = reqData.AuthToken
             };
-            var jobDatas = MessagePackSerializer.Serialize(dbReqLogin);
+            var jobDatas = MemoryPackSerializer.Serialize(dbReqLogin);
             
             var dbQueue = MakeDBQueue(PacketId.ReqDbLogin, sessionID, sessionIndex, jobDatas);
             RequestDBJob(_serverNetwork.GetPacketDistributor(), dbQueue);
@@ -103,7 +103,7 @@ public class PKHCommon : PKHandler
 
         try
         {
-            var resData = MessagePackSerializer.Deserialize<DBResLogin>(packetData.BodyData);
+            var resData = MemoryPackSerializer.Deserialize<DBResLogin>(packetData.BodyData);
             
             // DB 처리 성공/실패에 대한 처리를 한다.
             var errorCode = ErrorCode.None;
@@ -154,7 +154,7 @@ public class PKHCommon : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resLogin);
+        var bodyData = MemoryPackSerializer.Serialize(resLogin);
         var sendData = PacketToBytes.Make(PacketId.ResLogin, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -167,7 +167,7 @@ public class PKHCommon : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resLogin);
+        var bodyData = MemoryPackSerializer.Serialize(resLogin);
         var sendData = PacketToBytes.Make(PacketId.NtfMustClose, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -196,7 +196,7 @@ public class PKHCommon : PKHandler
                 return;
             }
 
-            var reqData = MessagePackSerializer.Deserialize<PKTReqRoomEnter>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomEnter>(packetData.BodyData);
 
             var internalRoomEnter = MakeInternalRoomEnterPacket(reqData.RoomNumber, user.ID(), sessionID, sessionIndex);
             if (SendInternalRoomProcessor(true, reqData.RoomNumber, internalRoomEnter) == false)
@@ -222,7 +222,7 @@ public class PKHCommon : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resRoomEnter);
+        var bodyData = MemoryPackSerializer.Serialize(resRoomEnter);
         var sendData = PacketToBytes.Make(PacketId.ResRoomEnter, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -236,7 +236,7 @@ public class PKHCommon : PKHandler
             UserID = userID,
          };
 
-        var packetBodyData = MessagePackSerializer.Serialize(packet);
+        var packetBodyData = MemoryPackSerializer.Serialize(packet);
 
         var internalPacket = new ServerPacketData();
         internalPacket.Assign(sessionID, sessionIndex, (Int16)PacketId.ReqInRoomEnter, packetBodyData);
@@ -252,7 +252,7 @@ public class PKHCommon : PKHandler
 
         try
         {
-            var resData = MessagePackSerializer.Deserialize<PKTInternalResRoomEnter>(packetData.BodyData);
+            var resData = MemoryPackSerializer.Deserialize<PKTInternalResRoomEnter>(packetData.BodyData);
 
             var user = _userMgr.GetUser(sessionIndex);
 
@@ -293,7 +293,7 @@ public class PKHCommon : PKHandler
             UserID = userID,
         };
 
-        var packetBodyData = MessagePackSerializer.Serialize(packet);
+        var packetBodyData = MemoryPackSerializer.Serialize(packet);
 
         var internalPacket = new ServerPacketData();
         internalPacket.Assign("", -1, (Int16)PacketId.NtfInRoomLeave, packetBodyData);

@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 
 using CSBaseLib;
-using MessagePack;
+using MemoryPack;
 
 namespace GameServer;
 
@@ -54,36 +54,29 @@ public class ServerPacketData
 
 
 
-[MessagePackObject]
-public class PKTInternalReqRoomEnter
+[MemoryPackable]
+public partial class PKTInternalReqRoomEnter
 {
-    [Key(0)]
     public int RoomNumber;
 
-    [Key(1)]
     public string UserID;        
 }
 
-[MessagePackObject]
-public class PKTInternalResRoomEnter
+[MemoryPackable]
+public partial class PKTInternalResRoomEnter
 {
-    [Key(0)]
     public ERROR_CODE Result;
 
-    [Key(1)]
     public int RoomNumber;
 
-    [Key(2)]
     public string UserID;
 }
 
 
-[MessagePackObject]
-public class PKTInternalNtfRoomLeave
+[MemoryPackable]
+public partial class PKTInternalNtfRoomLeave
 {
-    [Key(0)]
     public int RoomNumber;
 
-    [Key(1)]
     public string UserID;
 }

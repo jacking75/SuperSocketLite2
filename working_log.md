@@ -1,5 +1,15 @@
 ﻿# 작업 로그
 
+## 2026-08-13 11:53:51 KST - 빌드 점검, net10.0 통일, MessagePack→MemoryPack 전환
+
+- 디스크의 32개 프로젝트가 모두 솔루션에 등록된 것을 확인하고, obj 전체 삭제 후 프로젝트별로 각각 클린 빌드해 전부 성공(CS 경고 0개)을 확인했다.
+- 클라이언트 5개가 아직 `net8.0-windows*`였던 것을 `net10.0-windows*`로 올렸다. net10.0 프레임워크에 이미 포함돼 NU1510이 뜨던 `Microsoft.CSharp`/`System.ValueTuple`/`System.Threading.Tasks.Extensions` 참조도 제거했다.
+- `Microsoft.Windows.Compatibility`(8.0.0/8.0.6/9.0.3 혼재)와 `Microsoft.Extensions.Hosting`/`Logging`(9.0.3)을 10.0.8로 통일했다. 이로써 `System.Data.SqlClient 4.8.5`(높음 심각도) 경고가 사라졌다.
+- MessagePack(3.1.6, 보안 권고 12건)을 쓰던 7개 프로젝트를 전부 MemoryPack 1.21.4로 전환했다. 타입 86개에 `partial`+`[MemoryPackable]`을 적용하고 `[Key]` 특성 110개를 제거했다(MemoryPack은 선언 순서로 직렬화). 직렬화 대상 멤버 수가 110개로 정확히 일치함을 확인했고, 통신 짝의 패킷 레이아웃 일치와 런타임 라운드트립도 검증했다.
+- 어느 프로젝트도 참조하지 않던 `00_superSocketLite_libs` 프리빌드 DLL 디렉터리를 `Template`/`Tutorials` 양쪽에서 삭제하고, 이를 안내하던 `Tutorials/README.md`를 실제 구성(프로젝트 참조)에 맞게 고쳤다.
+- 결과: 32개 프로젝트 전부 빌드 경고 0개(기존 NuGet 보안 권고 168건 소멸), 회귀 테스트 36개 통과.
+
+
 ## 2026-08-13 11:01:45 KST - 로깅 인터페이스 정비
 
 - 외부 로그 라이브러리(NLog/Serilog/ZLogger/log4net/MEL) 연동성을 점검하고 발견한 문제를 전부 처리했다.

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-using MessagePack;
+using MemoryPack;
 
 using CSBaseLib;
 
@@ -41,7 +41,7 @@ public class PKHCommon : PKHandler
                     UserID = user.ID(),
                 };
 
-                var packetBodyData = MessagePackSerializer.Serialize(packet);
+                var packetBodyData = MemoryPackSerializer.Serialize(packet);
                 var internalPacket = new ServerPacketData();
                 internalPacket.SetPacketData(sessionID, (Int16)PacketId.NtfInRoomLeave, packetBodyData);
 
@@ -68,7 +68,7 @@ public class PKHCommon : PKHandler
                 return;
             }
                             
-            var reqData = MessagePackSerializer.Deserialize< PKTReqLogin>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize< PKTReqLogin>(packetData.BodyData);
 
             var errorCode = _userMgr.AddUser(reqData.UserID, sessionID);
             if (errorCode != ErrorCode.None)
@@ -102,7 +102,7 @@ public class PKHCommon : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resLogin);
+        var bodyData = MemoryPackSerializer.Serialize(resLogin);
         var sendData = PacketToBytes.Make(PacketId.ResLogin, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -115,7 +115,7 @@ public class PKHCommon : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resLogin);
+        var bodyData = MemoryPackSerializer.Serialize(resLogin);
         var sendData = PacketToBytes.Make(PacketId.NtfMustClose, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);

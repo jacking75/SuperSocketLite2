@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-using MessagePack;
+using MemoryPack;
 using CSBaseLib;
 
 
@@ -27,21 +27,17 @@ public class DBResultQueue
 }
 
 
-[MessagePackObject]
-public class DBReqLogin
+[MemoryPackable]
+public partial class DBReqLogin
 {
-    [Key(0)]
     public string UserID;
 
-    [Key(1)]
     public string AuthToken;
 }
 
-[MessagePackObject]
-public class DBResLogin
+[MemoryPackable]
+public partial class DBResLogin
 {
-    [Key(0)]
     public string UserID;
-    [Key(1)]
     public ErrorCode Result;
 }

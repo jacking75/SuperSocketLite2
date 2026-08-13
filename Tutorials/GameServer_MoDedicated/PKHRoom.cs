@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-using MessagePack;
+using MemoryPack;
 
 using CSBaseLib;
 
@@ -94,7 +94,7 @@ public class PKHRoom : PKHandler
                 return;
             }
 
-            var reqData = MessagePackSerializer.Deserialize<PKTReqRoomEnter>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomEnter>(packetData.BodyData);
             
             var room = GetRoom(reqData.RoomNumber);
 
@@ -133,7 +133,7 @@ public class PKHRoom : PKHandler
             Result = (short)errorCode
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resRoomEnter);
+        var bodyData = MemoryPackSerializer.Serialize(resRoomEnter);
         var sendData = PacketToBytes.Make(PacketId.ResRoomEnter, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -200,7 +200,7 @@ public class PKHRoom : PKHandler
             Result = (short)ErrorCode.None
         };
 
-        var bodyData = MessagePackSerializer.Serialize(resRoomLeave);
+        var bodyData = MemoryPackSerializer.Serialize(resRoomLeave);
         var sendData = PacketToBytes.Make(PacketId.ResRoomLeave, bodyData);
 
         _serverNetwork.SendData(sessionID, sendData);
@@ -211,7 +211,7 @@ public class PKHRoom : PKHandler
         var sessionIndex = packetData.SessionIndex;
         MainServer.MainLogger.Debug($"NotifyLeaveInternal. SessionIndex: {sessionIndex}");
 
-        var reqData = MessagePackSerializer.Deserialize<PKTInternalNtfRoomLeave>(packetData.BodyData);            
+        var reqData = MemoryPackSerializer.Deserialize<PKTInternalNtfRoomLeave>(packetData.BodyData);            
         LeaveRoomUser(sessionIndex, reqData.RoomNumber);
     }
             
@@ -231,7 +231,7 @@ public class PKHRoom : PKHandler
             }
 
 
-            var reqData = MessagePackSerializer.Deserialize<PKTReqRoomChat>(packetData.BodyData);
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomChat>(packetData.BodyData);
 
             var notifyPacket = new PKTNtfRoomChat()
             {
@@ -239,7 +239,7 @@ public class PKHRoom : PKHandler
                 ChatMessage = reqData.ChatMessage
             };
 
-            var Body = MessagePackSerializer.Serialize(notifyPacket);
+            var Body = MemoryPackSerializer.Serialize(notifyPacket);
             var sendData = PacketToBytes.Make(PacketId.NtfRoomChat, Body);
 
             roomObject.Item2.Broadcast(-1, sendData);

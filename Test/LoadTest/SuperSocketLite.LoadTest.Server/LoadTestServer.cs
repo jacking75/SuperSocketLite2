@@ -45,6 +45,13 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
         return Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory());
     }
 
+    /// <summary>
+    /// 이 서버의 계측기입니다. <see cref="Configure"/> 이후에 유효합니다.
+    /// 부가 리스너(text-line·UDP)가 같은 수집기를 공유하도록 노출합니다.
+    /// </summary>
+    public ServerMetricsCollector Metrics =>
+        _metrics ?? throw new InvalidOperationException("Server is not configured.");
+
     public bool StartWithMetrics()
     {
         if (_metrics is null)

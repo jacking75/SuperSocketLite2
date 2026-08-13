@@ -58,6 +58,7 @@ public sealed partial class ClientActor
             // 클라이언트 사이의 송신 시각 분산은 --ramp-up이 접속 시각을 흩어 주는 것으로 얻는다.
             var baseTicks = Stopwatch.GetTimestamp();
             long emitted = 0;
+            var nextBurstAt = _options.BurstEvery;
 
             while (!token.IsCancellationRequested)
             {
@@ -86,10 +87,27 @@ public sealed partial class ClientActor
                 ExpirePending(pending);
 
                 var batchSize = _options.CoalescedPacket ? 2 : 1;
-                if (pending.Count + batchSize > maxInFlight)
+                if (_options.Scenario == "burst" && ElapsedTime() >= nextBurstAt)
+                {
+                    // 기본 레이트는 그대로 두고 주기마다 한 뭉치를 얹는다.
+                    // 열린 루프이므로 이 뭉치가 응답 대기에 막히지 않고 실제로 몰려 나간다.
+                    batchSize = _options.BurstSize;
+                    nextBurstAt += _options.BurstEvery;
+                }
+
+                var available = maxInFlight - pending.Count;
+                if (available <= 0)
                 {
                     _metrics.OnSendSkipped();
                     continue;
+                }
+
+                // 한도가 모자라면 보낼 수 있는 만큼만 보내고 부족분을 남긴다.
+                // 통째로 건너뛰면 폭주 시나리오가 아무 일도 하지 않은 것처럼 보인다.
+                if (available < batchSize)
+                {
+                    _metrics.OnSendSkipped();
+                    batchSize = available;
                 }
 
                 await SendBatchAsync(connection, pending, batchSize, token).ConfigureAwait(false);

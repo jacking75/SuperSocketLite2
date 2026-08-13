@@ -7,6 +7,8 @@ public sealed class LoadTestServerOptions
         "",
         "Options:",
         "  --port <1-65535>",
+        "  --text-port <1-65535>   (0 to disable)",
+        "  --udp-port <1-65535>    (0 to disable)",
         "  --max-connections <count>",
         "  --output <directory>",
         "  --sample-interval-ms <milliseconds>",
@@ -17,6 +19,13 @@ public sealed class LoadTestServerOptions
     ]);
 
     public int Port { get; set; } = 2012;
+
+    /// <summary>text-line 프로토콜 리슨 포트입니다. 0이면 리스너를 열지 않습니다.</summary>
+    public int TextPort { get; set; }
+
+    /// <summary>UDP 에코 리슨 포트입니다. 0이면 리스너를 열지 않습니다.</summary>
+    public int UdpPort { get; set; }
+
     public int MaxConnections { get; set; } = 1000;
     public string Output { get; set; } = Path.Combine("logs", "loadtest", "local-server");
     public int SampleIntervalMs { get; set; } = 1000;
@@ -41,6 +50,12 @@ public sealed class LoadTestServerOptions
             {
                 case "--port":
                     options.Port = int.Parse(value);
+                    break;
+                case "--text-port":
+                    options.TextPort = int.Parse(value);
+                    break;
+                case "--udp-port":
+                    options.UdpPort = int.Parse(value);
                     break;
                 case "--max-connections":
                     options.MaxConnections = int.Parse(value);
@@ -74,6 +89,12 @@ public sealed class LoadTestServerOptions
     {
         if (Port is < 1 or > 65535)
             throw new ArgumentOutOfRangeException(nameof(Port), "Port must be between 1 and 65535.");
+        if (TextPort is < 0 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(TextPort), "TextPort must be between 0 and 65535.");
+        if (UdpPort is < 0 or > 65535)
+            throw new ArgumentOutOfRangeException(nameof(UdpPort), "UdpPort must be between 0 and 65535.");
+        if (TextPort != 0 && TextPort == Port)
+            throw new ArgumentException("TextPort must differ from Port.", nameof(TextPort));
         if (MaxConnections < 0)
             throw new ArgumentOutOfRangeException(nameof(MaxConnections), "MaxConnections must be greater than or equal to zero.");
         if (SampleIntervalMs <= 0)

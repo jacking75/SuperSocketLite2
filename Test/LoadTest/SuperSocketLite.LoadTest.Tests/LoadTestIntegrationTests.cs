@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using SuperSocketLite.LoadTest.Client;
 using SuperSocketLite.LoadTest.Server;
+using SuperSocketLite.LoadTest.ServerProbe;
 
 namespace SuperSocketLite.LoadTest.Tests;
 
@@ -25,6 +26,265 @@ internal static class LoadTestIntegrationTests
         yield return new TestCase(nameof(ReconnectStormDoesNotCrashAndDrainsSessions), ReconnectStormDoesNotCrashAndDrainsSessions);
         yield return new TestCase(nameof(OpenLoopKeepsSendingWhenResponsesAreSlow), OpenLoopKeepsSendingWhenResponsesAreSlow);
         yield return new TestCase(nameof(OpenLoopRespectsInFlightLimit), OpenLoopRespectsInFlightLimit);
+        yield return new TestCase(nameof(TextLineServerEchoesClientLines), TextLineServerEchoesClientLines);
+        yield return new TestCase(nameof(UdpEchoServerEchoesClientDatagrams), UdpEchoServerEchoesClientDatagrams);
+        yield return new TestCase(nameof(BurstScenarioSendsMoreThanSteadyRate), BurstScenarioSendsMoreThanSteadyRate);
+        yield return new TestCase(nameof(AbortedConnectionsDoNotBreakServer), AbortedConnectionsDoNotBreakServer);
+        yield return new TestCase(nameof(HugePayloadRoundTripsThroughServer), HugePayloadRoundTripsThroughServer);
+    }
+
+    /// <summary>
+    /// 폭주 시나리오는 기본 레이트 위에 주기적으로 한 뭉치를 얹는다.
+    /// 열린 루프이므로 그 뭉치가 응답 대기에 막히지 않고 실제로 몰려 나가야 한다.
+    /// </summary>
+    private static void BurstScenarioSendsMoreThanSteadyRate()
+    {
+        var steady = RunScenarioAndCountSends("echo");
+        var burst = RunScenarioAndCountSends("burst");
+
+        AssertEx.True(
+            burst > steady * 2,
+            $"폭주 시나리오는 기본 레이트보다 훨씬 많이 보내야 한다. burst={burst}, steady={steady}");
+    }
+
+    private static long RunScenarioAndCountSends(string scenario)
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = scenario + "-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 1,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 2,
+                Scenario = scenario,
+                BurstEvery = TimeSpan.FromMilliseconds(400),
+                BurstSize = 20,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var samples = File.ReadAllLines(Path.Combine(clientOutput, "client_samples.csv"));
+        return ParseColumnAsLong(samples, "total_send_success", samples[^1]);
+    }
+
+    /// <summary>
+    /// 클라이언트가 FIN 대신 RST로 끊어도 서버는 예외 없이 세션을 정리해야 한다.
+    /// 모바일 환경에서 흔한 끊김이라 서버가 이 경로에서 무너지면 안 된다.
+    /// </summary>
+    private static void AbortedConnectionsDoNotBreakServer()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "abort-" + Guid.NewGuid().ToString("N");
+        var serverOutput = Path.Combine(temp.Path, "server");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 20,
+                Output = serverOutput,
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 8,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 5,
+                AbortPercent = 100,
+                Output = Path.Combine(temp.Path, "client"),
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var sampleLines = File.ReadAllLines(Path.Combine(serverOutput, "server_samples.csv"));
+        var exceptions = ParseColumnAsLong(sampleLines, "exception_total", sampleLines[^1]);
+        var activeSessions = ParseColumnAsLong(sampleLines, "active_sessions", sampleLines[^1]);
+        var connected = ParseColumnAsLong(sampleLines, "total_connected", sampleLines[^1]);
+
+        AssertEx.True(connected > 0, "서버는 클라이언트 접속을 받아야 한다.");
+        AssertEx.Equal(0L, exceptions, "RST로 끊겨도 서버에 예외가 발생하면 안 된다.");
+        AssertEx.Equal(0L, activeSessions, "RST로 끊긴 세션도 남김없이 정리되어야 한다.");
+    }
+
+    /// <summary>60KB 페이로드가 서버의 조립 경로를 온전히 통과하는지 확인한다.</summary>
+    private static void HugePayloadRoundTripsThroughServer()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "huge-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var server = new LoadTestServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                Port = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                SampleIntervalMs = 100,
+                RunId = runId
+            }), "Server should configure.");
+            AssertEx.True(server.StartWithMetrics(), "Server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 2,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 5,
+                Payload = "huge",
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var samples = File.ReadAllLines(Path.Combine(clientOutput, "client_samples.csv"));
+        var received = ParseColumnAsLong(samples, "total_receive", samples[^1]);
+        var timeouts = ParseColumnAsLong(samples, "total_timeout", samples[^1]);
+
+        AssertEx.True(received > 0, "60KB 요청도 응답을 받아야 한다.");
+        AssertEx.Equal(0L, timeouts, "대용량 페이로드에서 타임아웃이 나면 안 된다.");
+    }
+
+    /// <summary>
+    /// --protocol text-line은 오래 전부터 클라이언트에 있었지만 받아 줄 서버가 없어
+    /// 실행할 수 없는 옵션이었다. 이제 서버가 있으므로 실제로 완주하는지 확인한다.
+    /// </summary>
+    private static void TextLineServerEchoesClientLines()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeTcpPort();
+        var runId = "textline-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var metrics = ServerMetricsCollector.Create(new ServerMetricsOptions
+        {
+            RunId = runId,
+            OutputDirectory = Path.Combine(temp.Path, "server"),
+            ServerName = "text-test",
+            SampleInterval = TimeSpan.FromMilliseconds(100)
+        }))
+        using (var server = new TextLineServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                TextPort = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                RunId = runId
+            }, metrics), "Text-line server should configure.");
+            AssertEx.True(server.Start(), "Text-line server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Transport = "text",
+                Protocol = "text-line",
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 2,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 5,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var samples = File.ReadAllLines(Path.Combine(clientOutput, "client_samples.csv"));
+        var received = ParseColumnAsLong(samples, "total_receive", samples[^1]);
+        var timeouts = ParseColumnAsLong(samples, "total_timeout", samples[^1]);
+
+        AssertEx.True(received > 0, "text-line 서버는 보낸 줄을 되돌려줘야 한다.");
+        AssertEx.Equal(0L, timeouts, "text-line 실행에 타임아웃이 있으면 안 된다.");
+    }
+
+    /// <summary>
+    /// UDP도 마찬가지로 받아 줄 서버가 없던 시나리오다.
+    /// 데이터그램 하나가 곧 요청 하나이며 세션은 본문의 GUID로 식별된다.
+    /// </summary>
+    private static void UdpEchoServerEchoesClientDatagrams()
+    {
+        using var temp = TempDirectory.Create();
+        var port = GetFreeUdpPort();
+        var runId = "udpecho-" + Guid.NewGuid().ToString("N");
+        var clientOutput = Path.Combine(temp.Path, "client");
+
+        using (var metrics = ServerMetricsCollector.Create(new ServerMetricsOptions
+        {
+            RunId = runId,
+            OutputDirectory = Path.Combine(temp.Path, "server"),
+            ServerName = "udp-test",
+            SampleInterval = TimeSpan.FromMilliseconds(100)
+        }))
+        using (var server = new UdpEchoServer())
+        {
+            AssertEx.True(server.Configure(new LoadTestServerOptions
+            {
+                UdpPort = port,
+                MaxConnections = 10,
+                Output = Path.Combine(temp.Path, "server"),
+                RunId = runId
+            }, metrics), "UDP server should configure.");
+            AssertEx.True(server.Start(), "UDP server should start.");
+
+            var runtime = new ClientRuntime(new LoadTestOptions
+            {
+                Transport = "udp",
+                Protocol = "udp-echo",
+                Host = "127.0.0.1",
+                Port = port,
+                Clients = 2,
+                Duration = TimeSpan.FromSeconds(2),
+                SendRatePerClient = 5,
+                Output = clientOutput,
+                RunId = runId
+            });
+
+            AssertEx.Equal(0, runtime.RunAsync().GetAwaiter().GetResult());
+            server.Stop();
+        }
+
+        var samples = File.ReadAllLines(Path.Combine(clientOutput, "client_samples.csv"));
+        var received = ParseColumnAsLong(samples, "total_receive", samples[^1]);
+
+        AssertEx.True(received > 0, "UDP 서버는 보낸 데이터그램을 되돌려줘야 한다.");
     }
 
     /// <summary>

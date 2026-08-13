@@ -44,6 +44,11 @@ public sealed class UdpConnection : ILoadTestConnection
         return Math.Min(buffer.Length, result.Buffer.Length);
     }
 
+    /// <summary>UDP는 연결이 없으므로 비정상 종료라는 개념이 없습니다.</summary>
+    public void Abort()
+    {
+    }
+
     public ValueTask DisposeAsync()
     {
         _client?.Dispose();

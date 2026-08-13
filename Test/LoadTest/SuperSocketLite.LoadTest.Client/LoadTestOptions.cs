@@ -16,10 +16,13 @@ public sealed class LoadTestOptions
         "  --ramp-up <hh:mm:ss>",
         "  --duration <hh:mm:ss>",
         "  --send-rate-per-client <rate>",
-        "  --payload <small|medium|large|mixed>",
-        "  --scenario <echo|game-like|idle-heartbeat|reconnect-storm>",
+        "  --scenario <echo|game-like|idle-heartbeat|reconnect-storm|burst>",
+        "  --payload <small|medium|large|huge|mixed|mixed-huge>",
         "  --pacing <open|closed>",
         "  --max-in-flight <count>",
+        "  --abort-percent <0-100>",
+        "  --burst-every <hh:mm:ss>",
+        "  --burst-size <count>",
         "  --operation-sampling <0.0-1.0>",
         "  --machine-id <id>",
         "  --run-id <id>",
@@ -52,6 +55,18 @@ public sealed class LoadTestOptions
     /// 0이면 송신 레이트와 수신 타임아웃으로 자동 산정합니다.
     /// </summary>
     public int MaxInFlight { get; set; }
+
+    /// <summary>
+    /// 실행이 끝날 때 정상 종료 대신 RST로 끊을 클라이언트 비율입니다.
+    /// 서버가 비정상 종료를 어떻게 처리하는지 보기 위한 것입니다.
+    /// </summary>
+    public int AbortPercent { get; set; }
+
+    /// <summary>순간 폭주 간격입니다. <c>--scenario burst</c>에서만 씁니다.</summary>
+    public TimeSpan BurstEvery { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>폭주 한 번에 몰아서 보낼 요청 수입니다.</summary>
+    public int BurstSize { get; set; } = 20;
     public int HeartbeatMinSec { get; set; } = 5;
     public int HeartbeatMaxSec { get; set; } = 15;
     public int ChatMinSec { get; set; } = 10;
@@ -123,6 +138,15 @@ public sealed class LoadTestOptions
                     break;
                 case "--max-in-flight":
                     options.MaxInFlight = int.Parse(Next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--abort-percent":
+                    options.AbortPercent = int.Parse(Next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--burst-every":
+                    options.BurstEvery = TimeSpan.Parse(Next(), CultureInfo.InvariantCulture);
+                    break;
+                case "--burst-size":
+                    options.BurstSize = int.Parse(Next(), CultureInfo.InvariantCulture);
                     break;
                 case "--heartbeat-min-sec":
                     options.HeartbeatMinSec = int.Parse(Next(), CultureInfo.InvariantCulture);
@@ -221,6 +245,18 @@ public sealed class LoadTestOptions
             throw new ArgumentException("Pacing must be 'open' or 'closed'.", nameof(Pacing));
         if (MaxInFlight < 0)
             throw new ArgumentOutOfRangeException(nameof(MaxInFlight), "MaxInFlight must be greater than or equal to zero.");
+        if (AbortPercent is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(AbortPercent), "AbortPercent must be between 0 and 100.");
+        if (BurstEvery <= TimeSpan.Zero)
+            throw new ArgumentOutOfRangeException(nameof(BurstEvery), "BurstEvery must be greater than zero.");
+        if (BurstSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(BurstSize), "BurstSize must be greater than zero.");
+    }
+
+    /// <summary>이 클라이언트가 실행 종료 시 RST로 끊을 대상인지입니다.</summary>
+    public bool ShouldAbort(int clientId)
+    {
+        return AbortPercent > 0 && Math.Abs(clientId) % 100 < AbortPercent;
     }
 
     /// <summary>

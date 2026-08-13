@@ -259,8 +259,41 @@ push the following ones back. Requests and responses are matched by a correlatio
 the first 8 bytes of the body, so responses need not arrive in order.
 
 Open-loop applies to the TCP binary protocol only. `--transport udp` and `--protocol text-line`
-stay closed-loop regardless of the flag. The `pacing` key in `client_summary.csv` records what
-was actually used — match it on both sides when comparing runs.
+stay closed-loop regardless of the flag — neither protocol has room for a correlation id. The
+`pacing` key in `client_summary.csv` records what was actually used — match it on both sides
+when comparing runs.
+
+## Protocols
+
+The server can open three listeners at once:
+
+```text
+--port <n>        TCP binary echo (always on)
+--text-port <n>   line-delimited text echo (0 disables)
+--udp-port <n>    UDP echo (0 disables)
+```
+
+All three share one metrics collector. GC, memory, and CPU are process-wide, so measuring them
+per listener would be meaningless, and session and request counts are easier to read summed.
+
+UDP datagrams carry a 4-byte key plus a 36-byte session GUID ahead of the payload; that prefix
+is how the library identifies UDP sessions.
+
+## Anomaly Scenarios
+
+```text
+--scenario burst      periodic bursts layered on top of the base rate
+--abort-percent <n>   share of clients that end with RST instead of FIN
+--payload huge        ~32KB bodies, at the protocol's Int16 size limit
+--payload mixed-huge  mostly small requests with occasional huge ones
+```
+
+Burst rides on the base rate rather than replacing it, and open-loop pacing is what lets the
+burst actually go out instead of stalling behind pending responses. If the in-flight limit is
+too low the burst is trimmed and the shortfall lands in `send_skipped_in_flight`.
+
+For abort runs, the values that matter are on the server side: `exception_total` should stay 0
+and `active_sessions` should return to 0.
 
 ### `client_operations.csv`
 

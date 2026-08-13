@@ -14,6 +14,7 @@ public sealed class ClientMetricsCollector
     private long _sendSkippedInFlight;
     private long _inFlight;
     private long _maxInFlightObserved;
+    private long _localResourceExhaustion;
     private long _activeClients;
     private long _connectingClients;
     private long _connectedClients;
@@ -57,6 +58,14 @@ public sealed class ClientMetricsCollector
 
     /// <summary>동시 요청 한도에 걸려 보내지 못한 송신을 기록합니다.</summary>
     public void OnSendSkipped() => Interlocked.Increment(ref _sendSkippedInFlight);
+
+    /// <summary>
+    /// 서버가 아니라 부하 발생기 쪽 자원이 바닥나 실패한 연결을 기록합니다.
+    /// 임시 포트 고갈 같은 상황을 서버 문제로 오해하지 않기 위한 것입니다.
+    /// </summary>
+    public void OnLocalResourceExhaustion() => Interlocked.Increment(ref _localResourceExhaustion);
+
+    public long LocalResourceExhaustion => Volatile.Read(ref _localResourceExhaustion);
 
     public void OnRequestStarted()
     {

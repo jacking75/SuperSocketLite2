@@ -66,10 +66,15 @@ public sealed partial class ClientActor
 
                 break;
             }
-            catch (Exception) when (!connected)
+            catch (Exception ex) when (!connected)
             {
                 _metrics.OnConnectFail();
                 _metrics.OnSocketError();
+
+                // 서버가 거부한 것인지 이 머신이 더 이상 소켓을 못 내는 것인지 구분해 둔다.
+                if (LoadGeneratorHost.IsLocalResourceExhaustion(ex))
+                    _metrics.OnLocalResourceExhaustion();
+
                 SetState(ClientState.Reconnecting);
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
             }
@@ -84,7 +89,15 @@ public sealed partial class ClientActor
             finally
             {
                 if (connected)
+                {
+                    // 실행이 끝나는 시점에만 비정상 종료를 흉내 낸다.
+                    // 재접속 중에도 RST를 보내면 재접속 시나리오의 의도가 흐려진다.
+                    if (cancellationToken.IsCancellationRequested && _options.ShouldAbort(_clientId))
+                        connection.Abort();
+
                     _metrics.OnDisconnect();
+                }
+
                 SetState(ClientState.Closed);
             }
 

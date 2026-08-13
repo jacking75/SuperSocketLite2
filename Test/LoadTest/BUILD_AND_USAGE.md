@@ -68,7 +68,9 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Server -- `
 
 | 옵션 | 기본값 | 설명 |
 | --- | --- | --- |
-| `--port` | `2012` | 서버 리슨 포트입니다. |
+| `--port` | `2012` | TCP 바이너리 리슨 포트입니다. |
+| `--text-port` | `0` | text-line 리슨 포트입니다. `0`이면 열지 않습니다. |
+| `--udp-port` | `0` | UDP 에코 리슨 포트입니다. `0`이면 열지 않습니다. |
 | `--max-connections` | `1000` | 허용할 최대 연결 수입니다. |
 | `--output` | `logs\loadtest\local-server` | 서버 CSV 출력 디렉토리입니다. |
 | `--sample-interval-ms` | `1000` | 서버 샘플 메트릭 기록 주기입니다. |
@@ -107,7 +109,10 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--ramp-up` | `00:00:00` | 클라이언트 수를 점진적으로 늘리는 시간입니다. |
 | `--duration` | `00:01:00` | 클라이언트 실행 시간입니다. |
 | `--send-rate-per-client` | `1.0` | 클라이언트 1개당 초당 송신 횟수입니다. |
-| `--payload` | `small` | 페이로드 크기 패턴입니다. 예: `small`, `mixed`. |
+| `--payload` | `small` | 페이로드 크기 패턴입니다. `small`(32B), `medium`(256B), `large`(4KB), `huge`(약 32KB), `mixed`, `mixed-huge`를 씁니다. |
+| `--abort-percent` | `0` | 실행 종료 시 정상 종료 대신 RST로 끊을 클라이언트 비율입니다. |
+| `--burst-every` | `00:00:10` | 순간 폭주 간격입니다. `--scenario burst`에서만 씁니다. |
+| `--burst-size` | `20` | 폭주 한 번에 몰아서 보낼 요청 수입니다. |
 | `--output` | `logs\loadtest\client` | 클라이언트 CSV 출력 디렉토리입니다. |
 | `--scenario` | `echo` | 실행 시나리오입니다. 예: `echo`, `game-like`, `idle-heartbeat`, `reconnect-storm`. |
 | `--pacing` | `open` | 송신 페이싱 방식입니다. `open` 또는 `closed`를 지정합니다. 아래 설명을 참고합니다. |
@@ -191,6 +196,47 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--chat-min-sec` | `10` | 채팅 패킷 최소 간격(초)입니다. |
 | `--chat-max-sec` | `45` | 채팅 패킷 최대 간격(초)입니다. |
 | `--room-cycle-every` | `120` | 룸 이동 패킷 주기(초)입니다. |
+
+### 이상 상황 시나리오
+
+서버가 정상 트래픽이 아닌 상황에서 어떻게 버티는지 보는 실행입니다.
+
+#### 순간 폭주 (`--scenario burst`)
+
+기본 레이트 위에 주기마다 한 뭉치를 얹습니다.
+열린 루프이므로 그 뭉치가 응답 대기에 막히지 않고 실제로 몰려 나갑니다.
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
+  --transport tcp --protocol echo-binary --host 127.0.0.1 --port 2012 `
+  --clients 500 --duration 00:10:00 --send-rate-per-client 1.0 `
+  --scenario burst --burst-every 00:00:30 --burst-size 50 `
+  --output logs\loadtest\burst-500
+```
+
+동시 요청 한도가 모자라면 보낼 수 있는 만큼만 나가고 부족분이
+`send_skipped_in_flight`에 기록됩니다. 폭주를 온전히 재현하려면 `--max-in-flight`를 함께 올립니다.
+
+#### 비정상 종료 (`--abort-percent`)
+
+지정한 비율의 클라이언트가 실행이 끝날 때 FIN 대신 RST를 보냅니다.
+모바일 환경에서 흔한 끊김이며, 서버가 이 경로에서 예외를 내거나 세션을 남기지 않아야 합니다.
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
+  --transport tcp --protocol echo-binary --host 127.0.0.1 --port 2012 `
+  --clients 1000 --duration 00:05:00 --send-rate-per-client 1.0 `
+  --abort-percent 30 `
+  --output logs\loadtest\abort-1000
+```
+
+확인할 값은 서버의 `exception_total`이 0인지, 최종 `active_sessions`가 0으로 돌아오는지입니다.
+
+#### 대용량 페이로드 (`--payload huge`)
+
+패킷 헤더의 `totalSize`가 `Int16`이므로 본문은 최대 32,762바이트입니다.
+`huge`는 그 한계에 붙여 보내 서버의 조립 경로를 흔듭니다.
+`mixed-huge`는 대부분 작은 요청 사이에 가끔 큰 요청을 섞습니다.
 
 ### 재접속 폭주 시나리오
 
@@ -312,10 +358,24 @@ logs\loadtest\
 
 ## 다른 전송 방식
 
-`SuperSocketLite.LoadTest.Server`는 TCP 바이너리 에코 프로토콜 검증용 서버입니다.
-`text` 또는 `udp` 전송 방식은 해당 프로토콜을 처리할 수 있는 별도 서버나 호환 엔드포인트가 필요합니다.
+`SuperSocketLite.LoadTest.Server`는 세 가지 리스너를 함께 띄울 수 있습니다.
+`--text-port`와 `--udp-port`를 지정하면 TCP 바이너리와 나란히 열립니다.
 
-텍스트 라인 기반 서버가 준비되어 있으면 다음처럼 실행합니다.
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Server -- `
+  --port 2012 `
+  --text-port 2013 `
+  --udp-port 2014 `
+  --max-connections 1000 `
+  --output logs\loadtest\multiproto-server `
+  --duration 00:06:00
+```
+
+세 리스너는 같은 계측기를 공유합니다.
+GC·메모리·CPU는 프로세스 단위 값이라 리스너마다 따로 재는 것이 의미가 없고,
+세션과 요청 수는 합산해서 보는 편이 서버 전체 부하를 읽기 쉽기 때문입니다.
+
+텍스트 라인 서버에는 다음처럼 접속합니다.
 
 ```powershell
 dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
@@ -328,19 +388,24 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
   --output logs\loadtest\text-line-client
 ```
 
-UDP 에코 엔드포인트가 준비되어 있으면 다음처럼 실행합니다.
+UDP 에코 서버에는 다음처럼 접속합니다.
 
 ```powershell
 dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
   --transport udp `
   --protocol udp-echo `
   --host 127.0.0.1 `
-  --port 2012 `
+  --port 2014 `
   --clients 100 `
   --duration 00:05:00 `
   --udp-loss-percent 0 `
   --output logs\loadtest\udp-client
 ```
+
+UDP 데이터그램은 4바이트 키 + 36바이트 세션 GUID + 페이로드로 구성됩니다.
+앞의 40바이트는 라이브러리가 UDP 세션을 식별하는 규약입니다.
+이 프로토콜에는 요청과 응답을 짝지을 상관 ID 자리가 없으므로
+UDP와 text-line은 `--pacing open`을 지정해도 항상 닫힌 루프로 동작합니다.
 
 ## CSV 출력
 

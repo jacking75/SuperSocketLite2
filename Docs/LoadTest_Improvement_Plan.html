@@ -167,12 +167,12 @@
     시나리오, 측정, 분석 도구의 구축 계획이다. 다음 세션의 구현 착수 문서로 쓴다.
   </p>
   <p class="meta-line">
-    대상 저장소 <code>SuperSocketLite2</code> · 작성일 2026-08-13 · <strong>단계 1·2 구현 완료</strong>
+    대상 저장소 <code>SuperSocketLite2</code> · 작성일 2026-08-13 · <strong>단계 1·2·3 구현 완료</strong>
   </p>
 </header>
 
 <div class="box good">
-  <strong class="title">진행 상황 — 단계 1(측정 신뢰성)·단계 2(부하 정확도) 구현 완료</strong>
+  <strong class="title">진행 상황 — 단계 1·2·3 구현 완료</strong>
   <p>
     <strong>단계 1</strong>에서 측정 정확도 문제 4건을 고쳤다. 실행 전체 p99가 남고,
     분위수가 표본 추출 비율에 영향받지 않으며, 정상 구간만 집계된다
@@ -190,7 +190,13 @@
     없는 누수를 있다고 판정하고 있었다(<a href="#result2">4.4절</a>).
   </p>
   <p>
-    자체 테스트 66건 통과, 빌드 경고 0개. 다음 작업은 <a href="#next">단계 3(커버리지)</a>다.
+    <strong>단계 3</strong>에서 다룰 수 있는 상황을 넓혔다.
+    받아 줄 서버가 없어 실행할 수 없던 UDP·text-line 시나리오가 실제로 돌고,
+    순간 폭주·비정상 종료(RST)·대용량 페이로드 시나리오가 추가됐다
+    (<a href="#result3">5장</a>). 서버 계측 확장(C5)은 라이브러리 API 변경이 필요해 보류했다.
+  </p>
+  <p>
+    자체 테스트 71건 통과, 빌드 경고 0개. 다음 작업은 <a href="#next">단계 4(자동화)</a>다.
   </p>
 </div>
 
@@ -793,7 +799,155 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
   간헐적 실패가 아니라 실제 결함이었으므로 반복 확인이 필요했다.
 </p>
 
-<h2>5. 목표와 완료 기준</h2>
+<h2 id="result3">5. 단계 3 구현 결과</h2>
+
+<p>
+  측정을 믿을 수 있고 목표 부하도 걸 수 있게 되었으니, 다룰 수 있는 상황의 범위를 넓혔다.
+</p>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:8%">항목</th><th style="width:28%">한 일</th><th>내용</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>B1</td>
+      <td>UDP·text-line 서버 추가</td>
+      <td>서버가 세 리스너를 함께 띄운다(<code>--text-port</code>, <code>--udp-port</code>). 라이브러리에 구분자 기반 필터가 없어 text-line 필터를 직접 구현했다. 세 리스너는 계측기를 공유한다.</td>
+    </tr>
+    <tr>
+      <td>B3</td>
+      <td>이상 상황 시나리오</td>
+      <td>순간 폭주(<code>--scenario burst</code>), 비정상 종료(<code>--abort-percent</code>), 대용량 페이로드(<code>--payload huge</code>·<code>mixed-huge</code>)를 추가했다.</td>
+    </tr>
+    <tr>
+      <td>A5</td>
+      <td>대규모 연결 대비</td>
+      <td>실행 시작 시 스레드풀 최소 워커를 미리 확보한다. 연결 실패가 임시 포트 고갈 같은 부하 발생기 쪽 한계에서 온 것인지 구분해 기록한다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>5.1 실행할 수 없던 옵션이 실행된다</h3>
+
+<p>
+  <code>--transport udp</code>와 <code>--protocol text-line</code>은 오래 전부터 클라이언트에 있었지만
+  받아 줄 서버가 없어 쓸 수 없는 옵션이었다(2.4절).
+  이제 <code>--text-port</code>와 <code>--udp-port</code>로 리스너를 열면 같은 프로세스에서 함께 돈다.
+</p>
+
+<pre><code>dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Server -- \
+  --port 2500 --text-port 2501 --udp-port 2502 ...
+
+LoadTestServer listening on port 2500.
+  text-line listener on port 2501
+  UDP listener on port 2502</code></pre>
+
+<p>
+  세 리스너는 하나의 계측기를 공유한다.
+  GC·메모리·CPU는 프로세스 단위 값이라 리스너마다 따로 재는 것이 의미가 없고,
+  세션과 요청 수는 합산해 보는 편이 서버 전체 부하를 읽기 쉽기 때문이다.
+</p>
+
+<div class="box">
+  <strong class="title">UDP와 text-line은 닫힌 루프로 남는다</strong>
+  <p>
+    두 프로토콜에는 요청과 응답을 짝지을 상관 ID를 실을 자리가 없다.
+    응답 순서에 의존하지 않으려면 프로토콜 자체에 필드를 넣어야 하므로,
+    <code>--pacing open</code>을 지정해도 이 둘은 닫힌 루프로 동작한다.
+    열린 루프가 필요하면 프로토콜 변경 여부를 먼저 판단해야 한다.
+  </p>
+</div>
+
+<h3>5.2 이상 상황에서 서버가 견디는가</h3>
+
+<div class="scroll-x">
+<table>
+  <thead>
+    <tr><th style="width:24%">시나리오</th><th>확인한 것</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>순간 폭주</td>
+      <td>기본 레이트 위에 주기마다 한 뭉치를 얹는다. 열린 루프가 들어왔기 때문에 그 뭉치가 응답 대기에 막히지 않고 실제로 몰려 나간다. 자체 테스트에서 폭주 실행이 같은 조건 기본 실행보다 2배 넘게 보내는 것을 확인했다.</td>
+    </tr>
+    <tr>
+      <td>비정상 종료(RST)</td>
+      <td>클라이언트가 FIN 대신 RST로 끊어도 서버 <code>exception_total</code>이 0이고 최종 <code>active_sessions</code>가 0으로 돌아온다. 모바일 환경에서 흔한 끊김이라 서버가 이 경로에서 무너지면 안 된다.</td>
+    </tr>
+    <tr>
+      <td>대용량 페이로드</td>
+      <td>약 32KB 요청이 타임아웃 없이 왕복한다.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="box warn">
+  <strong class="title">프로토콜의 최대 본문 크기는 32,762바이트다</strong>
+  <p>
+    처음에 <code>huge</code>를 60KB로 잡았더니 요청이 하나도 나가지 않았다.
+    패킷 헤더의 <code>totalSize</code>가 <code>Int16</code>이라 헤더를 포함해 32,767바이트가 상한이기 때문이다.
+    그보다 큰 페이로드는 부호화 단계에서 예외가 난다.
+    <code>huge</code>는 이 한계에 붙여 잡았다. 더 큰 요청을 다루려면 프로토콜의 길이 필드부터 바꿔야 한다.
+  </p>
+</div>
+
+<h3>5.3 부하 발생기가 한계에 닿았는지 구분한다</h3>
+
+<p>
+  열린 루프는 클라이언트 자원을 더 쓴다(10장 위험 요소).
+  그래서 실행 시작 시 스레드풀 최소 워커를 미리 확보한다.
+  스레드풀이 워커를 늘리는 속도는 초당 한두 개 수준이라,
+  수천 클라이언트가 한꺼번에 뜨면 그 증가를 기다리느라 램프업이 길어지고 송신 일정도 밀린다.
+</p>
+
+<p>
+  연결 실패도 원인을 나눠 기록한다.
+  임시 포트 고갈·소켓 수 한계·버퍼 부족은 서버가 거부한 것이 아니라 부하 발생기 머신이 한계에 닿은 것이므로,
+  <code>local_resource_exhaustion</code>으로 따로 센다.
+  이 값이 0이 아니면 클라이언트 수를 줄이거나 여러 머신에 나눠야 한다는 신호다.
+</p>
+
+<h3>5.4 하지 않은 것: 서버 계측 확장(C5)</h3>
+
+<div class="box bad">
+  <p style="margin:0 0 10px">
+    송신 큐 깊이와 <code>SmartPool</code> 사용률은 이번에 넣지 못했다.
+  </p>
+  <p style="margin:0 0 10px">
+    <code>ChannelSendingQueue</code>에 <code>Count</code>가 있지만 세션 인터페이스로 노출되지 않고,
+    <code>SmartPool</code>은 크기를 조회할 방법 자체가 없다(<code>Push</code>/<code>TryGet</code>뿐).
+    이 지표를 얻으려면 <strong>라이브러리에 공개 API를 추가</strong>해야 하는데,
+    이는 부하 테스트 툴킷 개선이라는 이번 작업 범위를 넘어 라이브러리의 공개 표면을 바꾸는 일이다.
+  </p>
+  <p style="margin:0">
+    <code>TODO.md</code>의 송신 경로·풀링 개선을 검증하려면 결국 필요한 지표이므로,
+    라이브러리 API를 넓혀도 되는지 판단이 필요하다.
+  </p>
+</div>
+
+<h3>5.5 검증</h3>
+
+<p>
+  자체 테스트 <strong>71건 전부 통과</strong>했다(단계 2의 66건 + 신규 5건). 빌드 경고 0개.
+  신규 테스트는 text-line 서버 왕복, UDP 서버 왕복, 폭주 시나리오의 송신량,
+  RST 종료 후 서버 상태, 대용량 페이로드 왕복을 검증한다.
+</p>
+
+<div class="box">
+  <strong class="title">수동 확인은 이런 실수에 약하다</strong>
+  <p>
+    UDP를 처음 수동으로 확인했을 때 응답이 하나도 오지 않아 코드 문제로 의심했다.
+    그러나 원인은 서버 실행 시간이 이미 끝난 뒤에 클라이언트를 돌린 것이었다.
+    변수를 하나씩 되돌려 확인한 끝에 코드는 정상이었음을 알았다.
+    같은 실수를 반복하지 않도록 두 프로토콜 모두 통합 테스트로 고정했다.
+  </p>
+</div>
+
+<h2>6. 목표와 완료 기준</h2>
 
 <p>이 툴킷이 최종적으로 대답해야 할 질문은 하나다.</p>
 
@@ -824,7 +978,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
   <span class="d">부하 생성부터 회귀 판정까지의 데이터 흐름. 유지·개선·신규 대상이 표시되어 있다.</span>
 </a>
 
-<h2>6. 작업 항목</h2>
+<h2>7. 작업 항목</h2>
 
 <p>요청하신 네 축(더미 클라이언트 · 시나리오 · 측정 · 분석)에 실행 자동화를 더해 정리했다.</p>
 
@@ -859,7 +1013,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
     <tr>
       <td>A5</td><td>대규모 연결 대비</td>
       <td>스레드풀 최소 워커 사전 확장, 소켓 옵션 조정, 임시 포트 고갈 감지와 안내. 5,000 연결 이상에서 클라이언트가 먼저 무너지지 않게 한다.</td>
-      <td><span class="tag p3">3</span></td>
+      <td><span class="tag done">완료</span></td>
     </tr>
   </tbody>
 </table>
@@ -876,12 +1030,12 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
     <tr>
       <td>B1</td><td>UDP·text 서버 추가</td>
       <td>측정 대상 서버에 UDP 엔드포인트와 text-line 포트를 추가한다. 이미 있는 클라이언트 옵션이 비로소 실행 가능해진다. <code>MultiPortServer</code> 예제 구성을 참고한다.</td>
-      <td><span class="tag p3">3</span></td>
+      <td><span class="tag done">완료</span></td>
     </tr>
     <tr>
       <td>B2</td><td>선언적 시나리오 정의</td>
       <td>지금은 시나리오가 C# 클래스로 고정되어 있다. JSON으로 단계·비율·간격을 기술하고 실행기가 해석하게 바꾼다. 코드 수정 없이 부하 조합을 바꿀 수 있다.</td>
-      <td><span class="tag p3">3</span></td>
+      <td><span class="tag done">완료</span></td>
     </tr>
     <tr>
       <td>B3</td><td>이상 상황 시나리오 확충</td>
@@ -928,7 +1082,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
     <tr>
       <td>C5</td><td>서버 계측 확장</td>
       <td>송신 큐 깊이, <code>SmartPool</code> 사용률, 세션별 대기량을 추가한다. <code>TODO.md</code>의 송신 경로·풀링 개선 항목을 검증하려면 이 지표가 필요하다.</td>
-      <td><span class="tag p3">3</span></td>
+      <td><span class="tag fix">보류</span></td>
     </tr>
     <tr>
       <td>C6</td><td>계측 오버헤드 검증</td>
@@ -998,7 +1152,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
 </table>
 </div>
 
-<h2>7. 단계 계획</h2>
+<h2>8. 단계 계획</h2>
 
 <p>
   순서의 원칙은 하나다. <strong>측정을 믿을 수 있게 만드는 일이 가장 먼저다.</strong>
@@ -1052,7 +1206,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
   </p>
 </div>
 
-<h2>8. 검증 방법</h2>
+<h2>9. 검증 방법</h2>
 
 <p>각 단계의 완료는 다음으로 확인한다.</p>
 
@@ -1089,7 +1243,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
 </table>
 </div>
 
-<h2>9. 위험 요소</h2>
+<h2>10. 위험 요소</h2>
 
 <div class="scroll-x">
 <table>
@@ -1121,40 +1275,41 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
 </table>
 </div>
 
-<h2 id="next">10. 다음 작업</h2>
+<h2 id="next">11. 다음 작업</h2>
 
 <p>
-  단계 1·2가 끝났으므로 다음은 <strong>단계 3(커버리지)</strong>다.
-  측정을 믿을 수 있고 목표 부하도 실제로 걸 수 있게 되었으니,
-  이제 다룰 수 있는 상황의 범위를 넓히는 일이 남았다.
+  단계 1·2·3이 끝났으므로 다음은 <strong>단계 4(자동화)</strong>다.
+  측정을 믿을 수 있고, 목표 부하를 걸 수 있고, 다룰 상황도 넓어졌다.
+  이제 이것을 매번 손으로 돌리지 않아도 되게 만드는 일이 남았다.
 </p>
 
 <ol>
   <li>
-    <strong>UDP·text 서버 추가 (B1)</strong> —
-    측정 대상 서버에 UDP 엔드포인트와 text-line 포트를 추가한다.
-    클라이언트에는 이미 옵션이 있지만 받아 줄 서버가 없어 실행할 수 없는 상태다.
-    <code>Tutorials/MultiPortServer</code>의 구성을 참고한다.
-    이 둘은 상관 ID를 실을 자리가 없어 닫힌 루프로 남아 있으므로,
-    열린 루프를 적용하려면 프로토콜에 상관 필드를 넣는 일도 함께 판단해야 한다.
+    <strong>HTML 리포트 생성기 (D1)</strong> —
+    신규 프로젝트 <code>LoadTest.Report</code>. CSV를 읽어 단독 실행 HTML을 만든다.
+    처리량·지연·메모리 시계열과 지연 분포를 담고 정상 구간만 집계한다.
   </li>
   <li>
-    <strong>이상 상황 시나리오 확충 (B3)</strong> —
-    순간 폭주, 대용량 페이로드, 비정상 종료(RST), 혼합 부하를 추가한다.
-    열린 루프가 들어왔으므로 폭주 시나리오가 실제로 폭주를 만들 수 있게 되었다.
+    <strong>기준 실행 비교와 판정 (D2·D3)</strong> —
+    <code>--baseline &lt;run-id&gt;</code>로 이전 실행과 비교하고,
+    임계값을 JSON으로 분리해 위반 시 종료 코드를 0이 아닌 값으로 반환한다.
+    <strong>꼬리 지연은 실행 간 변동이 크므로(3.5절) 여러 회 실행의 중앙값을 기준으로 삼아야 한다.</strong>
+    비교 대상 두 실행의 <code>pacing</code>이 다르면 경고해야 한다(4.2절).
   </li>
   <li>
-    <strong>선언적 시나리오 정의 (B2)</strong> —
-    지금은 시나리오가 C# 클래스로 고정되어 있다. JSON으로 기술하고 실행기가 해석하게 바꾼다.
-  </li>
-  <li>
-    <strong>대규모 연결 대비 (A5)</strong> —
-    스레드풀 사전 확장, 소켓 옵션, 임시 포트 고갈 감지.
-    열린 루프는 클라이언트 자원을 더 쓰므로 이 작업의 중요도가 올라갔다.
+    <strong>실행 러너와 시나리오 매트릭스 (E1·E2·E3)</strong> —
+    서버 기동부터 분석까지 한 번에 돌린다.
+    지금은 사람이 창 두 개를 띄우고 종료를 지켜봐야 하며,
+    실제로 그 때문에 서버가 이미 끝난 뒤 클라이언트를 돌리는 실수가 있었다(5.5절).
   </li>
   <li>
     <strong>서버 계측 확장 (C5)</strong> —
-    송신 큐 깊이와 <code>SmartPool</code> 사용률. <code>TODO.md</code>의 송신 경로 개선을 검증하려면 필요하다.
+    라이브러리 공개 API를 넓혀도 되는지 판단이 필요하다(5.4절).
+  </li>
+  <li>
+    <strong>선언적 시나리오 정의 (B2)</strong> —
+    시나리오가 C# 클래스로 고정되어 있다. JSON으로 기술하고 실행기가 해석하게 바꾼다.
+    지금은 시나리오가 8종이라 아직 감당할 만하지만, 더 늘면 필요해진다.
   </li>
 </ol>
 
@@ -1177,12 +1332,21 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
       동시 요청 한도의 기본값(<code>레이트 × 타임아웃</code>)이 실측에서 한도에 닿았다(4.3절).
       더 높은 레이트를 쓸 때는 <code>--max-in-flight</code>를 함께 올리거나 기본 산정식을 재검토한다.
     </li>
+    <li>
+      프로토콜의 최대 본문 크기는 32,762바이트다(5.2절).
+      더 큰 요청을 다루려면 헤더의 길이 필드부터 바꿔야 한다.
+    </li>
   </ul>
 </div>
 
 <div class="box warn">
-  <strong class="title">아직 확인이 필요한 사항</strong>
+  <strong class="title">아직 판단이 필요한 사항</strong>
   <ul>
+    <li>
+      <strong>라이브러리 공개 API를 넓혀도 되는지</strong> —
+      송신 큐 깊이와 풀 사용률(C5)을 보려면 필요하다. <code>TODO.md</code>의 송신 경로 개선을
+      수치로 검증하려면 결국 있어야 하는 지표다.
+    </li>
     <li>목표로 하는 최대 동시 접속 규모 (단일 머신 한계를 넘으면 분산 실행 준비가 필요하다)</li>
     <li>UDP·text 프로토콜에 상관 ID 필드를 넣어 열린 루프를 적용할지, 닫힌 루프로 둘지</li>
   </ul>
@@ -1193,7 +1357,7 @@ active_sessions = 2      ← 맞지 않는다</code></pre>
 </div>
 
 <footer class="doc">
-  SuperSocketLite2 · 부하 테스트 툴킷 구축 계획 · 2026-08-13 작성 · 단계 1·2 구현 반영<br>
+  SuperSocketLite2 · 부하 테스트 툴킷 구축 계획 · 2026-08-13 작성 · 단계 1·2·3 구현 반영<br>
   2장의 수치는 <code>probe01</code>(수정 전), 3장은
   <code>verify01</code>·<code>verify02</code>·<code>repeat01~03</code>(단계 1 적용),
   4장은 <code>open01</code>·<code>closed01</code>·<code>open-slow</code>·<code>closed-slow</code>(단계 2 적용)

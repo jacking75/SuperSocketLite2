@@ -32,6 +32,9 @@ public sealed class ClientRuntime
 
     public async Task<int> RunAsync(CancellationToken cancellationToken = default)
     {
+        // 수천 클라이언트가 한꺼번에 뜰 때 스레드풀 증가 속도가 램프업을 늦추지 않도록 미리 확보한다.
+        LoadGeneratorHost.PrepareThreadPool(_options);
+
         using var writers = new ClientCsvWriters(_options.Output, _options.MachineId);
         using var duration = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         duration.CancelAfter(_options.Duration);
@@ -168,6 +171,7 @@ public sealed class ClientRuntime
         writers.WriteSummary(_options.RunId, "send_schedule_delay_max_us", scheduleDelay.MaxUs);
         writers.WriteSummary(_options.RunId, "send_skipped_in_flight", _metrics.SendSkippedInFlight);
         writers.WriteSummary(_options.RunId, "max_in_flight_observed", _metrics.MaxInFlightObserved);
+        writers.WriteSummary(_options.RunId, "local_resource_exhaustion", _metrics.LocalResourceExhaustion);
 
         var targetRate = _options.Clients * _options.SendRatePerClient;
         writers.WriteSummary(_options.RunId, "target_send_rate_per_sec", Format(targetRate));

@@ -42,6 +42,28 @@ public class TcpBinaryConnection : ILoadTestConnection
         return await _stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Linger를 0으로 두고 닫아 FIN 대신 RST가 나가게 합니다.
+    /// 서버가 정상 종료가 아닌 끊김을 어떻게 처리하는지 보기 위한 것입니다.
+    /// </summary>
+    public void Abort()
+    {
+        if (_client is null)
+            return;
+
+        try
+        {
+            _client.LingerState = new LingerOption(enable: true, seconds: 0);
+            _client.Client.Close(timeout: 0);
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (SocketException)
+        {
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         _stream?.Dispose();

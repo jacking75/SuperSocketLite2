@@ -1,5 +1,13 @@
 ﻿# 작업 로그
 
+## 2026-08-13 12:23:55 KST - 다이어그램 스킬 설치 및 문서 작성 규칙 추가
+
+- `archify`(tt-a1i, MIT v2.14)를 `~/.claude/skills/archify`에 설치했다. 저장소 루트가 아니라 `archify/` 하위 폴더가 스킬 본체다. `archify doctor` 전 항목 통과(Node.js v22).
+- `diagram-design`(cathrynlavery, MIT)은 이미 설치돼 있어 그대로 뒀다. 업스트림은 v2.3이지만 설치본 v2.2에 사용자가 커스터마이즈한 스타일 가이드("플래너의 잉크" 팔레트)가 있어 덮어쓰지 않았다.
+- `CLAUDE.md`에 문서 작성 규칙(어떤 다이어그램에 어떤 스킬을 쓰는지)과 두 스킬의 설치 방법을 적었다. 두 저장소 모두 스킬이 하위 폴더에 있어 그 폴더만 복사해야 하며, 적어둔 명령이 그대로 동작하는지 실제로 클론해 확인했다.
+- `CLAUDE.md`의 디렉토리 설명에 남아 있던 `BufferManager`(이미 제거된 클래스)를 현재 구성으로 고쳤다.
+
+
 ## 2026-08-13 12:14:29 KST - 빌드 산출물 이름 충돌 해소 및 실행 스크립트 갱신
 
 - 같은 폴더에 같은 이름으로 출력해 서로 덮어쓰던 프로젝트 4개에 고유한 `AssemblyName`을 지정했다: `GameServer_MoDedicated` / `GameServer_MoDedicated2`(둘 다 `GameServer`였음), `EchoClient` / `PvPGameServer_Client`(둘 다 `csharp_test_client`였음).

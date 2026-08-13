@@ -12,8 +12,12 @@ class TcpAsyncSocketListener : SocketListenerBase
 
     private Socket? _listenSocket;
 
-    // CTS that drives the accept loop; cancelled by Stop() to unblock AcceptAsync.
+    // CTS that drives the accept loops; cancelled by Stop() to unblock AcceptAsync.
     private CancellationTokenSource? _stopCts;
+
+    // Accept loops still running. OnStopped is raised by whichever loop brings this to zero, so it
+    // fires exactly once no matter how many loops there are.
+    private int _runningAcceptLoops;
 
     public TcpAsyncSocketListener(ListenerInfo info)
         : base(info)
@@ -34,7 +38,17 @@ class TcpAsyncSocketListener : SocketListenerBase
             listenSocket.Listen(_listenBackLog);
 
             _stopCts = new CancellationTokenSource();
-            _ = AcceptLoopAsync(listenSocket, _stopCts.Token);
+
+            //Concurrent AcceptAsync calls on one listening socket are supported and are the portable
+            //way to widen the accept path; the per-connection setup that follows each accept is what
+            //actually benefits.
+            var acceptLoopCount = GetAcceptLoopCount(config);
+            _runningAcceptLoops = acceptLoopCount;
+
+            for (var i = 0; i < acceptLoopCount; i++)
+            {
+                _ = AcceptLoopAsync(listenSocket, _stopCts.Token);
+            }
 
             return true;
         }
@@ -45,6 +59,16 @@ class TcpAsyncSocketListener : SocketListenerBase
             OnError(e);
             return false;
         }
+    }
+
+    /// <summary>Reads the configured accept loop count, clamped to the supported range.</summary>
+    private static int GetAcceptLoopCount(IServerConfig config)
+    {
+        //AcceptLoopCount only exists on ServerConfig (IServerConfig is kept unchanged for backward
+        //compatibility), so custom config implementations get the single-loop default.
+        var configured = (config as ServerConfig)?.AcceptLoopCount ?? ServerConfig.DefaultAcceptLoopCount;
+
+        return Math.Clamp(configured, ServerConfig.DefaultAcceptLoopCount, ServerConfig.MaxAcceptLoopCount);
     }
 
     /// <summary>
@@ -99,8 +123,11 @@ class TcpAsyncSocketListener : SocketListenerBase
         }
         finally
         {
-            // OnStopped is always raised exactly once, after the loop exits for any reason.
-            OnStopped();
+            // OnStopped is always raised exactly once, after the last loop exits for any reason.
+            if (Interlocked.Decrement(ref _runningAcceptLoops) == 0)
+            {
+                OnStopped();
+            }
         }
     }
 

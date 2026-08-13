@@ -19,6 +19,12 @@ abstract class TcpSocketServerBase : SocketServerBase
     //once per server instead of once per accepted connection.
     private int _loggedKeepAliveFailures;
 
+    // enable:false = SO_LINGER off, i.e. the default graceful close: Close() returns immediately and
+    // the OS keeps draining the send buffer in the background. (An abortive RST close would be
+    // LingerOption(enable:true, seconds:0) - deliberately NOT used, it would discard data still
+    // queued for the client.) Shared by every connection: SetSocketOption only reads the values.
+    private static readonly LingerOption s_GracefulLinger = new(enable: false, seconds: 0);
+
     public TcpSocketServerBase(IAppServer appServer, ListenerInfo[] listeners)
         : base(appServer, listeners)
     {
@@ -52,11 +58,7 @@ abstract class TcpSocketServerBase : SocketServerBase
         ApplyKeepAlive(client);
 
         client.NoDelay = _noDelay;
-        // enable:false = SO_LINGER off, i.e. the default graceful close: Close() returns immediately
-        // and the OS keeps draining the send buffer in the background. (An abortive RST close would
-        // be LingerOption(enable:true, seconds:0) - deliberately NOT used, it would discard data
-        // still queued for the client.)
-        client.LingerState = new LingerOption(enable: false, seconds: 0);
+        client.LingerState = s_GracefulLinger;
 
         return this.AppServer.CreateAppSession(session);
     }

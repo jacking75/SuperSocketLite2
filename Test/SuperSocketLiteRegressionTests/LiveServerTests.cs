@@ -567,6 +567,17 @@ static class LiveServerTests
         });
     }
 
+    /// <summary>Test-fixture helpers shared with <see cref="HotPathTests"/>.</summary>
+    public static ServerConfig CreateConfigForTests(string name) => CreateConfig(name);
+
+    public static void RunWithServerForTests(ServerConfig config, Action<LiveEchoServer, int> body) => RunWithServer(config, body);
+
+    public static byte[] BuildPacketForTests(int sequence, int bodySize) => BuildPacket(sequence, bodySize);
+
+    public static void ReadExactlyForTests(NetworkStream stream, byte[] buffer, int count) => ReadExactly(stream, buffer, count);
+
+    public static void WaitForCondition(Func<bool> condition, string message, int timeoutMs = 5000) => WaitFor(condition, message, timeoutMs);
+
     private static ServerConfig CreateConfig(string name)
     {
         return new ServerConfig
@@ -732,6 +743,9 @@ class LiveEchoServer : AppServer<LiveEchoSession, LiveEchoRequestInfo>
 
     /// <summary>Set by the test to have the handler queue extra traffic before returning.</summary>
     public Func<LiveEchoSession, LiveEchoRequestInfo, bool>? RequestInterceptor { get; set; }
+
+    /// <summary>Exposes the protected request total so a test can assert on it.</summary>
+    public long HandledRequests => TotalHandledRequests;
 
     public LiveEchoServer()
         : this(EchoSendMode.Send)

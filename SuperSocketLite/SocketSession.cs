@@ -74,6 +74,17 @@ abstract partial class SocketSession : ISocketSession
         Interlocked.And(ref _state, ~stateValue);
     }
 
+    /// <summary>Clears the flag and returns the state this caller has just published.</summary>
+    /// <remarks>
+    /// Interlocked.And reports the value from before the update, so the caller has to clear the bit
+    /// on it as well. Deciding on this value rather than on a later read of <c>_state</c> is what
+    /// lets a caller reason about what a concurrent thread can have seen.
+    /// </remarks>
+    private int RemoveStateFlagAndGetState(int stateValue)
+    {
+        return Interlocked.And(ref _state, ~stateValue) & ~stateValue;
+    }
+
     private bool CheckState(int stateValue)
     {
         return (_state & stateValue) == stateValue;
@@ -407,7 +418,19 @@ abstract partial class SocketSession : ISocketSession
 
     private void OnSendEnd(CloseReason closeReason, bool forceClose)
     {
-        RemoveStateFlag(SocketState.InSending);
+        var state = RemoveStateFlagAndGetState(SocketState.InSending);
+
+        // Outside the closing procedure ValidateClosed only takes SyncRoot and returns again, so
+        // every finished send batch was paying for a lock that had nothing to do. Skipping it
+        // cannot lose a close: Close() sets InClosing before it looks at InSending, so either it
+        // set InClosing before this update - and then the state we just published carries it and we
+        // take the slow path below - or it had not set it yet, in which case it goes on to observe
+        // InSending already cleared and closes the socket itself.
+        if (state < SocketState.InClosing && !forceClose)
+        {
+            return;
+        }
+
         ValidateClosed(closeReason, forceClose, true);
     }
 

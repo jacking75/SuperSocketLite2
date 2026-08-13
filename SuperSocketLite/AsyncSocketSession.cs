@@ -12,6 +12,13 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     private bool _sendSAEAFromPool;
     private SocketAsyncEventArgs? _socketEventArgSend;
     private bool _receiveInlineOnIocpThread = true;
+    private bool _useZeroByteReceive;
+
+    // Set by a completed zero-byte probe to tell the next cycle that data really is waiting, so it
+    // should take a buffer. Only ever touched from within the receive cycle, which is single-flight
+    // per session (one receive is posted at a time), and the only thread hand-off it crosses is the
+    // await in FlushPipeAndStartReceiveAsync.
+    private bool _hasDataToReceive;
 
     public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, SocketAsyncEventArgs? sendSAEA)
         : base(client)
@@ -23,7 +30,17 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     ILog ILogProvider.Logger => AppSession.Logger;
 
-    public SocketAsyncEventArgs? SendSAEA => _socketEventArgSend;
+    // The instance handed over to the close handler. _socketEventArgSend has to be cleared before
+    // that handler runs so a send completing at the same moment cannot pick it up again, which used
+    // to leave the handler with nothing to give back to the pool.
+    private SocketAsyncEventArgs? _detachedSendSAEA;
+
+    /// <summary>The sending SocketAsyncEventArgs released by this session, once it has closed.</summary>
+    /// <remarks>
+    /// Null while the session is alive: it is only published as part of closing, for the server's
+    /// close handler to return to the pool or dispose.
+    /// </remarks>
+    public SocketAsyncEventArgs? SendSAEA => _detachedSendSAEA;
 
     public bool ReceiveInlineOnIocpThread => _receiveInlineOnIocpThread;
 
@@ -32,6 +49,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         base.Initialize(appSession);
 
         _receiveInlineOnIocpThread = (Config as ServerConfig)?.ReceiveInlineOnIocpThread ?? true;
+        _useZeroByteReceive = (Config as ServerConfig)?.UseZeroByteReceive ?? false;
 
         //Initialize SocketAsyncProxy for receiving
         SocketAsyncProxy.Initialize(this);
@@ -94,7 +112,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         if (count != e.BytesTransferred)
         {
             queue = TrimSegments(queue, e.BytesTransferred);
-            AppSession?.Logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {SumSegments(queue)} bytes right now.");
+
+            var logger = AppSession?.Logger;
+
+            if (logger != null && logger.IsInfoEnabled)
+            {
+                logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {SumSegments(queue)} bytes right now.");
+            }
+
             ClearPrevSendState(e);
             SendAsync(queue);
             return;
@@ -151,8 +176,21 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         {
             while (true)
             {
-                var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
-                e.SetBuffer(memory);   // .NET 5+ Memory<byte> overload
+                if (_useZeroByteReceive && !_hasDataToReceive)
+                {
+                    //A zero-byte receive borrows nothing from the pipe, so a session that is just
+                    //waiting holds no buffer at all. It completes as soon as the socket becomes
+                    //readable, and the cycle below then takes a real buffer.
+                    e.SetBuffer(Memory<byte>.Empty);
+                }
+                else
+                {
+                    var memory = _pipeWriter!.GetMemory(Config.ReceiveBufferSize);
+                    e.SetBuffer(memory);   // .NET 5+ Memory<byte> overload
+
+                    //Consumed now; once this receive is done the next cycle waits again.
+                    _hasDataToReceive = false;
+                }
 
                 if (!OnReceiveStarted())
                     return;
@@ -321,6 +359,18 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     /// </returns>
     private bool ProcessReceiveCore(SocketAsyncEventArgs e)
     {
+        //A completed zero-byte receive carries no data by design - it only reports that the socket
+        //has become readable - so it must not be mistaken for the client having closed. The receive
+        //that follows reads the data, or returns 0 and is then correctly treated as a close.
+        //The posted buffer length identifies the probe, which keeps this free of any extra state
+        //shared with the thread that posted it.
+        if (e.Count == 0 && e.SocketError == SocketError.Success)
+        {
+            OnReceiveEnded();
+            _hasDataToReceive = true;
+            return true;
+        }
+
         if (!ProcessCompleted(e))
         {
             _pipeWriter!.Complete();
@@ -385,13 +435,19 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         if (Interlocked.CompareExchange(ref _socketEventArgSend, null, sae) == sae)
         {
             sae.Completed -= OnSendingCompleted;
-            
+
             // Only dispose if not from pool - pool manages lifecycle
             if (!_sendSAEAFromPool)
             {
                 sae.Dispose();
             }
-            
+            else
+            {
+                // Publish it for the close handler that follows; only a pooled instance is offered,
+                // so the handler can hand back whatever it finds here without checking its origin.
+                _detachedSendSAEA = sae;
+            }
+
             base.OnClosed(reason);
         }
     }

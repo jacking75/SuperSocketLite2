@@ -42,7 +42,16 @@ var tests = new (string Name, Action Test)[]
     ("Every log level accepts an exception", LoggingTests.EveryLevelAcceptsAnException),
     ("A structured ILog adapter receives the session identity separately", LoggingTests.StructuredAdapterReceivesSessionIdentitySeparately),
     ("Microsoft.Extensions.Logging bridge passes the exception and structured properties", LoggingTests.MicrosoftLoggingBridgePassesExceptionAndProperties),
-    ("Microsoft.Extensions.Logging bridge honours level filtering", LoggingTests.MicrosoftLoggingBridgeHonoursLevelFiltering)
+    ("Microsoft.Extensions.Logging bridge honours level filtering", LoggingTests.MicrosoftLoggingBridgeHonoursLevelFiltering),
+    ("Server byte and request totals stay exact under concurrent updates", HotPathTests.ServerTotalsStayExactUnderConcurrentUpdates),
+    ("Closing a session while sends are draining fires the close exactly once", HotPathTests.ClosingWhileSendsAreDrainingFiresExactlyOnce),
+    ("A closed session returns both of its pooled SocketAsyncEventArgs", HotPathTests.ClosedSessionsReturnBothPooledSocketEventArgs),
+    ("Parallel accept loops register every connection of a burst", HotPathTests.ParallelAcceptLoopsRegisterEveryConnection),
+    ("An out-of-range accept loop count is clamped into range", HotPathTests.AcceptLoopCountIsClampedIntoRange),
+    ("Zero-byte receive echoes every packet", HotPathTests.ZeroByteReceiveEchoesEveryPacket),
+    ("Zero-byte receive resumes after an idle period", HotPathTests.ZeroByteReceiveResumesAfterAnIdlePeriod),
+    ("Zero-byte receive still detects a client close", HotPathTests.ZeroByteReceiveStillDetectsAClientClose),
+    ("Zero-byte receive handles payloads larger than the receive buffer", HotPathTests.ZeroByteReceiveHandlesPayloadsLargerThanTheBuffer)
 };
 
 var failures = 0;

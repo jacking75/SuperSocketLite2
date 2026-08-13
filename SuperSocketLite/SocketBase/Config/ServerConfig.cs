@@ -200,6 +200,42 @@ public class ServerConfig : IServerConfig
     /// </remarks>
     public int MaxReceivePipeBufferSize { get; set; } = 65536;
 
+    /// <summary>The number of accept loops a listener runs when none is configured.</summary>
+    public const int DefaultAcceptLoopCount = 1;
+
+    /// <summary>The largest number of accept loops a single listener will run.</summary>
+    public const int MaxAcceptLoopCount = 64;
+
+    /// <summary>
+    /// Gets or sets how many accept loops each listener runs concurrently on its listening socket.
+    /// </summary>
+    /// <remarks>
+    /// Accepting a connection is not just the accept call: the socket options, the session object
+    /// and its registration all happen on the accepting thread, so a single loop serialises them.
+    /// Raising this to 2-4 helps a server that has to absorb a reconnect storm (a maintenance
+    /// window ending, or the server itself restarting); it does nothing for steady traffic.
+    /// Values are clamped to 1..<see cref="MaxAcceptLoopCount"/>.
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>,
+    /// so custom <see cref="IServerConfig"/> implementations always get a single loop.
+    /// </remarks>
+    public int AcceptLoopCount { get; set; } = DefaultAcceptLoopCount;
+
+    /// <summary>
+    /// Gets or sets whether a session with no traffic waits on a zero-byte receive instead of
+    /// holding a receive buffer.
+    /// </summary>
+    /// <remarks>
+    /// By default a session always has a real receive buffer posted, which means every idle
+    /// connection keeps <see cref="ReceiveBufferSize"/> bytes borrowed from its receive pipe and
+    /// pinned for the socket. With this enabled a session first waits on an empty buffer and only
+    /// takes a real one once data has actually arrived, so idle connections cost no receive buffer
+    /// at all - worth a lot on a server whose sessions are mostly idle.
+    /// The trade-off is one extra receive call per burst of data, so leave it off for servers where
+    /// traffic is continuous.
+    /// This member only exists on <see cref="ServerConfig"/>, not on <see cref="IServerConfig"/>.
+    /// </remarks>
+    public bool UseZeroByteReceive { get; set; } = false;
+
     /// <summary>Gets or sets whether the NewSessionConnected event is raised synchronously on the accept path.</summary>
     /// <remarks>
     /// By default the event is dispatched to the thread pool, so the first request of a fast client

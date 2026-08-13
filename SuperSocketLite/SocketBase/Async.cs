@@ -11,23 +11,23 @@ public static class Async
     /// </summary>
     /// <param name="logProvider">The log provider.</param>
     /// <param name="task">The task.</param>
-    /// <returns></returns>
     public static Task AsyncRun(this ILogProvider logProvider, Action task)
     {
-        return Task.Factory.StartNew(task, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default)
-            .ContinueWith(t =>
+        return Task.Run(() =>
+        {
+            try
+            {
+                task();
+            }
+            catch (Exception e)
             {
                 var logger = logProvider.Logger;
 
-                if (logger == null || !logger.IsErrorEnabled)
-                    return;
-
-                var innerExceptions = t.Exception!.InnerExceptions;
-
-                for (var i = 0; i < innerExceptions.Count; i++)
+                if (logger != null && logger.IsErrorEnabled)
                 {
-                    logger.Error(innerExceptions[i].ToString());
+                    logger.Error(e.ToString());
                 }
-            }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            }
+        });
     }
 }

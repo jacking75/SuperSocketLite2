@@ -20,11 +20,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
     /// <summary>
-    /// Null appSession instance
-    /// </summary>
-    protected readonly TAppSession NullAppSession = default(TAppSession)!;
-
-    /// <summary>
     /// Gets the server's config.
     /// </summary>
     public IServerConfig Config { get; private set; } = null!;
@@ -955,7 +950,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     IAppSession IAppServer.CreateAppSession(ISocketSession socketSession)
     {
         if (!ExecuteConnectionFilters(socketSession.RemoteEndPoint))
-            return NullAppSession;
+            return null!;
 
         var appSession = CreateAppSession(socketSession);
         
@@ -990,9 +985,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         // Track active connections
         s_ActiveConnectionsCounter?.Add(1, new KeyValuePair<string, object?>("server", Name));
-
-        //if (Config.LogBasicSessionActivity && Logger.IsInfoEnabled)
-            //Logger.Info(session, "A new session connected!");
 
         OnNewSessionConnected(appSession);
         return true;

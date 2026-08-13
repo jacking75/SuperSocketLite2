@@ -150,7 +150,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     public override TAppSession? GetSessionByID(string sessionID)
     {
         if (string.IsNullOrEmpty(sessionID))
-            return NullAppSession;
+            return null;
 
         TAppSession? targetSession;
         _sessionDict.TryGetValue(sessionID, out targetSession);

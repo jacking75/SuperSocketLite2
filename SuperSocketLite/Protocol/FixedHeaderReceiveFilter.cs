@@ -228,10 +228,8 @@ public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveF
             return NullRequestInfo;
         }
 
-        if (toBeCopied)
-            _header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
-        else
-            _header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
+        //ReadOnlySpan cannot outlive this call, so the header is always copied out.
+        _header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
 
         if (_bodyLength > 0)
             return NullRequestInfo;

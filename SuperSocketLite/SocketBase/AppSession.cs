@@ -95,10 +95,6 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
 
     IReceiveFilter<TRequestInfo> _receiveFilter = null!;
 
-    // Per-session carry buffer for the Pipelines receive path.
-    // Filters accumulate partial packet data in this buffer between reads.
-    private byte[]? _filterBuffer;
-
     public AppSession()
     {
         this.StartTime = DateTime.UtcNow;
@@ -147,24 +143,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>Called when [session closed].</summary>
     internal protected virtual void OnSessionClosed(CloseReason reason)
     {
-        // _filterBuffer is returned to the pool by CompleteReceivePipe() which is called
-        // at the end of ProcessPipeAsync() — after the pipe loop fully exits.
-        // Setting null here is a safe fallback in case the session never started receiving.
-        _filterBuffer = null;
     }
-
-    // Called by SocketSession.ProcessPipeAsync() after the PipeReader loop exits,
-    // guaranteeing no further access to _filterBuffer before returning it to the pool.
-    public void CompleteReceivePipe()
-    {
-        var buf = _filterBuffer;
-        if (buf != null)
-        {
-            _filterBuffer = null;
-            ArrayPool<byte>.Shared.Return(buf);
-        }
-    }
-
 
     /// <summary>Handles the exceptional error, it only handles application error.</summary>
     /// <param name="e">The exception.</param>
@@ -473,187 +452,12 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
         return AppServer.Config.MaxRequestLength;
     }
 
-    /// <summary>Filters the request.</summary>
-    /// <param name="rest">The rest, the size of the data which has not been processed</param>
-    /// <param name="offsetDelta">return offset delta of next receiving buffer.</param>
-    TRequestInfo? FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
-    {
-        var currentRequestLength = _receiveFilter.LeftBufferSize;
-
-        var requestInfo = _receiveFilter.Filter(readBuffer, offset, length, toBeCopied, out rest);
-
-        if (_receiveFilter.State == FilterState.Error)
-        {
-            rest = 0;
-            offsetDelta = 0;
-            Close(CloseReason.ProtocolError);
-            return null;
-        }
-
-        var offsetAdapter = _receiveFilter as IOffsetAdapter;
-
-        offsetDelta = offsetAdapter != null ? offsetAdapter.OffsetDelta : 0;
-
-        if (requestInfo == null)
-        {
-            //current buffered length
-            currentRequestLength = _receiveFilter.LeftBufferSize;
-        }
-        else
-        {
-            //current request length
-            currentRequestLength = currentRequestLength + length - rest;
-        }
-
-        var maxRequestLength = GetMaxRequestLength();
-
-        if (currentRequestLength >= maxRequestLength)
-        {
-            if (Logger.IsErrorEnabled)
-            {
-                Logger.Log(LogEventLevel.Error, SessionLogContext,
-                    string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, currentRequestLength));
-            }
-
-            Close(CloseReason.ProtocolError);
-            return null;
-        }
-
-        //If next Receive filter wasn't set, still use current Receive filter in next round received data processing
-        if (_receiveFilter.NextReceiveFilter != null)
-            _receiveFilter = _receiveFilter.NextReceiveFilter;
-
-        return requestInfo;
-    }
-
-    /// <summary>Processes the request data.</summary>
-    /// <returns>return offset delta of next receiving buffer</returns>
-    int IAppSession.ProcessRequest(byte[] readBuffer, int offset, int length, bool toBeCopied)
-    {
-        int rest, offsetDelta;
-
-        while (true)
-        {
-            var requestInfo = FilterRequest(readBuffer, offset, length, toBeCopied, out rest, out offsetDelta);
-
-            if (requestInfo != null)
-            {
-                try
-                {
-                    AppServer.ExecuteCommand(this, requestInfo);
-                }
-                catch (Exception e)
-                {
-                    HandleException(e);
-                }
-            }
-
-            if (rest <= 0)
-            {
-                return offsetDelta;
-            }
-
-            //Still have data has not been processed
-            offset = offset + length - rest;
-            length = rest;
-        }
-    }
-
-    /// <summary>
-    /// Processes the request data from the Pipelines receive path.
-    /// Maintains a per-session carry buffer so that existing IReceiveFilter implementations
-    /// work correctly without modification: partial data is preserved at offset 0 of the
-    /// carry buffer, and new bytes are appended at the filter's current OffsetDelta position.
-    /// </summary>
+    /// <summary>Processes the request data from the receive pipe.</summary>
+    /// <remarks>
+    /// The filter parses straight out of the pipe: whatever it cannot turn into a request yet is
+    /// reported as unconsumed and stays there, so there is no per-session carry buffer.
+    /// </remarks>
     ProcessReceiveResult IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
-    {
-        if (_receiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
-        {
-            return ProcessSequenceRequest(sequence, sequenceReceiveFilter);
-        }
-
-        // Determine where in the carry buffer the filter expects new bytes.
-        // IOffsetAdapter.OffsetDelta == _parsedLength of the current filter (bytes already accumulated).
-        var filterOffsetAdapter = _receiveFilter as IOffsetAdapter;
-        int writeOffset = filterOffsetAdapter?.OffsetDelta ?? 0;
-
-        if (sequence.Length > int.MaxValue)
-        {
-            Close(CloseReason.ProtocolError);
-            return new ProcessReceiveResult(sequence.End, sequence.End);
-        }
-
-        int newLength = (int)sequence.Length;
-        int neededSize = writeOffset + newLength;
-        var maxRequestLength = GetMaxRequestLength();
-
-        if (maxRequestLength > 0 && neededSize >= maxRequestLength)
-        {
-            if (Logger.IsErrorEnabled)
-            {
-                Logger.Log(LogEventLevel.Error, SessionLogContext,
-                    string.Format("Max request length: {0}, current processed length: {1}", maxRequestLength, neededSize));
-            }
-
-            Close(CloseReason.ProtocolError);
-            return new ProcessReceiveResult(sequence.End, sequence.End);
-        }
-
-        // Lazily allocate or grow the carry buffer.
-        if (_filterBuffer == null || _filterBuffer.Length < neededSize)
-        {
-            int newSize = Math.Max(Config.ReceiveBufferSize * 2, neededSize);
-            var newBuf = ArrayPool<byte>.Shared.Rent(newSize);
-
-            // Preserve any partial data already copied by the filter into _filterBuffer[0..writeOffset].
-            if (_filterBuffer != null)
-            {
-                if (writeOffset > 0)
-                    Array.Copy(_filterBuffer, 0, newBuf, 0, writeOffset);
-                ArrayPool<byte>.Shared.Return(_filterBuffer);
-            }
-
-            _filterBuffer = newBuf;
-        }
-
-        // Copy new bytes from the PipeReader sequence into the carry buffer immediately after
-        // any existing partial data so the filter sees a contiguous buffer.
-        sequence.CopyTo(new Span<byte>(_filterBuffer, writeOffset, newLength));
-
-        // Run the filter loop on the carry buffer — identical logic to the byte[] overload.
-        int offset = writeOffset;
-        int length = newLength;
-
-        while (true)
-        {
-            var requestInfo = FilterRequest(_filterBuffer, offset, length, false, out int rest, out _);
-
-            if (requestInfo != null)
-            {
-                try
-                {
-                    AppServer.ExecuteCommand(this, requestInfo);
-                }
-                catch (Exception e)
-                {
-                    HandleException(e);
-                }
-            }
-
-            if (rest <= 0)
-                break;
-
-            // More requests present in the current buffer.
-            offset = offset + length - rest;
-            length = rest;
-        }
-
-        // Always tell the PipeReader that all bytes have been consumed.
-        // Partial-packet state is stored in _filterBuffer + filter's _parsedLength/_offsetDelta.
-        return new ProcessReceiveResult(sequence.End, sequence.End);
-    }
-
-    private ProcessReceiveResult ProcessSequenceRequest(ReadOnlySequence<byte> sequence, ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
     {
         var maxRequestLength = GetMaxRequestLength();
 
@@ -662,7 +466,7 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
 
         while (current.Length > 0)
         {
-            var requestInfo = sequenceReceiveFilter.Filter(current, out var consumed, out var examined);
+            var requestInfo = _receiveFilter.Filter(current, out var consumed, out var examined);
 
             if (_receiveFilter.State == FilterState.Error)
             {
@@ -683,15 +487,9 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
                     HandleException(e);
                 }
 
+                //If next Receive filter wasn't set, keep using the current one
                 if (_receiveFilter.NextReceiveFilter != null)
-                {
                     _receiveFilter = _receiveFilter.NextReceiveFilter;
-
-                    if (_receiveFilter is not ISequenceReceiveFilter<TRequestInfo> nextSequenceReceiveFilter)
-                        return new ProcessReceiveResult(consumedPosition, consumedPosition);
-
-                    sequenceReceiveFilter = nextSequenceReceiveFilter;
-                }
 
                 current = sequence.Slice(consumedPosition);
                 continue;

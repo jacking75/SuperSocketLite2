@@ -21,7 +21,7 @@ public class EFBinaryRequestInfo : BinaryRequestInfo
     }
 }
 
-public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<EFBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
 {
     public ReceiveFilter()
         : base(CSBaseLib.PacketDef.HeaderSize)

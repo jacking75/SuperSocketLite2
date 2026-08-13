@@ -708,12 +708,6 @@ abstract partial class SocketSession : ISocketSession
         finally
         {
             _pipeReader!.Complete();
-
-            // Return the per-session filter carry buffer AFTER the pipe loop has fully exited,
-            // so no code can access it after ArrayPool.Return() is called.
-            // This is the only place where the buffer is returned to the pool; OnSessionClosed()
-            // only nulls the reference as a safety fallback.
-            AppSession?.CompleteReceivePipe();
         }
     }
 

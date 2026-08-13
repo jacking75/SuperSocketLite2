@@ -29,7 +29,7 @@ public class EFBinaryRequestInfo : BinaryRequestInfo
 /// <summary>
 /// Pipe의 ReadOnlySequence를 직접 파싱하는 이진 수신 필터입니다.
 /// </summary>
-public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<EFBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
 {
     public ReceiveFilter()
         : base(EFBinaryRequestInfo.HeaderSize)

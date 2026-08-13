@@ -4,24 +4,23 @@ using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
 
-/// <summary>FixedSizeReceiveFilter</summary>
+/// <summary>Receive filter for a protocol whose every request has the same fixed size.</summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFilter<TRequestInfo>, IOffsetAdapter, IReceiveFilterInitializer
+public abstract class FixedSizeReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
 {
-    private int _parsedLength;
-
-    private int _size;
-
     /// <summary>Gets the size of the fixed size Receive filter.</summary>
-    public int Size => _size;
+    public int Size { get; }
 
     /// <summary>Null RequestInfo</summary>
     protected readonly static TRequestInfo? NullRequestInfo = default(TRequestInfo);
 
     protected FixedSizeReceiveFilter(int size)
     {
-        _size = size;
+        if (size <= 0)
+            throw new ArgumentOutOfRangeException(nameof(size));
+
+        Size = size;
     }
 
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
@@ -34,99 +33,36 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
     {
     }
 
-    /// <summary>Filters the specified session.</summary>
-    public virtual TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
-    {
-        rest = _parsedLength + length - _size;
-
-        if (rest >= 0)
-        {
-            var requestInfo = ProcessMatchedRequest(readBuffer, offset - _parsedLength, _size, toBeCopied);
-            InternalReset();
-            return requestInfo;
-        }
-        else
-        {
-            _parsedLength += length;
-            _offsetDelta = _parsedLength;
-            rest = 0;
-
-            //The carry buffer always starts at offset 0, so unparsed bytes are moved to the front
-            //whenever the filter has not yet caught up with the end of the current read.
-            if (_offsetDelta < offset + length)
-            {
-                Buffer.BlockCopy(readBuffer, offset - _parsedLength + length, readBuffer, 0, _parsedLength);
-            }
-
-            return NullRequestInfo;
-        }
-    }
-
-    /// <summary>
-    /// Filters received data directly from the Pipelines sequence path.
-    /// Incomplete data is left unconsumed in the PipeReader.
-    /// </summary>
+    /// <summary>Filters one fixed-size block out of the receive pipe.</summary>
     public virtual TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
     {
         consumed = buffer.Start;
         examined = buffer.End;
 
-        if (buffer.Length < _size)
-        {
-            _parsedLength = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
-            _offsetDelta = 0;
+        if (buffer.Length < Size)
             return NullRequestInfo;
-        }
 
-        var matched = buffer.Slice(0, _size);
-        var requestInfo = matched.IsSingleSegment
-            ? ProcessMatchedRequest(matched.First.Span, false)
-            : ProcessMatchedRequest(matched.ToArray(), 0, _size, false);
-        consumed = buffer.GetPosition(_size);
+        var matched = buffer.Slice(0, Size);
+
+        consumed = buffer.GetPosition(Size);
         examined = consumed;
-        InternalReset();
-        return requestInfo;
+
+        return ProcessMatchedRequest(matched);
     }
 
-    /// <summary>Filters the buffer after the server receive the enough size of data.</summary>
-    protected abstract TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied);
-
-    /// <summary>
-    /// Filters the buffer using ReadOnlySpan after the server receives enough data.
-    /// Default implementation converts span to array and calls the byte[] version.
-    /// Override for zero-allocation processing.
-    /// </summary>
-    /// <param name="buffer">The buffer as ReadOnlySpan.</param>
-    protected virtual TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
-    {
-        return ProcessMatchedRequest(buffer.ToArray(), 0, buffer.Length, toBeCopied);
-    }
-
-    /// <summary>Gets the size of the rest buffer.</summary>
-    public virtual int LeftBufferSize => _parsedLength;
+    /// <summary>Resolves the matched block into a request info.</summary>
+    /// <param name="buffer">Exactly <see cref="Size"/> bytes; it may span several pipe segments.</param>
+    protected abstract TRequestInfo? ProcessMatchedRequest(ReadOnlySequence<byte> buffer);
 
     /// <summary>Gets the next Receive filter.</summary>
     public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
-
-    private int _offsetDelta;
-
-    /// <summary>Gets the offset delta.</summary>
-    int IOffsetAdapter.OffsetDelta => _offsetDelta;
-
     /// <summary>Gets the filter state.</summary>
     public FilterState State { get; protected set; }
-
-    private void InternalReset()
-    {
-        _parsedLength = 0;
-        _offsetDelta = 0;
-    }
 
     /// <summary>Resets this instance.</summary>
     public virtual void Reset()
     {
-        InternalReset();
         State = FilterState.Normal;
     }
 }

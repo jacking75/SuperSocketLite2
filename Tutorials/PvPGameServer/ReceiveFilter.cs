@@ -41,7 +41,7 @@ public class MemoryPackBinaryRequestInfo : BinaryRequestInfo
 /// <summary>
 /// MemoryPackBinaryRequestInfo를 사용하는 sequence 기반 고정 헤더 수신 필터입니다.
 /// </summary>
-public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<MemoryPackBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderReceiveFilter<MemoryPackBinaryRequestInfo>
 {
     public ReceiveFilter()
         : base(MemoryPackBinaryRequestInfo.HeaderSize)

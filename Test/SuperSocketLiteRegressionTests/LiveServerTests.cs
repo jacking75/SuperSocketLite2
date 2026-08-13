@@ -682,7 +682,7 @@ sealed class LiveEchoRequestInfo : BinaryRequestInfo
     }
 }
 
-sealed class LiveEchoReceiveFilter : FixedHeaderSequenceReceiveFilter<LiveEchoRequestInfo>
+sealed class LiveEchoReceiveFilter : FixedHeaderReceiveFilter<LiveEchoRequestInfo>
 {
     /// <summary>Little-endian total packet size, header included.</summary>
     public const int PacketHeaderSize = 2;

@@ -1,253 +1,102 @@
 using System.Buffers;
-using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 
 namespace SuperSocketLite.SocketEngine.Protocol;
 
 /// <summary>
-/// FixedHeaderReceiveFilter,
-/// it is the Receive filter base for the protocol which define fixed length header and the header contains the request body length,
-/// you can implement your own Receive filter for this kind protocol easily by inheriting this class 
+/// Receive filter for a protocol with a fixed length header that carries the body length.
+/// Implement <see cref="GetBodyLengthFromHeader"/> and <see cref="ResolveRequestInfo"/> to support
+/// your own binary protocol.
 /// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class FixedHeaderReceiveFilter<TRequestInfo> : FixedSizeReceiveFilter<TRequestInfo>
+/// <remarks>
+/// An incomplete request is left in the receive pipe rather than accumulated in a buffer of the
+/// filter's own, so a request split over many reads costs no copying at all.
+/// </remarks>
+public abstract class FixedHeaderReceiveFilter<TRequestInfo> : IReceiveFilter<TRequestInfo>, IReceiveFilterInitializer
     where TRequestInfo : IRequestInfo
 {
-    private bool _foundHeader = false;
-
-    private ArraySegment<byte> _header;
-
-    private int _bodyLength;
-
     private int _maxRequestLength = int.MaxValue;
 
-    private int _sequenceLeftBufferSize;
-
-    private ArraySegmentList _bodyBuffer = null!;
-
+    /// <param name="headerSize">Size of the header.</param>
     protected FixedHeaderReceiveFilter(int headerSize)
-        : base(headerSize)
     {
+        if (headerSize <= 0)
+            throw new ArgumentOutOfRangeException(nameof(headerSize));
 
+        HeaderSize = headerSize;
     }
 
-    /// <summary>Gets the buffered request size including a parsed header and any accumulated body bytes.</summary>
-    public override int LeftBufferSize
-    {
-        get
-        {
-            if (_sequenceLeftBufferSize > 0)
-                return _sequenceLeftBufferSize;
+    /// <summary>Gets the size of the fixed header.</summary>
+    protected int HeaderSize { get; }
 
-            if (!_foundHeader)
-                return base.LeftBufferSize;
+    /// <summary>Gets the next Receive filter.</summary>
+    public virtual IReceiveFilter<TRequestInfo>? NextReceiveFilter => null;
 
-            return Size + (_bodyBuffer?.Count ?? 0);
-        }
-    }
+    /// <summary>Gets the filter state.</summary>
+    public FilterState State { get; protected set; }
 
-    /// <summary>Called after the filter is initialized for a session.</summary>
-    protected override void OnInitialized(IAppServer appServer, IAppSession session)
+    void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
     {
         _maxRequestLength = session.Config.MaxRequestLength;
     }
 
-    /// <summary>Filters the specified session.</summary>
-    public override TRequestInfo? Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
-    {
-        if (!_foundHeader)
-            return base.Filter(readBuffer, offset, length, toBeCopied, out rest);
-
-        if (_bodyBuffer == null || _bodyBuffer.Count == 0)
-        {
-            if (length < _bodyLength)
-            {
-                if (_bodyBuffer == null)
-                    _bodyBuffer = new ArraySegmentList();
-
-                _bodyBuffer.AddSegment(readBuffer, offset, length, toBeCopied);
-                rest = 0;
-                return NullRequestInfo;
-            }
-            else if (length == _bodyLength)
-            {
-                rest = 0;
-                _foundHeader = false;
-                return ResolveRequestInfo(_header, readBuffer, offset, length);
-            }
-            else
-            {
-                rest = length - _bodyLength;
-                _foundHeader = false;
-                return ResolveRequestInfo(_header, readBuffer, offset, _bodyLength);
-            }
-        }
-        else
-        {
-            int required = _bodyLength - _bodyBuffer.Count;
-
-            if (length < required)
-            {
-                _bodyBuffer.AddSegment(readBuffer, offset, length, toBeCopied);
-                rest = 0;
-                return NullRequestInfo;
-            }
-            else if (length == required)
-            {
-                _bodyBuffer.AddSegment(readBuffer, offset, length, toBeCopied);
-                rest = 0;
-                _foundHeader = false;
-                var requestInfo = ResolveRequestInfo(_header, _bodyBuffer.ToArrayData());
-                _bodyBuffer.ClearSegements();
-                return requestInfo;
-            }
-            else
-            {
-                _bodyBuffer.AddSegment(readBuffer, offset, required, toBeCopied);
-                rest = length - required;
-                _foundHeader = false;
-                var requestInfo = ResolveRequestInfo(_header, _bodyBuffer.ToArrayData(0, _bodyLength));
-                _bodyBuffer.ClearSegements();
-                return requestInfo;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Filters a fixed-header request directly from the Pipelines sequence path.
-    /// Incomplete requests are left unconsumed in the PipeReader.
-    /// </summary>
-    public override TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
+    /// <summary>Filters one header-plus-body request out of the receive pipe.</summary>
+    public TRequestInfo? Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
     {
         consumed = buffer.Start;
         examined = buffer.End;
 
-        if (buffer.Length < Size)
-        {
-            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
-            return NullRequestInfo;
-        }
+        if (buffer.Length < HeaderSize)
+            return default;
 
-        var header = buffer.Slice(0, Size);
-        var bodyLength = GetBodyLengthFromHeader(header.IsSingleSegment ? header.First.Span : header.ToArray());
+        var header = buffer.Slice(0, HeaderSize);
+        var bodyLength = GetBodyLengthFromHeader(header);
 
         if (!ValidateBodyLength(bodyLength))
         {
             State = FilterState.Error;
-            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
-            return NullRequestInfo;
+            return default;
         }
 
-        var requestLength = Size + bodyLength;
+        var requestLength = HeaderSize + bodyLength;
 
         if (buffer.Length < requestLength)
-        {
-            _sequenceLeftBufferSize = SequenceFilterHelper.ToInt32BufferSize(buffer.Length);
-            return NullRequestInfo;
-        }
+            return default;
 
         consumed = buffer.GetPosition(requestLength);
         examined = consumed;
-        _sequenceLeftBufferSize = 0;
 
-        var headerSegment = new ArraySegment<byte>(header.ToArray());
+        var body = bodyLength == 0
+            ? ReadOnlySequence<byte>.Empty
+            : buffer.Slice(HeaderSize, bodyLength);
 
-        if (bodyLength == 0)
-            return ResolveRequestInfo(headerSegment, null, 0, 0);
-
-        var body = buffer.Slice(Size, bodyLength).ToArray();
-        return ResolveRequestInfo(headerSegment, body, 0, body.Length);
+        return ResolveRequestInfo(header, body);
     }
 
-    /// <summary>Processes the fix size request.</summary>
-    protected override TRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
+    /// <summary>Resets this instance.</summary>
+    public virtual void Reset()
     {
-        _foundHeader = true;
-
-        _bodyLength = GetBodyLengthFromHeader(buffer, offset, Size);
-
-        if (!ValidateBodyLength(_bodyLength))
-        {
-            State = FilterState.Error;
-            _foundHeader = false;
-            return NullRequestInfo;
-        }
-
-        if (toBeCopied)
-            _header = new ArraySegment<byte>(buffer.CloneRange(offset, Size));
-        else
-            _header = new ArraySegment<byte>(buffer, offset, Size);
-
-        if (_bodyLength > 0)
-            return NullRequestInfo;
-
-        _foundHeader = false;
-        return ResolveRequestInfo(_header, null, 0, 0);//Empty body
+        State = FilterState.Normal;
     }
 
-    /// <summary>Processes the fix size request using ReadOnlySpan.</summary>
-    /// <param name="buffer">The buffer as ReadOnlySpan.</param>
-    protected override TRequestInfo? ProcessMatchedRequest(ReadOnlySpan<byte> buffer, bool toBeCopied)
-    {
-        _foundHeader = true;
-
-        _bodyLength = GetBodyLengthFromHeader(buffer);
-
-        if (!ValidateBodyLength(_bodyLength))
-        {
-            State = FilterState.Error;
-            _foundHeader = false;
-            return NullRequestInfo;
-        }
-
-        //ReadOnlySpan cannot outlive this call, so the header is always copied out.
-        _header = new ArraySegment<byte>(buffer.Slice(0, Size).ToArray());
-
-        if (_bodyLength > 0)
-            return NullRequestInfo;
-
-        _foundHeader = false;
-        return ResolveRequestInfo(_header, null, 0, 0);//Empty body
-    }
-
-    private TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer)
-    {
-        return ResolveRequestInfo(header, bodyBuffer, 0, bodyBuffer.Length);
-    }
-
-    /// <summary>Gets the body length from header.</summary>
-    protected abstract int GetBodyLengthFromHeader(byte[] header, int offset, int length);
+    /// <summary>Reads the body length out of the header.</summary>
+    /// <param name="header">Exactly <see cref="HeaderSize"/> bytes; it may span several pipe segments.</param>
+    protected abstract int GetBodyLengthFromHeader(ReadOnlySequence<byte> header);
 
     /// <summary>
-    /// Gets the body length from header using ReadOnlySpan.
-    /// Default implementation converts to array and calls the byte[] version.
+    /// Rejects a body length that is negative or would make the request exceed MaxRequestLength.
+    /// Returning false puts the filter into <see cref="FilterState.Error"/> and closes the session.
     /// </summary>
-    /// <param name="header">The header as ReadOnlySpan.</param>
-    protected virtual int GetBodyLengthFromHeader(ReadOnlySpan<byte> header)
-    {
-        return GetBodyLengthFromHeader(header.ToArray(), 0, header.Length);
-    }
-
-    /// <summary>Validates the body length before body bytes are accumulated.</summary>
     protected virtual bool ValidateBodyLength(int bodyLength)
     {
         if (bodyLength < 0)
             return false;
 
-        return _maxRequestLength <= 0 || Size + bodyLength < _maxRequestLength;
+        return _maxRequestLength <= 0 || HeaderSize + bodyLength < _maxRequestLength;
     }
 
-    /// <summary>Resolves the request data.</summary>
-    protected abstract TRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[]? bodyBuffer, int offset, int length);
-
-    /// <summary>Resets this instance.</summary>
-    public override void Reset()
-    {
-        base.Reset();
-        _foundHeader = false;
-        _bodyLength = 0;
-        _sequenceLeftBufferSize = 0;
-        _bodyBuffer?.ClearSegements();
-    }
+    /// <summary>Resolves the matched header and body into a request info.</summary>
+    protected abstract TRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body);
 }

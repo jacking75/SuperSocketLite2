@@ -1,6 +1,7 @@
 ﻿using System;
+using System.Buffers;
+using System.Buffers.Binary;
 
-using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
@@ -51,29 +52,25 @@ public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
     {
     }
 
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header, offset, 2);
+        Span<byte> headerBuffer = stackalloc byte[EFBinaryRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        var packetTotalSize = BitConverter.ToInt16(header, offset);
+        var packetTotalSize = BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2));
         return packetTotalSize - EFBinaryRequestInfo.HeaderSize;
     }
 
-    protected override EFBinaryRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] buffer, int offset, int length)
+    protected override EFBinaryRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(header.Array, 0, EFBinaryRequestInfo.HeaderSize);
-        }
+        Span<byte> headerBuffer = stackalloc byte[EFBinaryRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        // 받은 데이터를 하나의 패킷을 다 만들면 offset의 위치는 언제나 할당 받은 buffer의 첫 위치이다.
-        // 클라이언트에서 100바이트를 여러번 보내어도 offset은 13825(가정한 위치), 13825 가 된다.
-        Console.WriteLine($"[ReceiveFilter.ResolveRequestInfo] offset:{offset}, length:{length}");
+        Console.WriteLine($"[ReceiveFilter.ResolveRequestInfo] body length:{body.Length}");
 
-        return new EFBinaryRequestInfo(BitConverter.ToInt16(header.Array, 0),
-                                       BitConverter.ToInt16(header.Array, 0 + 2),
-                                       (SByte)header.Array[4],
-                                       buffer.CloneRange(offset, length));
+        return new EFBinaryRequestInfo(BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2)),
+                                       BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(2, 2)),
+                                       (SByte)headerBuffer[4],
+                                       body.ToArray());
     }
 }

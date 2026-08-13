@@ -23,7 +23,7 @@ public class EFBinaryRequestInfo : BinaryRequestInfo
     }
 }
 
-public class ReceiveFilter : FixedHeaderSequenceReceiveFilter<EFBinaryRequestInfo>
+public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
 {
     public ReceiveFilter()
         : base(EFBinaryRequestInfo.HeaderSize)

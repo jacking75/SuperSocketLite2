@@ -2,6 +2,7 @@
 using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Protocol;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Text;
 
@@ -102,34 +103,27 @@ sealed class MyReceiveFilter : IReceiveFilter<MyUdpRequestInfo>
     private const int SessionIdLength = 36;
     private const int HeaderLength = KeyLength + SessionIdLength;
 
-    public MyUdpRequestInfo Filter(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest)
+    /// <summary>
+    /// UDP 데이터그램은 언제나 하나의 완전한 요청으로 도착하므로 버퍼 전체가 곧 한 요청이다.
+    /// </summary>
+    public MyUdpRequestInfo Filter(ReadOnlySequence<byte> buffer, out SequencePosition consumed, out SequencePosition examined)
     {
-        return Parse(new ReadOnlySpan<byte>(readBuffer, offset, length), out rest);
-    }
-
-    public MyUdpRequestInfo Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
-    {
-        return Parse(buffer, out rest);
-    }
-
-    private static MyUdpRequestInfo Parse(ReadOnlySpan<byte> buffer, out int rest)
-    {
-        rest = 0;
+        consumed = buffer.Start;
+        examined = buffer.End;
 
         if (buffer.Length <= HeaderLength)
             return null;
 
-        var key = Encoding.ASCII.GetString(buffer.Slice(0, KeyLength));
-        var sessionID = Encoding.ASCII.GetString(buffer.Slice(KeyLength, SessionIdLength));
+        consumed = buffer.End;
+        examined = consumed;
 
-        var data = Encoding.UTF8.GetString(buffer.Slice(HeaderLength));
+        var data = buffer.ToArray();
 
-        return new MyUdpRequestInfo(key, sessionID) { Value = data };
-    }
+        var key = Encoding.ASCII.GetString(data, 0, KeyLength);
+        var sessionID = Encoding.ASCII.GetString(data, KeyLength, SessionIdLength);
+        var value = Encoding.UTF8.GetString(data, HeaderLength, data.Length - HeaderLength);
 
-    public int LeftBufferSize
-    {
-        get { return 0; }
+        return new MyUdpRequestInfo(key, sessionID) { Value = value };
     }
 
     public IReceiveFilter<MyUdpRequestInfo> NextReceiveFilter
@@ -140,13 +134,10 @@ sealed class MyReceiveFilter : IReceiveFilter<MyUdpRequestInfo>
     /// <summary>
     /// Gets the filter state.
     /// </summary>
-    /// <value>
-    /// The filter state.
-    /// </value>
     public FilterState State { get; private set; }
 
     public void Reset()
     {
-
+        State = FilterState.Normal;
     }
 }

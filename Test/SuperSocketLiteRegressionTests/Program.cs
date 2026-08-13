@@ -12,15 +12,13 @@ using SuperSocketLite.SocketEngine.Protocol;
 
 var tests = new (string Name, Action Test)[]
 {
-    ("FixedHeaderReceiveFilter reports accumulated body length and rejects negative body length", FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength),
+    ("FixedHeaderReceiveFilter leaves an incomplete request in the pipe and rejects a negative body length", FixedHeaderReceiveFilterLeavesIncompleteRequestAndRejectsNegativeLength),
     ("UDP receive packet exposes pooled payload without cloning and snapshots endpoint", UdpReceivePacketExposesPooledPayloadAndEndpoint),
     ("Channel send queue drains batches in FIFO order with bounded capacity", ChannelSendQueueDrainsBatchesInFifoOrder),
     ("Channel send queue counts a multi-segment send as one slot and copies the caller's list", ChannelSendQueueCountsAMultiSegmentSendAsOneSlot),
     ("Channel send queue keeps every item under concurrent lock-free enqueue", ChannelSendQueueKeepsEveryItemUnderConcurrentEnqueue),
-    ("FixedHeaderSequenceReceiveFilter parses multi-segment requests without carry buffer copies", FixedHeaderSequenceReceiveFilterParsesMultiSegmentRequest),
-    ("FixedHeaderSequenceReceiveFilter preserves fragmented byte-array requests", FixedHeaderSequenceReceiveFilterPreservesFragmentedByteArrayRequest),
+    ("FixedHeaderReceiveFilter parses multi-segment requests without carry buffer copies", FixedHeaderReceiveFilterParsesMultiSegmentRequest),
     ("AppSession pipe parser exposes consumed and examined positions", AppSessionPipeParserExposesConsumedAndExaminedPositions),
-    ("Legacy fixed-size and fixed-header filters opt in to sequence receive path", LegacyFiltersOptInToSequenceReceivePath),
     ("SocketSession stores receive processing task for lifecycle observation", SocketSessionStoresReceiveProcessingTask),
     ("TCP keep-alive options are applied to accepted sockets", LiveServerTests.KeepAliveOptionsAreAppliedToAcceptedSockets),
     ("UDP listener starts without the Windows-only SIO_UDP_CONNRESET ioctl", LiveServerTests.UdpListenerStartsOnEveryPlatform),
@@ -67,24 +65,29 @@ foreach (var (name, test) in tests)
 if (failures > 0)
     Environment.Exit(1);
 
-static void FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength()
+static void FixedHeaderReceiveFilterLeavesIncompleteRequestAndRejectsNegativeLength()
 {
     var filter = new OneByteLengthFilter();
 
-    var header = new byte[] { 5 };
-    var request = filter.Filter(header, 0, 1, true, out var rest);
+    // Header only: the request stays entirely in the pipe.
+    var headerOnly = CreateSequence(new byte[][] { new byte[] { 5 } });
+    var request = filter.Filter(headerOnly, out var consumed, out var examined);
 
     AssertNull(request, "body is incomplete after header");
-    AssertEqual(0, rest, "header read should leave no rest");
-    AssertEqual(1, filter.LeftBufferSize, "left buffer should include parsed header while waiting for body");
+    AssertEqual(0L, headerOnly.Slice(0, consumed).Length, "an incomplete request must not be consumed");
+    AssertEqual(1L, headerOnly.Slice(0, examined).Length, "everything available should be examined");
 
-    request = filter.Filter(new byte[] { 10, 11 }, 0, 2, true, out rest);
+    // Partial body: still nothing consumed.
+    var partial = CreateSequence(new byte[][] { new byte[] { 5 }, new byte[] { 10, 11 } });
+    request = filter.Filter(partial, out consumed, out examined);
+
     AssertNull(request, "body is still incomplete");
-    AssertEqual(0, rest, "partial body should leave no rest");
-    AssertEqual(3, filter.LeftBufferSize, "left buffer should include header and accumulated body bytes");
+    AssertEqual(0L, partial.Slice(0, consumed).Length, "a partial body must not be consumed");
+    AssertEqual(3L, partial.Slice(0, examined).Length, "everything available should be examined");
 
     var invalid = new OneByteLengthFilter();
-    request = invalid.Filter(new byte[] { 0xFF }, 0, 1, true, out rest);
+    var negative = CreateSequence(new byte[][] { new byte[] { 0xFF } });
+    request = invalid.Filter(negative, out _, out _);
 
     AssertNull(request, "negative body length must not produce a request");
     AssertEqual(FilterState.Error, invalid.State, "negative body length should put filter into error state");
@@ -222,7 +225,7 @@ static void ChannelSendQueueKeepsEveryItemUnderConcurrentEnqueue()
     AssertEqual(0, queue.Count, "the count should be back to zero after a full drain");
 }
 
-static void FixedHeaderSequenceReceiveFilterParsesMultiSegmentRequest()
+static void FixedHeaderReceiveFilterParsesMultiSegmentRequest()
 {
     var filter = new OneByteSequenceLengthFilter();
     var sequence = CreateSequence(new byte[][] { new byte[] { 2 }, new byte[] { 10 }, new byte[] { 11 }, new byte[] { 99 } });
@@ -242,23 +245,6 @@ static void FixedHeaderSequenceReceiveFilterParsesMultiSegmentRequest()
     AssertEqual(2L, incomplete.Slice(0, examined).Length, "incomplete sequence should examine available bytes");
 }
 
-static void FixedHeaderSequenceReceiveFilterPreservesFragmentedByteArrayRequest()
-{
-    var filter = new OneByteSequenceLengthFilter();
-
-    var request = filter.Filter(new byte[] { 2, 10 }, 0, 2, true, out var rest);
-
-    AssertNull(request, "fragmented byte-array request should wait for the remaining body");
-    AssertEqual(0, rest, "incomplete byte-array request should not report rest");
-    AssertEqual(2, filter.LeftBufferSize, "filter should retain the incomplete header/body bytes");
-
-    request = filter.Filter(new byte[] { 11, 99 }, 0, 2, true, out rest);
-
-    AssertSequence(new byte[] { 10, 11 }, new ArraySegment<byte>(request!.Body));
-    AssertEqual(1, rest, "complete byte-array request should leave trailing bytes as rest");
-    AssertEqual(0, filter.LeftBufferSize, "complete byte-array request should clear retained bytes");
-}
-
 static void AppSessionPipeParserExposesConsumedAndExaminedPositions()
 {
     var method = typeof(IAppSession).GetMethod(
@@ -273,30 +259,6 @@ static void AppSessionPipeParserExposesConsumedAndExaminedPositions()
 
     AssertTrue(consumedProperty != null, "pipe ProcessRequest result should expose Consumed");
     AssertTrue(examinedProperty != null, "pipe ProcessRequest result should expose Examined");
-}
-
-static void LegacyFiltersOptInToSequenceReceivePath()
-{
-    var fixedSize = new ThreeByteFixedSizeFilter();
-    var fixedHeader = new OneByteLengthFilter();
-
-    var fixedSizeSequenceFilter = (object)fixedSize as ISequenceReceiveFilter<TestRequestInfo>;
-    var fixedHeaderSequenceFilter = (object)fixedHeader as ISequenceReceiveFilter<TestRequestInfo>;
-
-    AssertTrue(fixedSizeSequenceFilter != null, "FixedSizeReceiveFilter should be usable by the sequence pipe path");
-    AssertTrue(fixedHeaderSequenceFilter != null, "FixedHeaderReceiveFilter should be usable by the sequence pipe path");
-
-    var fixedSizeSequence = CreateSequence(new byte[][] { new byte[] { 1 }, new byte[] { 2, 3 }, new byte[] { 4 } });
-    var fixedSizeRequest = fixedSizeSequenceFilter!.Filter(fixedSizeSequence, out var consumed, out var examined);
-    AssertSequence(new byte[] { 1, 2, 3 }, new ArraySegment<byte>(fixedSizeRequest!.Body));
-    AssertEqual(3L, fixedSizeSequence.Slice(0, consumed).Length, "fixed-size sequence filter should consume the matched size");
-    AssertEqual(3L, fixedSizeSequence.Slice(0, examined).Length, "fixed-size sequence filter should examine the matched size");
-
-    var fixedHeaderSequence = CreateSequence(new byte[][] { new byte[] { 2 }, new byte[] { 10 }, new byte[] { 11 }, new byte[] { 12 } });
-    var fixedHeaderRequest = fixedHeaderSequenceFilter!.Filter(fixedHeaderSequence, out consumed, out examined);
-    AssertSequence(new byte[] { 10, 11 }, new ArraySegment<byte>(fixedHeaderRequest!.Body));
-    AssertEqual(3L, fixedHeaderSequence.Slice(0, consumed).Length, "fixed-header sequence filter should consume header and body");
-    AssertEqual(3L, fixedHeaderSequence.Slice(0, examined).Length, "fixed-header sequence filter should examine header and body");
 }
 
 static void SocketSessionStoresReceiveProcessingTask()
@@ -425,6 +387,7 @@ sealed class SendingQueueAccessor
     }
 }
 
+/// <summary>A one byte, signed header length so a negative length can be exercised.</summary>
 sealed class OneByteLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>
 {
     public OneByteLengthFilter()
@@ -432,15 +395,16 @@ sealed class OneByteLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>
     {
     }
 
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        return unchecked((sbyte)header[offset]);
+        Span<byte> bytes = stackalloc byte[1];
+        header.CopyTo(bytes);
+        return unchecked((sbyte)bytes[0]);
     }
 
-    protected override TestRequestInfo? ResolveRequestInfo(ArraySegment<byte> header, byte[]? bodyBuffer, int offset, int length)
+    protected override TestRequestInfo? ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        var body = bodyBuffer == null ? Array.Empty<byte>() : bodyBuffer.AsSpan(offset, length).ToArray();
-        return new TestRequestInfo("test", body);
+        return new TestRequestInfo("test", body.ToArray());
     }
 }
 
@@ -451,13 +415,13 @@ sealed class ThreeByteFixedSizeFilter : FixedSizeReceiveFilter<TestRequestInfo>
     {
     }
 
-    protected override TestRequestInfo? ProcessMatchedRequest(byte[] buffer, int offset, int length, bool toBeCopied)
+    protected override TestRequestInfo? ProcessMatchedRequest(ReadOnlySequence<byte> buffer)
     {
-        return new TestRequestInfo("fixed-size", buffer.AsSpan(offset, length).ToArray());
+        return new TestRequestInfo("fixed-size", buffer.ToArray());
     }
 }
 
-sealed class OneByteSequenceLengthFilter : FixedHeaderSequenceReceiveFilter<TestRequestInfo>
+sealed class OneByteSequenceLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>
 {
     public OneByteSequenceLengthFilter()
         : base(1)
@@ -475,7 +439,7 @@ sealed class OneByteSequenceLengthFilter : FixedHeaderSequenceReceiveFilter<Test
     }
 }
 
-sealed class TwoByteLengthFilter : FixedHeaderSequenceReceiveFilter<TestRequestInfo>
+sealed class TwoByteLengthFilter : FixedHeaderReceiveFilter<TestRequestInfo>
 {
     public TwoByteLengthFilter()
         : base(2)

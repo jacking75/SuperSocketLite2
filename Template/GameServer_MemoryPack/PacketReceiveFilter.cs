@@ -1,6 +1,8 @@
 ﻿using System;
 
-using SuperSocketLite.Common;
+using System.Buffers;
+using System.Buffers.Binary;
+
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
@@ -58,58 +60,34 @@ public class PacketReceiveFilter : FixedHeaderReceiveFilter<PacketRequestInfo>
     /// <summary>
     /// 헤더에서 바디 길이를 가져옵니다.
     /// </summary>
-    /// <param name="header">헤더</param>
-    /// <param name="offset">오프셋</param>
-    /// <param name="length">길이</param>
+    /// <param name="header">헤더. 세그먼트 여러 개에 걸쳐 있을 수 있다</param>
     /// <returns>바디 길이</returns>
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(header, offset, 2);
-        }
+        Span<byte> headerBuffer = stackalloc byte[PacketRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        var totalSize = BitConverter.ToUInt16(header, offset + PacketRequestInfo.PacketHeaderMemorypackStartPos);
+        var totalSize = BinaryPrimitives.ReadUInt16LittleEndian(
+            headerBuffer.Slice(PacketRequestInfo.PacketHeaderMemorypackStartPos, 2));
+
         return totalSize - PacketRequestInfo.HeaderSize;
     }
 
     /// <summary>
     /// 요청 정보를 해결합니다.
+    /// MemoryPack 역직렬화는 헤더와 바디가 붙어 있는 원본 바이트열을 그대로 필요로 하므로
+    /// 둘을 하나의 배열로 합쳐서 넘긴다.
     /// </summary>
     /// <param name="header">헤더</param>
-    /// <param name="buffer">바디 버퍼</param>
-    /// <param name="offset">오프셋. receive 버퍼 내의 오프셋으로 패킷의 보디의 시작 지점을 가리킨다</param>
-    /// <param name="length">길이. 패킷 바디의 크기</param>
+    /// <param name="body">바디. 바디가 없으면 비어 있다</param>
     /// <returns>해결된 요청 정보</returns>
-    protected override PacketRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] buffer, int offset, int length)
+    protected override PacketRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(header.Array, 0, PacketRequestInfo.HeaderSize);
-        }
+        var packetData = new byte[PacketRequestInfo.HeaderSize + (int)body.Length];
 
-        // body 데이터가 있는 경우
-        if (length > 0)
-        {
-            if (offset >= PacketRequestInfo.HeaderSize)
-            {
-                var packetStartPos = offset - PacketRequestInfo.HeaderSize;
-                var packetSize = length + PacketRequestInfo.HeaderSize;
+        header.CopyTo(packetData);
+        body.CopyTo(packetData.AsSpan(PacketRequestInfo.HeaderSize));
 
-                return new PacketRequestInfo(buffer.CloneRange(packetStartPos, packetSize));
-            }
-            else
-            {
-                // offset 이 헤더 크기보다 작으므로 헤더와 보디를 직접 합쳐야 한다.
-                var packetData = new Byte[length + PacketRequestInfo.HeaderSize];
-                header.CopyTo(packetData, 0);
-                Array.Copy(buffer, offset, packetData, PacketRequestInfo.HeaderSize, length);
-
-                return new PacketRequestInfo(packetData);
-            }
-        }
-
-        // body 데이터가 없는 경우
-        return new PacketRequestInfo(header.CloneRange(header.Offset, header.Count));
+        return new PacketRequestInfo(packetData);
     }
 }

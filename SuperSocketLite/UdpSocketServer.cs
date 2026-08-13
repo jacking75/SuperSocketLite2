@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
 using SuperSocketLite.SocketBase;
@@ -92,11 +93,12 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
 
     void ProcessPackageWithSessionID(Socket listenSocket, IPEndPoint remoteEndPoint, byte[] receivedData, int offset, int count)
     {
-        TRequestInfo? requestInfo = default;
+        TRequestInfo? requestInfo;
 
         string sessionID;
 
-        int rest;
+        //A datagram is self-contained: it always arrives as one contiguous, complete request.
+        var datagram = new ReadOnlySequence<byte>(receivedData, offset, count);
 
         try
         {
@@ -112,7 +114,14 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
                 requestFilter.Reset();
             }
 
-            requestInfo = requestFilter.Filter(receivedData, offset, count, false, out rest);
+            requestInfo = requestFilter.Filter(datagram, out var consumed, out _);
+
+            if (datagram.Slice(consumed).Length > 0)
+            {
+                if (AppServer.Logger.IsErrorEnabled)
+                    AppServer.Logger.Error("A UDP datagram must be consumed by the filter in one go!");
+                return;
+            }
         }
         catch (Exception exc)
         {
@@ -122,13 +131,6 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         }
 
         var udpRequestInfo = requestInfo as UdpRequestInfo;
-
-        if (rest > 0)
-        {
-            if (AppServer.Logger.IsErrorEnabled)
-                AppServer.Logger.Error("The output parameter rest must be zero in this case!");
-            return;
-        }
 
         if (udpRequestInfo == null)
         {
@@ -176,7 +178,7 @@ class UdpSocketServer<TRequestInfo> : SocketServerBase, IActiveConnector
         if (appSession == null)
             return;
 
-        appSession.ProcessRequest(receivedData, offset, count, false);
+        appSession.ProcessRequest(new ReadOnlySequence<byte>(receivedData, offset, count));
     }
 
     void OnSocketSessionClosed(ISocketSession socketSession, CloseReason closeReason)

@@ -1,6 +1,7 @@
 ﻿using System;
+using System.Buffers;
+using System.Buffers.Binary;
 
-using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
@@ -63,16 +64,14 @@ public class PacketReceiveFilter : FixedHeaderReceiveFilter<PacketRequestInfo>
     /// <summary>
     /// 헤더에서 바디 길이를 가져옵니다.
     /// </summary>
-    /// <param name="header">헤더</param>
-    /// <param name="offset">오프셋</param>
-    /// <param name="length">길이</param>
+    /// <param name="header">헤더. 세그먼트 여러 개에 걸쳐 있을 수 있다</param>
     /// <returns>바디 길이</returns>
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header, offset, 2);
+        Span<byte> headerBuffer = stackalloc byte[PacketRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        var packetTotalSize = BitConverter.ToInt16(header, offset);
+        var packetTotalSize = BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2));
         return packetTotalSize - PacketRequestInfo.HeaderSize;
     }
 
@@ -80,18 +79,16 @@ public class PacketReceiveFilter : FixedHeaderReceiveFilter<PacketRequestInfo>
     /// 요청 정보를 해결합니다.
     /// </summary>
     /// <param name="header">헤더</param>
-    /// <param name="buffer">바디 버퍼</param>
-    /// <param name="offset">오프셋. receive 버퍼 내의 오프셋으로 패킷의 보디의 시작 지점을 가리킨다</param>
-    /// <param name="length">길이. 패킷 바디의 크기</param>
+    /// <param name="body">바디. 바디가 없으면 비어 있다</param>
     /// <returns>해결된 요청 정보</returns>
-    protected override PacketRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] buffer, int offset, int length)
+    protected override PacketRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header.Array, 0, PacketRequestInfo.HeaderSize);
+        Span<byte> headerBuffer = stackalloc byte[PacketRequestInfo.HeaderSize];
+        header.CopyTo(headerBuffer);
 
-        return new PacketRequestInfo(BitConverter.ToInt16(header.Array, 0),
-                                       BitConverter.ToInt16(header.Array, 0 + 2),
-                                       (SByte)header.Array[4],
-                                       buffer.CloneRange(offset, length));
+        return new PacketRequestInfo(BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(0, 2)),
+                                     BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(2, 2)),
+                                     (SByte)headerBuffer[4],
+                                     body.ToArray());
     }
 }

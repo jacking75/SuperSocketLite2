@@ -44,21 +44,10 @@ public interface IAppSession : ISessionBase
     /// <summary>Gets the logger assosiated with this session.</summary>
     ILog Logger { get; }
 
-    /// <summary>Processes the request.</summary>
-    /// <returns>return offset delta of next receiving buffer</returns>
-    int ProcessRequest(byte[] readBuffer, int offset, int length, bool toBeCopied);
-
-    /// <summary>Processes the request data from the Pipelines receive path.</summary>
+    /// <summary>Processes the request data from the receive pipe.</summary>
     /// <param name="buffer">The read-only sequence buffer from PipeReader.</param>
     /// <returns>The consumed and examined positions to advance the PipeReader.</returns>
     ProcessReceiveResult ProcessRequest(ReadOnlySequence<byte> buffer);
-
-    /// <summary>
-    /// Releases the receive filter carry buffer back to ArrayPool.
-    /// Called by SocketSession.ProcessPipeAsync() after the pipe loop exits,
-    /// ensuring the buffer is not returned while it is still in use.
-    /// </summary>
-    void CompleteReceivePipe();
 
     /// <summary>Starts the session.</summary>
     void StartSession();

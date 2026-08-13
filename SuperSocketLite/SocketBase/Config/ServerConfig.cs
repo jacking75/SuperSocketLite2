@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using SuperSocketLite.Common;
@@ -9,7 +9,7 @@ namespace SuperSocketLite.SocketBase.Config;
 /// Server configruation model
 /// </summary>
 [Serializable]
-public partial class ServerConfig : IServerConfig
+public class ServerConfig : IServerConfig
 {
     /// <summary>
     /// Default ReceiveBufferSize
@@ -121,11 +121,6 @@ public partial class ServerConfig : IServerConfig
     }
 
     /// <summary>
-    /// Gets/sets the Receive filter factory.
-    /// </summary>
-    public string? ReceiveFilterFactory { get; set; }
-
-    /// <summary>
     /// Gets/sets the ip.
     /// </summary>
     public string? Ip { get; set; }
@@ -134,14 +129,6 @@ public partial class ServerConfig : IServerConfig
     /// Gets/sets the port.
     /// </summary>
     public int Port { get; set; }
-
-    /// <summary>
-    /// Gets/sets a value indicating whether this <see cref="IServerConfig"/> is disabled.
-    /// </summary>
-    /// <value>
-    ///   <c>true</c> if disabled; otherwise, <c>false</c>.
-    /// </value>
-    public bool Disabled { get; set; }
 
     /// <summary>
     /// Gets the name.
@@ -193,7 +180,6 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     ///   <c>true</c> if log command; otherwise, <c>false</c>.
     /// </value>
-    [HotUpdate]
     public bool LogCommand { get; set; }
 
     /// <summary>
@@ -218,7 +204,6 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The idle session time out.
     /// </value>
-    [HotUpdate]
     public int IdleSessionTimeOut { get; set; }
           
     /// <summary>
@@ -227,7 +212,6 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// The length of the max request.
     /// </value>
-    [HotUpdate]
     public int MaxRequestLength { get; set; }
 
     /// <summary>
@@ -242,14 +226,6 @@ public partial class ServerConfig : IServerConfig
     /// Gets/sets the interval to taking snapshot for all live sessions.
     /// </summary>
     public int SessionSnapshotInterval { get; set; }
-
-    /// <summary>
-    /// Gets/sets the connection filters used by this server instance.
-    /// </summary>
-    /// <value>
-    /// The connection filter's name list, seperated by comma
-    /// </value>
-    public string? ConnectionFilter { get; set; }
 
     /// <summary>
     /// Gets/sets the start keep alive time, in seconds
@@ -283,11 +259,6 @@ public partial class ServerConfig : IServerConfig
     public IEnumerable<IListenerConfig>? Listeners { get; set; }
 
     /// <summary>
-    /// Gets/sets the log factory name.
-    /// </summary>
-    public string? LogFactory { get; set; }
-
-    /// <summary>
     /// Gets/sets the size of the sending queue.
     /// </summary>
     /// <value>
@@ -301,7 +272,6 @@ public partial class ServerConfig : IServerConfig
     /// <value>
     /// <c>true</c> if [log all socket exception]; otherwise, <c>false</c>.
     /// </value>
-    [HotUpdate]
     public bool LogAllSocketException { get; set; }
 
     /// <summary>
@@ -311,14 +281,6 @@ public partial class ServerConfig : IServerConfig
     /// The text encoding.
     /// </value>
     public string? TextEncoding { get; set; }
-
-    /// <summary>
-    /// Gets or sets the default culture.
-    /// </summary>
-    /// <value>
-    /// The default culture.
-    /// </value>
-    public string? DefaultCulture { get; set; }
 
     public bool NoDelay { get; set; }
 

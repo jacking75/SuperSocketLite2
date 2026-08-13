@@ -5,15 +5,8 @@ namespace SuperSocketLite.SocketBase.Protocol;
 /// <summary>
 /// Receive filter factory interface
 /// </summary>
-public interface IReceiveFilterFactory
-{
-
-}
-/// <summary>
-/// Receive filter factory interface
-/// </summary>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public interface IReceiveFilterFactory<TRequestInfo> : IReceiveFilterFactory
+public interface IReceiveFilterFactory<TRequestInfo>
     where TRequestInfo : IRequestInfo
 {
     /// <summary>

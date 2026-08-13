@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using SuperSocketLite.SocketBase.Config;
 using SuperSocketLite.SocketBase.Logging;
 using SuperSocketLite.SocketBase.Protocol;
 
@@ -9,8 +10,39 @@ namespace SuperSocketLite.SocketBase;
 /// <summary>
 /// The interface for AppServer
 /// </summary>
-public interface IAppServer : IWorkItem, ILoggerProvider
+public interface IAppServer : ILoggerProvider
 {
+    /// <summary>
+    /// Gets the name of the server instance.
+    /// </summary>
+    string Name { get; }
+
+    /// <summary>
+    /// Gets the server's config.
+    /// </summary>
+    IServerConfig Config { get; }
+
+    /// <summary>
+    /// Gets the current state of the server instance.
+    /// </summary>
+    ServerState State { get; }
+
+    /// <summary>
+    /// Gets the total session count.
+    /// </summary>
+    int SessionCount { get; }
+
+    /// <summary>
+    /// Starts this server instance.
+    /// </summary>
+    /// <returns>return true if start successfull, else false</returns>
+    bool Start();
+
+    /// <summary>
+    /// Stops this server instance.
+    /// </summary>
+    void Stop();
+
     /// <summary>
     /// Gets the started time.
     /// </summary>
@@ -165,18 +197,4 @@ public interface IRequestHandler<TRequestInfo>
     /// <param name="session">The session.</param>
     /// <param name="requestInfo">The request info.</param>
     void ExecuteCommand(IAppSession session, TRequestInfo requestInfo);
-}
-
-/// <summary>
-/// SocketServer Accessor interface
-/// </summary>
-public interface ISocketServerAccessor
-{
-    /// <summary>
-    /// Gets the socket server.
-    /// </summary>
-    /// <value>
-    /// The socket server.
-    /// </value>
-    ISocketServer SocketServer { get; }
 }

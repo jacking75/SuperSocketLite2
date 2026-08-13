@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
@@ -128,11 +128,6 @@ public abstract class FixedHeaderSequenceReceiveFilter<TRequestInfo> : ISequence
         rest = Math.Max(0, length - consumedFromCurrentBuffer);
         ClearLegacyBuffer();
         return requestInfo;
-    }
-
-    public virtual TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
-    {
-        return Filter(buffer.ToArray(), 0, buffer.Length, toBeCopied, out rest);
     }
 
     public virtual void Reset()

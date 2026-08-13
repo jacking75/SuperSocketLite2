@@ -38,11 +38,8 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
         m_Size = size;
     }
 
-    private int m_OrigOffset;
-
     void IReceiveFilterInitializer.Initialize(IAppServer appServer, IAppSession session)
     {
-        m_OrigOffset = session.SocketSession.OrigReceiveOffset;
         OnInitialized(appServer, session);
     }
 
@@ -78,40 +75,12 @@ public abstract class FixedSizeReceiveFilter<TRequestInfo> : ISequenceReceiveFil
             m_OffsetDelta = m_ParsedLength;
             rest = 0;
 
-            var expectedOffset = offset + length;
-            var newOffset = m_OrigOffset + m_OffsetDelta;
-
-            if (newOffset < expectedOffset)
+            //The carry buffer always starts at offset 0, so unparsed bytes are moved to the front
+            //whenever the filter has not yet caught up with the end of the current read.
+            if (m_OffsetDelta < offset + length)
             {
-                Buffer.BlockCopy(readBuffer, offset - m_ParsedLength + length, readBuffer, m_OrigOffset, m_ParsedLength);
+                Buffer.BlockCopy(readBuffer, offset - m_ParsedLength + length, readBuffer, 0, m_ParsedLength);
             }
-
-            return NullRequestInfo;
-        }
-    }
-
-    /// <summary>
-    /// Filters received data using ReadOnlySpan for better performance.
-    /// </summary>
-    /// <param name="buffer">The receive buffer as ReadOnlySpan.</param>
-    /// <param name="toBeCopied">if set to <c>true</c> [to be copied].</param>
-    /// <param name="rest">The rest, the length of the data which hasn't been parsed.</param>
-    /// <returns></returns>
-    public virtual TRequestInfo? Filter(ReadOnlySpan<byte> buffer, bool toBeCopied, out int rest)
-    {
-        rest = m_ParsedLength + buffer.Length - m_Size;
-
-        if (rest >= 0)
-        {
-            var requestInfo = ProcessMatchedRequest(buffer.Slice(0, m_Size), toBeCopied);
-            InternalReset();
-            return requestInfo;
-        }
-        else
-        {
-            m_ParsedLength += buffer.Length;
-            m_OffsetDelta = m_ParsedLength;
-            rest = 0;
 
             return NullRequestInfo;
         }

@@ -290,7 +290,7 @@ static class LiveServerTests
         using var probeSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         using var saea = new SocketAsyncEventArgs();
         var proxy = Activator.CreateInstance(proxyType, new object[] { saea })!;
-        var session = Activator.CreateInstance(sessionType, new object[] { probeSocket, proxy })!;
+        var session = Activator.CreateInstance(sessionType, new object?[] { probeSocket, proxy, null })!;
 
         const int inSending = 1;
         const int inClosing = 16;

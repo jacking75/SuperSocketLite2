@@ -1,4 +1,4 @@
-# 알려진 주의 사항
+﻿# 알려진 주의 사항
   
 ## 스레드 안전성
 `NewSessionConnected`와 `NewRequestReceived`는 서로 다른 스레드에서 **동시에** 호출될 수 있다.
@@ -68,8 +68,3 @@ session.Close();
 ## UDP 모드
 UDP 세션은 `m_Client(Socket)`가 null일 수 있다 (소켓 인스턴스 공유 구조).
 `Close()` 내부에서 UDP/TCP 경로가 분기되므로 UDP 관련 코드 수정 시 주의한다.
-  
-
-## public API 변경 금지
-기존 `public` 메서드 시그니처는 변경하지 않는다.
-새 기능은 오버로드 또는 옵셔널 파라미터로 추가한다.

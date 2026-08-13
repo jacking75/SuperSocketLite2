@@ -1,17 +1,12 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace SuperSocketLite.SocketBase.Config;
 
 /// <summary>
 /// Server instance configuation interface
 /// </summary>
-public partial interface IServerConfig
+public interface IServerConfig
 {
-    /// <summary>
-    /// Gets the Receive filter factory.
-    /// </summary>
-    string? ReceiveFilterFactory { get; }
-
     /// <summary>
     /// Gets the ip.
     /// </summary>
@@ -21,14 +16,6 @@ public partial interface IServerConfig
     /// Gets the port.
     /// </summary>
     int Port { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether this <see cref="IServerConfig"/> is disabled.
-    /// </summary>
-    /// <value>
-    ///   <c>true</c> if disabled; otherwise, <c>false</c>.
-    /// </value>
-    bool Disabled { get; }
 
     /// <summary>
     /// Gets the name.
@@ -120,14 +107,6 @@ public partial interface IServerConfig
     int SessionSnapshotInterval { get; }
     
     /// <summary>
-    /// Gets the connection filters used by this server instance.
-    /// </summary>
-    /// <value>
-    /// The connection filter's name list, seperated by comma
-    /// </value>
-    string? ConnectionFilter { get; }
-
-    /// <summary>
     /// Gets the start keep alive time, in seconds
     /// </summary>
     int KeepAliveTime { get; }
@@ -146,11 +125,6 @@ public partial interface IServerConfig
     /// Gets the listeners' configuration.
     /// </summary>
     IEnumerable<IListenerConfig>? Listeners { get; }
-
-    /// <summary>
-    /// Gets the log factory name.
-    /// </summary>
-    string? LogFactory { get; }
 
     /// <summary>
     /// Gets the size of the sending queue.
@@ -175,14 +149,6 @@ public partial interface IServerConfig
     /// The text encoding.
     /// </value>
     string? TextEncoding { get; }
-
-    /// <summary>
-    /// Gets the default culture for this server.
-    /// </summary>
-    /// <value>
-    /// The default culture.
-    /// </value>
-    string? DefaultCulture { get; }
 
     /// <summary>
     /// Nodelay

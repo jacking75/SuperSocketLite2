@@ -7,26 +7,12 @@ namespace SuperSocketLite.SocketEngine;
 
 class SocketAsyncEventArgsProxy
 {
-    public SocketAsyncEventArgs SocketEventArgs { get; private set; } = null!;
-
-    public bool IsRecyclable { get; private set; }
-
-    private SocketAsyncEventArgsProxy()
-    {
-
-    }
+    public SocketAsyncEventArgs SocketEventArgs { get; }
 
     public SocketAsyncEventArgsProxy(SocketAsyncEventArgs socketEventArgs)
-        : this(socketEventArgs, true)
-    {
-
-    }
-
-    public SocketAsyncEventArgsProxy(SocketAsyncEventArgs socketEventArgs, bool isRecyclable)
     {
         SocketEventArgs = socketEventArgs;
         SocketEventArgs.Completed += new EventHandler<SocketAsyncEventArgs>(SocketEventArgs_Completed);
-        IsRecyclable = isRecyclable;
     }
 
     static void SocketEventArgs_Completed(object? sender, SocketAsyncEventArgs e)

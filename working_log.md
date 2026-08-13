@@ -1,5 +1,12 @@
 # 작업 로그
 
+## 2026-08-13 09:48:19 KST - 미사용 코드·기능 제거
+
+- 라이브러리 전수 조사 후 참조가 전혀 없는 코드를 제거했다: `SendingQueue`(ChannelSendingQueue로 대체됨), HTTP 필터 3종, `IReceiveFilter`의 Span 오버로드, `AssemblyUtil`, `Platform`, `ISystemEndPoint`, `IWorkItem`, `HotUpdateAttribute`, 커맨드 어셈블리 설정 등 소스 파일 12개.
+- `SmartPool`의 인터페이스 4종을 단일 클래스로, `ArraySegmentList`를 byte 전용으로 축약하고 XML 설정 잔재인 죽은 config 속성 8개를 제거했다.
+- 결과: 13,578줄 → 10,777줄(-20.6%). 전체 솔루션 33개 프로젝트 빌드 오류 0개, 회귀 테스트 30개 전부 통과.
+- 제거된 이름과 대체 수단 대응표는 `.claude/tasks.md`의 TASK-20에 정리했다.
+
 ## 2026-08-11 17:08:09 KST - VS Code 전체 분석 문서화
 
 - README에 `SuperSocketLite2.slnx` 기본 솔루션 설정과 F12 부분 실패 원인을 정리했다.

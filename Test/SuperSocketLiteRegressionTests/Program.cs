@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Net;
@@ -14,7 +14,6 @@ var tests = new (string Name, Action Test)[]
 {
     ("ReuseLockBaseBuffer.Copy appends data and Commit preserves remaining bytes", ReuseLockBaseBufferCopyAppendsData),
     ("FixedHeaderReceiveFilter reports accumulated body length and rejects negative body length", FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength),
-    ("SendingQueue.InternalTrim trims across remaining segments after a partial trim", SendingQueueInternalTrimTrimsAcrossRemainingSegments),
     ("UDP receive packet exposes pooled payload without cloning and snapshots endpoint", UdpReceivePacketExposesPooledPayloadAndEndpoint),
     ("Channel send queue drains batches in FIFO order with bounded capacity", ChannelSendQueueDrainsBatchesInFifoOrder),
     ("Channel send queue counts a multi-segment send as one slot and copies the caller's list", ChannelSendQueueCountsAMultiSegmentSendAsOneSlot),
@@ -102,26 +101,6 @@ static void FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength()
 
     AssertNull(request, "negative body length must not produce a request");
     AssertEqual(FilterState.Error, invalid.State, "negative body length should put filter into error state");
-}
-
-static void SendingQueueInternalTrimTrimsAcrossRemainingSegments()
-{
-    var globalQueue = new ArraySegment<byte>[4];
-    var queue = new SendingQueue(globalQueue, 0, 4);
-    var trackID = queue.TrackID;
-
-    AssertTrue(queue.Enqueue(new ArraySegment<byte>(new byte[] { 1, 2 }), trackID), "first enqueue should succeed");
-    AssertTrue(queue.Enqueue(new ArraySegment<byte>(new byte[] { 3, 4 }), trackID), "second enqueue should succeed");
-    AssertTrue(queue.Enqueue(new ArraySegment<byte>(new byte[] { 5, 6 }), trackID), "third enqueue should succeed");
-
-    queue.InternalTrim(3);
-    AssertEqual(2, queue.Count, "first trim should leave two logical segments");
-    AssertSequence(new byte[] { 4 }, queue[0]);
-    AssertSequence(new byte[] { 5, 6 }, queue[1]);
-
-    queue.InternalTrim(2);
-    AssertEqual(1, queue.Count, "second trim should leave one logical segment");
-    AssertSequence(new byte[] { 6 }, queue[0]);
 }
 
 static void UdpReceivePacketExposesPooledPayloadAndEndpoint()

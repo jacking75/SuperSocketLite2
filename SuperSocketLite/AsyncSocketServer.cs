@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -16,52 +16,24 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     }
 
-    private ISmartPool<SocketAsyncEventArgsProxy>? m_ReceiveSAEAPool;
-    private ISmartPool<SocketAsyncEventArgs>? m_SendSAEAPool;
+    private SmartPool<SocketAsyncEventArgsProxy>? m_ReceiveSAEAPool;
+    private SmartPool<SocketAsyncEventArgs>? m_SendSAEAPool;
 
     public override bool Start()
     {
         try
         {
-            // Initialize receive SAEA pool
-            m_ReceiveSAEAPool = new SmartPool<SocketAsyncEventArgsProxy>();
-            var receiveCreator = new SAEAProxyCreator();
-            
-            if (AppServer.Config.PreAllocateSAEA)
-            {
-                // Pre-allocate all SAEA objects at startup for maximum performance
-                m_ReceiveSAEAPool.Initialize(
-                    AppServer.Config.MaxConnectionNumber,
-                    AppServer.Config.MaxConnectionNumber,
-                    receiveCreator);
-            }
-            else
-            {
-                // Start with minimum and grow dynamically
-                m_ReceiveSAEAPool.Initialize(
-                    AppServer.Config.MinPoolSize,
-                    AppServer.Config.MaxConnectionNumber,
-                    receiveCreator);
-            }
+            var maxPoolSize = AppServer.Config.MaxConnectionNumber;
 
-            // Initialize send SAEA pool
-            m_SendSAEAPool = new SmartPool<SocketAsyncEventArgs>();
-            var sendCreator = new SAEACreator();
-            
-            if (AppServer.Config.PreAllocateSAEA)
-            {
-                m_SendSAEAPool.Initialize(
-                    AppServer.Config.MaxConnectionNumber,
-                    AppServer.Config.MaxConnectionNumber,
-                    sendCreator);
-            }
-            else
-            {
-                m_SendSAEAPool.Initialize(
-                    AppServer.Config.MinPoolSize,
-                    AppServer.Config.MaxConnectionNumber,
-                    sendCreator);
-            }
+            //PreAllocateSAEA creates every SAEA at startup (best latency); otherwise the pools start
+            //at MinPoolSize and grow on demand.
+            var minPoolSize = AppServer.Config.PreAllocateSAEA ? maxPoolSize : AppServer.Config.MinPoolSize;
+
+            m_ReceiveSAEAPool = new SmartPool<SocketAsyncEventArgsProxy>(
+                minPoolSize, maxPoolSize, static () => new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs()));
+
+            m_SendSAEAPool = new SmartPool<SocketAsyncEventArgs>(
+                minPoolSize, maxPoolSize, static () => new SocketAsyncEventArgs());
 
             if (!base.Start())
                 return false;
@@ -111,7 +83,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
             return null;
         }
 
-        var socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA, false);
+        var socketSession = new AsyncSocketSession(client, socketEventArgsProxy, sendSAEA);
 
         var session = CreateSession(client, socketSession);
 
@@ -145,7 +117,7 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
 
     void SessionClosed(ISocketSession session, CloseReason reason)
     {
-        var socketSession = session as IAsyncSocketSessionBase;
+        var socketSession = session as IAsyncSocketSession;
         if (socketSession == null)
             return;
 
@@ -164,13 +136,6 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
                 args.Dispose();
                 socketSession.SendSAEA?.Dispose();
             }
-            return;
-        }
-
-        if (!proxy.IsRecyclable)
-        {
-            args.Dispose();
-            socketSession.SendSAEA?.Dispose();
             return;
         }
 
@@ -280,37 +245,5 @@ class AsyncSocketServer : TcpSocketServerBase, IActiveConnector
         {
             connectState.TaskSource.SetException(e);
         }
-    }
-}
-
-/// <summary>
-/// Creator for SocketAsyncEventArgsProxy objects used in SmartPool
-/// </summary>
-class SAEAProxyCreator : ISmartPoolSourceCreator<SocketAsyncEventArgsProxy>
-{
-    public ISmartPoolSource Create(int size, out SocketAsyncEventArgsProxy[] poolItems)
-    {
-        poolItems = new SocketAsyncEventArgsProxy[size];
-        for (int i = 0; i < size; i++)
-        {
-            poolItems[i] = new SocketAsyncEventArgsProxy(new SocketAsyncEventArgs());
-        }
-        return new SmartPoolSource(poolItems, size);
-    }
-}
-
-/// <summary>
-/// Creator for SocketAsyncEventArgs objects used in SmartPool (for send operations)
-/// </summary>
-class SAEACreator : ISmartPoolSourceCreator<SocketAsyncEventArgs>
-{
-    public ISmartPoolSource Create(int size, out SocketAsyncEventArgs[] poolItems)
-    {
-        poolItems = new SocketAsyncEventArgs[size];
-        for (int i = 0; i < size; i++)
-        {
-            poolItems[i] = new SocketAsyncEventArgs();
-        }
-        return new SmartPoolSource(poolItems, size);
     }
 }

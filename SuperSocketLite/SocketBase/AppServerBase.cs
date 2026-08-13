@@ -1,8 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -21,7 +20,7 @@ namespace SuperSocketLite.SocketBase;
 /// </summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, ISocketServerAccessor, IActiveConnector, ISystemEndPoint, IDisposable
+public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, IActiveConnector, IDisposable
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
@@ -107,7 +106,7 @@ public abstract partial class AppServerBase<TAppSession, TRequestInfo> : IAppSer
         get { return m_TotalHandledRequests; }
     }
 
-private ListenerInfo[]? m_Listeners;
+    private ListenerInfo[]? m_Listeners;
 
     /// <summary>
     /// Gets or sets the listeners inforamtion.
@@ -270,8 +269,6 @@ private ListenerInfo[]? m_Listeners;
         return true;
     }
 
-    partial void SetDefaultCulture(IRootConfig rootConfig, IServerConfig config);
-
     private void SetupBasic(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory)
     {
         if (rootConfig == null)
@@ -288,8 +285,6 @@ private ListenerInfo[]? m_Listeners;
             m_Name = string.Format("{0}-{1}", this.GetType().Name, Math.Abs(this.GetHashCode()));
 
         Config = config;
-
-        SetDefaultCulture(rootConfig, config);
 
         // Only the first thread that wins the CAS configures the thread pool.
         if (Interlocked.CompareExchange(ref m_ThreadPoolConfigured, 1, 0) == 0)
@@ -335,7 +330,7 @@ private ListenerInfo[]? m_Listeners;
         return true;
     }
 
-private bool SetupAdvanced(IServerConfig config)
+    private bool SetupAdvanced(IServerConfig config)
     {
         if (!SetupListeners(config))
             return false;
@@ -498,7 +493,7 @@ private bool SetupAdvanced(IServerConfig config)
     /// <returns></returns>
     protected virtual ILog CreateLogger(string loggerName)
     {
-return LogFactory.GetLog(loggerName);
+        return LogFactory.GetLog(loggerName);
     }
 
     /// <summary>
@@ -531,7 +526,7 @@ return LogFactory.GetLog(loggerName);
            return IPAddress.Parse(ip);
     }
 
-/// <summary>
+    /// <summary>
     /// Setups the listeners base on server configuration
     /// </summary>
     /// <param name="config">The config.</param>
@@ -617,17 +612,6 @@ return LogFactory.GetLog(loggerName);
     private ISocketServer m_SocketServer = null!;
 
     /// <summary>
-    /// Gets the socket server.
-    /// </summary>
-    /// <value>
-    /// The socket server.
-    /// </value>
-    ISocketServer ISocketServerAccessor.SocketServer
-    {
-        get { return m_SocketServer; }
-    }
-
-    /// <summary>
     /// Starts this server instance and stops it automatically when
     /// <paramref name="cancellationToken"/> is cancelled.
     /// The existing parameterless <see cref="Start()"/> still works unchanged.
@@ -653,7 +637,7 @@ return LogFactory.GetLog(loggerName);
         return true;
     }
 
-/// <summary>
+    /// <summary>
     /// Starts this server instance.
     /// </summary>
     /// <returns>
@@ -689,18 +673,13 @@ return LogFactory.GetLog(loggerName);
                     
         try
         {
-            //Will be removed in the next version
-#pragma warning disable 0612, 618
-            OnStartup();
-#pragma warning restore 0612, 618
-
             OnStarted();
         }
         catch (Exception e)
         {
             if (Logger.IsErrorEnabled)
             {
-                Logger.Error("One exception wa thrown in the method 'OnStartup()'.", e);
+                Logger.Error("One exception was thrown in the method 'OnStarted()'.", e);
             }
         }
         finally
@@ -710,15 +689,6 @@ return LogFactory.GetLog(loggerName);
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Called when [startup].
-    /// </summary>
-    [Obsolete("Use OnStarted() instead")]
-    protected virtual void OnStartup()
-    {
-
     }
 
     /// <summary>
@@ -916,14 +886,14 @@ return LogFactory.GetLog(loggerName);
         session.PrevCommand = requestInfo.Key;
         session.MarkActive();
 
-if (Config.LogCommand && Logger.IsInfoEnabled)
+        if (Config.LogCommand && Logger.IsInfoEnabled)
         {
             //Logger.Info(session, string.Format("Command - {0}", requestInfo.Key));
             var message = string.Format("Command - {0}", requestInfo.Key);
             Logger.Info(string.Format("Session: {0}/{1}", session.SessionID, session.RemoteEndPoint) + Environment.NewLine + message);
         }
 
-Interlocked.Increment(ref m_TotalHandledRequests);
+        Interlocked.Increment(ref m_TotalHandledRequests);
 
         // Track total requests for metrics
         s_TotalRequestsCounter.Add(1, ServerTag);
@@ -1012,7 +982,7 @@ Interlocked.Increment(ref m_TotalHandledRequests);
         return new TAppSession();
     }
 
-/// <summary>
+    /// <summary>
     /// Registers the new created app session into the appserver's session container.
     /// </summary>
     /// <param name="session">The session.</param>
@@ -1121,7 +1091,7 @@ Interlocked.Increment(ref m_TotalHandledRequests);
         remove { m_SessionClosed -= value; }
     }
 
-/// <summary>
+    /// <summary>
     /// Called when [session closed].
     /// </summary>
     /// <param name="session">The appSession.</param>
@@ -1178,20 +1148,6 @@ Interlocked.Increment(ref m_TotalHandledRequests);
     public abstract int SessionCount { get; }
 
     /// <summary>
-    /// Gets the physical file path by the relative file path,
-    /// search both in the appserver's root and in the supersocket root dir if the isolation level has been set other than 'None'.
-    /// </summary>
-    /// <param name="relativeFilePath">The relative file path.</param>
-    /// <returns></returns>
-    public string GetFilePath(string relativeFilePath)
-    {
-        var filePath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativeFilePath);                        
-        return filePath;
-    }
-
-    
-
-    /// <summary>
     /// Connect the remote endpoint actively.
     /// </summary>
     /// <param name="targetEndPoint">The target end point.</param>
@@ -1221,26 +1177,6 @@ Interlocked.Increment(ref m_TotalHandledRequests);
 
     
 
-    
-    /// <summary>
-    /// Transfers the system message
-    /// </summary>
-    /// <param name="messageType">Type of the message.</param>
-    /// <param name="messageData">The message data.</param>
-    void ISystemEndPoint.TransferSystemMessage(string messageType, object messageData)
-    {
-        OnSystemMessageReceived(messageType, messageData);
-    }
-
-    /// <summary>
-    /// Called when [system message received].
-    /// </summary>
-    /// <param name="messageType">Type of the message.</param>
-    /// <param name="messageData">The message data.</param>
-    protected virtual void OnSystemMessageReceived(string messageType, object messageData)
-    {
-    }
-           
     /// <summary>
     /// Releases unmanaged and - optionally - managed resources
     /// </summary>
@@ -1248,37 +1184,5 @@ Interlocked.Increment(ref m_TotalHandledRequests);
     {
         if (m_StateCode == ServerStateConst.Running)
             Stop();
-    }
-
-    
-
-
-    partial void SetDefaultCulture(IRootConfig rootConfig, IServerConfig config)
-    {
-        var defaultCulture = config.DefaultCulture;
-
-        //default culture has been set for this server instance
-        if (!string.IsNullOrEmpty(defaultCulture))
-        {
-            Logger.Warn($"The default culture cannot be set, because you cannot set default culture for one server instance if the Isolation is None!");
-            return;
-        }
-        else if (!string.IsNullOrEmpty(rootConfig.DefaultCulture))
-        {
-            defaultCulture = rootConfig.DefaultCulture;
-            return;
-        }
-
-        if (string.IsNullOrEmpty(defaultCulture))
-            return;
-
-        try
-        {
-            CultureInfo.DefaultThreadCurrentCulture = new CultureInfo(defaultCulture);
-        }
-        catch (Exception e)
-        {
-            Logger.Error(string.Format("Failed to set default culture '{0}'.", defaultCulture), e);
-        }
     }
 }

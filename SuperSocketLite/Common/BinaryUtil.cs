@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 
@@ -10,52 +10,35 @@ namespace SuperSocketLite.Common;
 public static class BinaryUtil
 {
     /// <summary>
-    /// Search target from source.
+    /// Searches the mark from source, carrying the partial-match count across calls in
+    /// <paramref name="searchState"/> so a mark split over two reads is still found.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="source">The source.</param>
-    /// <param name="target">The target.</param>
-    /// <param name="pos">The pos.</param>
+    /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
-    /// <returns></returns>
-    public static int IndexOf<T>(this IList<T> source, T target, int pos, int length)
+    /// <param name="searchState">State of the search.</param>
+    /// <param name="parsedLength">Length of the parsed.</param>
+    /// <returns>The position of the mark, or -1 when it was not found.</returns>
+    public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState, out int parsedLength)
         where T : IEquatable<T>
     {
-        for (int i = pos; i < pos + length; i++)
+        int? result = SearchMark(source, offset, length, searchState.Mark, searchState.Matched, out parsedLength);
+
+        if (!result.HasValue)
         {
-            if (source[i].Equals(target))
-                return i;
+            searchState.Matched = 0;
+            return -1;
         }
 
-        return -1;
-    }
+        if (result.Value < 0)
+        {
+            searchState.Matched = 0 - result.Value;
+            return -1;
+        }
 
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="mark">The mark.</param>
-    /// <param name="parsedLength">Length of the parsed.</param>
-    /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, T[] mark, out int parsedLength)
-        where T : IEquatable<T>
-    {
-        return SearchMark(source, 0, source.Count, mark, 0, out parsedLength);
-    }
-
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, T[] mark)
-        where T : IEquatable<T>
-    {
-        int parsedLength;
-        return SearchMark(source, 0, source.Count, mark, 0, out parsedLength);
+        searchState.Matched = 0;
+        return result.Value;
     }
 
     /// <summary>
@@ -65,60 +48,45 @@ public static class BinaryUtil
     /// <param name="source">The source.</param>
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, int offset, int length, T[] mark)
+    /// <param name="searchState">State of the search.</param>
+    /// <returns>The position of the mark, or -1 when it was not found.</returns>
+    public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState)
         where T : IEquatable<T>
     {
-        int parsedLength;
-        return SearchMark(source, offset, length, mark, 0, out parsedLength);
+        return SearchMark(source, offset, length, searchState, out _);
     }
 
     /// <summary>
-    /// Searches the mark from source.
+    /// Clones the elements in the specific range.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <param name="source">The source.</param>
     /// <param name="offset">The offset.</param>
     /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <param name="parsedLength">Length of the parsed.</param>
     /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, int offset, int length, T[] mark, out int parsedLength)
-        where T : IEquatable<T>
+    public static T[] CloneRange<T>(this IList<T> source, int offset, int length)
     {
-        return SearchMark(source, offset, length, mark, 0, out parsedLength);
+        var target = new T[length];
+
+        if (source is T[] array)
+        {
+            Array.Copy(array, offset, target, 0, length);
+            return target;
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            target[i] = source[offset + i];
+        }
+
+        return target;
     }
 
     /// <summary>
-    /// Searches the mark from source.
+    /// Returns the position of the mark, a negative matched count when only a prefix of the mark
+    /// reached the end of the range, or null when the mark is absent.
     /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <param name="matched">The matched.</param>
-    /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, int offset, int length, T[] mark, int matched)
-        where T : IEquatable<T>
-    {
-        int parsedLength;
-        return source.SearchMark(offset, length, mark, matched, out parsedLength);
-    }
-
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <param name="matched">The matched.</param>
-    /// <param name="parsedLength">Length of the parsed.</param>
-    /// <returns></returns>
-    public static int? SearchMark<T>(this IList<T> source, int offset, int length, T[] mark, int matched, out int parsedLength)
+    private static int? SearchMark<T>(IList<T> source, int offset, int length, T[] mark, int matched, out int parsedLength)
         where T : IEquatable<T>
     {
         int pos = offset;
@@ -161,7 +129,7 @@ public static class BinaryUtil
 
         while (true)
         {
-            pos = source.IndexOf(mark[matchCount], pos, length - pos + offset);
+            pos = IndexOf(source, mark[matchCount], pos, length - pos + offset);
 
             if (pos < 0)
                 return null;
@@ -198,160 +166,15 @@ public static class BinaryUtil
         }
     }
 
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="searchState">State of the search.</param>
-    /// <param name="parsedLength">Length of the parsed.</param>
-    /// <returns></returns>
-    public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState, out int parsedLength)
+    private static int IndexOf<T>(IList<T> source, T target, int pos, int length)
         where T : IEquatable<T>
     {
-        int? result = source.SearchMark(offset, length, searchState.Mark, searchState.Matched, out parsedLength);
-
-        if (!result.HasValue)
+        for (int i = pos; i < pos + length; i++)
         {
-            searchState.Matched = 0;
-            return -1;
-        }
-
-        if (result.Value < 0)
-        {
-            searchState.Matched = 0 - result.Value;
-            return -1;
-        }
-
-        searchState.Matched = 0;
-        return result.Value;
-    }
-
-    /// <summary>
-    /// Searches the mark from source.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="searchState">State of the search.</param>
-    /// <returns></returns>
-    public static int SearchMark<T>(this IList<T> source, int offset, int length, SearchMarkState<T> searchState)
-        where T : IEquatable<T>
-    {
-        var parsedLen = 0;
-        return SearchMark(source, offset, length, searchState, out parsedLen);
-    }
-
-    /// <summary>
-    /// Startses the with.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static int StartsWith<T>(this IList<T> source, T[] mark)
-        where T : IEquatable<T>
-    {
-        return source.StartsWith(0, source.Count, mark);
-    }
-
-    /// <summary>
-    /// Startses the with.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static int StartsWith<T>(this IList<T> source, int offset, int length, T[] mark)
-        where T : IEquatable<T>
-    {
-        int pos = offset;
-        int endOffset = offset + length - 1;
-
-        for (int i = 0; i < mark.Length; i++)
-        {
-            int checkPos = pos + i;
-
-            if (checkPos > endOffset)
+            if (source[i].Equals(target))
                 return i;
-
-            if (!source[checkPos].Equals(mark[i]))
-                return -1;
         }
 
-        return mark.Length;
-    }
-
-    /// <summary>
-    /// Endses the with.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static bool EndsWith<T>(this IList<T> source, T[] mark)
-        where T : IEquatable<T>
-    {
-        return source.EndsWith(0, source.Count, mark);
-    }
-
-    /// <summary>
-    /// Endses the with.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <param name="mark">The mark.</param>
-    /// <returns></returns>
-    public static bool EndsWith<T>(this IList<T> source, int offset, int length, T[] mark)
-        where T : IEquatable<T>
-    {
-        if (mark.Length > length)
-            return false;
-
-        for (int i = 0; i < Math.Min(length, mark.Length); i++)
-        {
-            if (!mark[i].Equals(source[offset + length - mark.Length + i]))
-                return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Clones the elements in the specific range.
-    /// </summary>
-    /// <typeparam name="T"></typeparam>
-    /// <param name="source">The source.</param>
-    /// <param name="offset">The offset.</param>
-    /// <param name="length">The length.</param>
-    /// <returns></returns>
-    public static T[] CloneRange<T>(this IList<T> source, int offset, int length)
-    {
-        T[] target;
-
-        var array = source as T[];
-
-        if (array != null)
-        {
-            target = new T[length];
-            Array.Copy(array, offset, target, 0, length);
-            return target;
-        }
-
-        target = new T[length];
-
-        for (int i = 0; i < length; i++)
-        {
-            target[i] = source[offset + i];
-        }
-
-        return target;
+        return -1;
     }
 }

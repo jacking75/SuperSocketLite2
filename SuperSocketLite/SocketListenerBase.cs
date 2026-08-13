@@ -55,16 +55,6 @@ abstract class SocketListenerBase : ISocketListener
             handler(this, socket, state);
     }
 
-    protected void OnNewClientAcceptedAsync(Socket socket, object? state)
-    {
-        var handler = NewClientAccepted;
-
-        if (handler != null)
-        {
-            System.Threading.Tasks.Task.Run(() => handler(this, socket, state));
-        }
-    }
-
     /// <summary>
     /// Occurs when [stopped].
     /// </summary>

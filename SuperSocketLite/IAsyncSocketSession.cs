@@ -3,17 +3,14 @@ using SuperSocketLite.SocketBase;
 
 namespace SuperSocketLite.SocketEngine;
 
-interface IAsyncSocketSessionBase : ILoggerProvider
+interface IAsyncSocketSession : ILoggerProvider
 {
     SocketAsyncEventArgsProxy SocketAsyncProxy { get; }
-    
-    SocketAsyncEventArgs? SendSAEA { get; }
-    
-    Socket? Client { get; }
-}
 
-interface IAsyncSocketSession : IAsyncSocketSessionBase
-{
+    SocketAsyncEventArgs? SendSAEA { get; }
+
+    Socket? Client { get; }
+
     void ProcessReceive(SocketAsyncEventArgs e);
 
     /// <summary>

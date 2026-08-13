@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -11,130 +11,28 @@ namespace SuperSocketLite.SocketBase;
 public static class Async
 {
     /// <summary>
-    /// Runs the specified task.
+    /// Runs the task on the thread pool and logs any exception it throws through
+    /// <paramref name="logProvider"/>, so a faulted task can never go unobserved.
     /// </summary>
     /// <param name="logProvider">The log provider.</param>
     /// <param name="task">The task.</param>
     /// <returns></returns>
     public static Task AsyncRun(this ILoggerProvider logProvider, Action task)
     {
-        return AsyncRun(logProvider, task, TaskCreationOptions.None);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="taskOption">The task option.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action task, TaskCreationOptions taskOption)
-    {
-        return AsyncRun(logProvider, task, taskOption, null);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="exceptionHandler">The exception handler.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action task, Action<Exception>? exceptionHandler)
-    {
-        return AsyncRun(logProvider, task, TaskCreationOptions.None, exceptionHandler);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="taskOption">The task option.</param>
-    /// <param name="exceptionHandler">The exception handler.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action task, TaskCreationOptions taskOption, Action<Exception>? exceptionHandler)
-    {
-        return Task.Factory.StartNew(task, CancellationToken.None, taskOption, TaskScheduler.Default).ContinueWith(t =>
+        return Task.Factory.StartNew(task, CancellationToken.None, TaskCreationOptions.None, TaskScheduler.Default)
+            .ContinueWith(t =>
             {
-                if (exceptionHandler != null)
-                    exceptionHandler(t.Exception!);
-                else
+                var logger = logProvider.Logger;
+
+                if (logger == null || !logger.IsErrorEnabled)
+                    return;
+
+                var innerExceptions = t.Exception!.InnerExceptions;
+
+                for (var i = 0; i < innerExceptions.Count; i++)
                 {
-                    if (logProvider.Logger.IsErrorEnabled)
-                    {
-                        for (var i = 0; i < t.Exception!.InnerExceptions.Count; i++)
-                        {
-                            logProvider.Logger.Error(t.Exception.InnerExceptions[i].ToString());
-                        }
-                    }
+                    logger.Error(innerExceptions[i].ToString());
                 }
             }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="state">The state.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action<object?> task, object state)
-    {
-        return AsyncRun(logProvider, task, state, TaskCreationOptions.None);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="state">The state.</param>
-    /// <param name="taskOption">The task option.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action<object?> task, object state, TaskCreationOptions taskOption)
-    {
-        return AsyncRun(logProvider, task, state, taskOption, null);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="state">The state.</param>
-    /// <param name="exceptionHandler">The exception handler.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action<object?> task, object state, Action<Exception>? exceptionHandler)
-    {
-        return AsyncRun(logProvider, task, state, TaskCreationOptions.None, exceptionHandler);
-    }
-
-    /// <summary>
-    /// Runs the specified task.
-    /// </summary>
-    /// <param name="logProvider">The log provider.</param>
-    /// <param name="task">The task.</param>
-    /// <param name="state">The state.</param>
-    /// <param name="taskOption">The task option.</param>
-    /// <param name="exceptionHandler">The exception handler.</param>
-    /// <returns></returns>
-    public static Task AsyncRun(this ILoggerProvider logProvider, Action<object?> task, object state, TaskCreationOptions taskOption, Action<Exception>? exceptionHandler)
-    {
-        return Task.Factory.StartNew(task, state, CancellationToken.None, taskOption, TaskScheduler.Default).ContinueWith(t =>
-        {
-            if (exceptionHandler != null)
-                exceptionHandler(t.Exception!);
-            else
-            {
-                if (logProvider.Logger.IsErrorEnabled)
-                {
-                    for (var i = 0; i < t.Exception!.InnerExceptions.Count; i++)
-                    {
-                        logProvider.Logger.Error(t.Exception.InnerExceptions[i].ToString());
-                    }
-                }
-            }
-        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
     }
 }

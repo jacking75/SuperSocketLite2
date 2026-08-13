@@ -191,12 +191,6 @@ class UdpSocketSession : SocketSession
         return false;
     }
 
-    [Obsolete("OrigReceiveOffset is not used in the Pipelines receive path and always returns 0.")]
-    public override int OrigReceiveOffset
-    {
-        get { return 0; }
-    }
-
     private sealed class UdpSendState
     {
         /// <summary>The batch being sent, or null when no send is in progress.</summary>

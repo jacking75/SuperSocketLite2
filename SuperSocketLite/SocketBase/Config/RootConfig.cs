@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Threading;
 using SuperSocketLite.Common;
-using System.Collections.Specialized;
 
 
 namespace SuperSocketLite.SocketBase.Config;
@@ -10,7 +9,7 @@ namespace SuperSocketLite.SocketBase.Config;
 /// Root configuration model
 /// </summary>
 [Serializable]
-public partial class RootConfig : IRootConfig
+public class RootConfig : IRootConfig
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="RootConfig"/> class.
@@ -19,7 +18,6 @@ public partial class RootConfig : IRootConfig
     public RootConfig(IRootConfig rootConfig)
     {
         rootConfig.CopyPropertiesTo(this);
-        this.OptionElements = rootConfig.OptionElements;
     }
 
     /// <summary>
@@ -59,27 +57,4 @@ public partial class RootConfig : IRootConfig
     /// Gets/sets the min completion port threads.
     /// </summary>
     public int MinCompletionPortThreads { get; set; }
-
-    
-    /// <summary>
-    /// Gets/sets the log factory name.
-    /// </summary>
-    /// <value>
-    /// The log factory.
-    /// </value>
-    public string? LogFactory { get; set; }
-
-    /// <summary>
-    /// Gets/sets the option elements.
-    /// </summary>
-    public NameValueCollection? OptionElements { get; set; }
-
-
-    /// <summary>
-    /// Gets or sets the default culture.
-    /// </summary>
-    /// <value>
-    /// The default culture.
-    /// </value>
-    public string? DefaultCulture { get; set; }
 }

@@ -2,7 +2,6 @@ using System;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
 
@@ -184,14 +183,11 @@ class UdpSocketListener : SocketListenerBase
             var listenSocket = m_ListenSocket;
             var receiveSAEs = m_ReceiveSAEs;
 
-            if(!Platform.IsMono)
+            try
             {
-                try
-                {
-                    listenSocket.Shutdown(SocketShutdown.Both);
-                }
-                catch { }
+                listenSocket.Shutdown(SocketShutdown.Both);
             }
+            catch { }
 
             try
             {

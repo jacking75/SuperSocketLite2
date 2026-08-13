@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO.Pipelines;
@@ -14,30 +14,16 @@ namespace SuperSocketLite.SocketEngine;
 
 class AsyncSocketSession : SocketSession, IAsyncSocketSession
 {
-    private bool m_IsReset;
     private bool m_SendSAEAFromPool;
     private SocketAsyncEventArgs? m_SocketEventArgSend;
     private bool m_ReceiveInlineOnIocpThread = true;
 
-    public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy)
-        : this(client, socketAsyncProxy, null, false)
-    {
-
-    }
-
-    public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, bool isReset)
-        : this(client, socketAsyncProxy, null, isReset)
-    {
-
-    }
-
-    public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, SocketAsyncEventArgs? sendSAEA, bool isReset)
+    public AsyncSocketSession(Socket client, SocketAsyncEventArgsProxy socketAsyncProxy, SocketAsyncEventArgs? sendSAEA)
         : base(client)
     {
         SocketAsyncProxy = socketAsyncProxy;
         m_SocketEventArgSend = sendSAEA;
         m_SendSAEAFromPool = sendSAEA != null;
-        m_IsReset = isReset;
     }
 
     ILog ILoggerProvider.Logger
@@ -72,9 +58,7 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     {
         StartReceive();
         StartReceiveProcessingTask();
-
-        if (!m_IsReset)
-            StartSession();
+        StartSession();
     }
 
     bool ProcessCompleted(SocketAsyncEventArgs e)

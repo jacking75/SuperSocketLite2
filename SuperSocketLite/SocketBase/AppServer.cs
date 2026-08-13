@@ -153,17 +153,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     /// </summary>
     /// <param name="sessionID">The session ID.</param>
     /// <returns></returns>
-    [Obsolete("Use the method GetSessionByID instead")]
-    public TAppSession? GetAppSessionByID(string sessionID)
-    {
-        return GetSessionByID(sessionID);
-    }
-
-    /// <summary>
-    /// Gets the app session by ID.
-    /// </summary>
-    /// <param name="sessionID">The session ID.</param>
-    /// <returns></returns>
     public override TAppSession? GetSessionByID(string sessionID)
     {
         if (string.IsNullOrEmpty(sessionID))

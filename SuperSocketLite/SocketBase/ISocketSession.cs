@@ -170,14 +170,6 @@ public interface ISocketSession : ISessionBase
 
 
     /// <summary>
-    /// Gets the original receive buffer offset.
-    /// </summary>
-    /// <value>
-    /// The original receive buffer offset.
-    /// </value>
-    int OrigReceiveOffset { get; }
-
-    /// <summary>
     /// 최흥배. 보내기 실패 예외가 발생한 경우 보내기 상태를 취소 시켜서 즉각 접속이 종료 되도록 한다.
     /// 클라이언트에게 Send를 할 때 ‘Send Time Out’ 예외가 발생 후 서버에서 해당 클라이언트를 Disconnect 할 수 없다. 단 클라이언트에서 접속을 끊으면 접속이 끊어진다.
     /// 서버에서 Disconnect 할 수 없는 이유는 close 시킬 때 클라이언트의 소켓 상태가 ‘보내는 중’으로 되어 있어서 끝날 때까지 기다리기 때문이다.즉 이런 상태가 되면 해당 클라이언트가 접속을 끊어 줄 때까지 어떻게 할 방법이 없다.

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using SuperSocketLite.Common;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Logging;
 
@@ -21,11 +20,6 @@ abstract class SocketServerBase : ISocketServer, IDisposable
     protected List<ISocketListener> Listeners { get; private set; }
 
     protected bool IsStopped { get; set; }
-
-    IPoolInfo? ISocketServer.SendingQueuePool
-    {
-        get { return null; }
-    }
 
     public SocketServerBase(IAppServer appServer, ListenerInfo[] listeners)
     {

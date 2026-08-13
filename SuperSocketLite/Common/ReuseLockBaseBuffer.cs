@@ -22,15 +22,6 @@ public class ReuseLockBaseBuffer
         MinumBufferSize = BufferSize / 4;
     }
 
-    public void Clear()
-    {
-        lock (mBuffer)
-        {
-            ReadPos = 0;
-            WritePos = 0;
-        }
-    }
-
     public bool Copy(byte[] source, int pos, int count)
     {
         lock(mBuffer)

@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 
 namespace SuperSocketLite.SocketBase;
 
@@ -7,14 +7,6 @@ namespace SuperSocketLite.SocketBase;
 /// </summary>
 public interface IConnectionFilter
 {
-    /// <summary>
-    /// Initializes the connection filter
-    /// </summary>
-    /// <param name="name">The name.</param>
-    /// <param name="appServer">The app server.</param>
-    /// <returns></returns>
-    bool Initialize(string name, IAppServer appServer);
-
     /// <summary>
     /// Gets the name of the filter.
     /// </summary>

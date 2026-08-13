@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -699,12 +699,6 @@ abstract partial class SocketSession : ISocketSession
         OnClosed(GetCloseReasonFromState());
     }
 
-    private void ValidateClosed()
-    {
-        // CloseReason.Unknown won't be used
-        ValidateClosed(CloseReason.Unknown, false);
-    }
-
     private void ValidateClosed(CloseReason closeReason, bool forceClose)
     {
         ValidateClosed(closeReason, forceClose, false);
@@ -754,9 +748,6 @@ abstract partial class SocketSession : ISocketSession
             }
         }
     }
-
-    [Obsolete("OrigReceiveOffset is not used in the Pipelines receive path and always returns 0.")]
-    public virtual int OrigReceiveOffset => 0;
 
     protected void StartReceiveProcessingTask()
     {

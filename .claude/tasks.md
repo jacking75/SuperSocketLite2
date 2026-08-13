@@ -1,7 +1,7 @@
 # 개선 작업 목록
 
 코드 변경 후 반드시 `dotnet build` 성공을 확인한다.
-기존 public API 시그니처는 변경하지 않는다 (하위 호환 유지).
+개발 중이므로 public API는 자유롭게 바꿔도 된다 (하위 호환 제약 없음).
 
 > **이 문서는 이력용이다.** 현행 작업 목록은 저장소 루트의 `TODO.md`를 본다.
 > TODO.md의 TODO-01 ~ TODO-19는 2026-08-12에 모두 완료되었다.
@@ -9,6 +9,34 @@
 ---
 
 ## 완료된 태스크
+
+### TASK-20: 미사용 코드·기능 제거 — ✅ 완료 (2026-08-13)
+- 라이브러리 13,578줄 → 10,777줄 (-2,801줄, -20.6%), 소스 파일 12개 삭제.
+- 남긴 것: UDP 지원, `RawDataReceived`, `CollectSend`, `IConnectionFilter`, `ILog` 전체 레벨.
+- 없어진 이름을 코드나 예전 문서에서 만났을 때 참고할 대응표:
+
+| 제거 대상 | 대체 |
+|---|---|
+| `IReceiveFilter<T>.Filter(ReadOnlySpan<byte>, bool, out int)` | `ISequenceReceiveFilter<T>.Filter(ReadOnlySequence<byte>, ...)` |
+| `ISocketSession.OrigReceiveOffset` | 없음 (Pipelines 경로에서 항상 0이었다) |
+| `AppServerBase.OnStartup()` | `OnStarted()` |
+| `AppServer<T,TReq>.GetAppSessionByID()` | `GetSessionByID()` |
+| `AppServerBase.GetFilePath()` | `Path.Combine(AppContext.BaseDirectory, ...)` |
+| `HttpReceiveFilterBase` / `HttpRequestInfoBase` / `MimeHeaderHelper` | 없음 (HTTP 미지원) |
+| `SendingQueue` / `SendingQueueSourceCreator` | 내부 `ChannelSendingQueue` |
+| `IPoolInfo` / `ISmartPool<T>` / `ISmartPoolSource` / `ISmartPoolSourceCreator<T>` / `SmartPoolSource` | `SmartPool<T>` 생성자 (`minPoolSize, maxPoolSize, Func<T>`) |
+| `ISocketServer.SendingQueuePool` | 없음 (항상 null이었다) |
+| `IWorkItem` / `IWorkItemBase` / `ISystemEndPoint` / `ISocketServerAccessor` | 멤버는 `IAppServer`로 흡수 |
+| `IReceiveFilterFactory` (비제네릭 마커) | `IReceiveFilterFactory<TRequestInfo>` |
+| `IConnectionFilter.Initialize()` | 없음 (호출된 적 없다) |
+| `AssemblyUtil` | `PropertyCopier.CopyPropertiesTo` |
+| `Platform` | `OperatingSystem.IsWindows()` |
+| `ArraySegmentList<T>` (제네릭) / `IList<byte>` 구현 / `Decode` / `DecodeMask` | byte 전용 `ArraySegmentList` |
+| `BinaryUtil`의 `IndexOf` / `StartsWith` / `EndsWith` / mark 오버로드 | `SearchMark(state)` / `CloneRange` |
+| `StringExtension`의 `ToInt32` 외 전부 | `int.TryParse` 등 BCL |
+| `IServerConfig`: `ReceiveFilterFactory` / `Disabled` / `ConnectionFilter` / `LogFactory` / `DefaultCulture` | 없음 (XML 설정 잔재) |
+| `IRootConfig`: `LogFactory` / `OptionElements` / `DefaultCulture` | 없음 |
+| `HotUpdateAttribute` / `ICommandAssemblyConfig` / `CommandAssemblyConfig` | 없음 |
 
 ### TASK-04: SocketAsyncEventArgs 풀 개선 — ✅ 완료
 - **파일**: `AsyncSocketServer.cs`

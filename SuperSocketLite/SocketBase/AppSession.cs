@@ -24,21 +24,6 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
     /// <summary>Gets or sets the charset which is used for transfering text message.</summary>
     public Encoding Charset { get; set; } = null!;
 
-    private IDictionary<object, object>? _items;
-
-    /// <summary>Gets the items dictionary, only support 10 items maximum</summary>
-    public IDictionary<object, object> Items
-    {
-        get
-        {
-            if (_items == null)
-                _items = new Dictionary<object, object>(10);
-
-            return _items;
-        }
-    }
-
-
     // volatile: set to false on the close thread (OnSocketSessionClosed), read on the
     // sending thread inside InternalSend()'s while(_connected) spin.  Without volatile
     // the write may not be visible on ARM, causing an infinite spin.
@@ -50,12 +35,6 @@ public abstract class AppSession<TAppSession, TRequestInfo> : IAppSession, IAppS
         get { return _connected; }
         internal set { _connected = value; }
     }
-
-    /// <summary>Gets or sets the previous command.</summary>
-    public string? PrevCommand { get; set; }
-
-    /// <summary>Gets or sets the current executing command.</summary>
-public string? CurrentCommand { get; set; }
 
     /// <summary>Gets the local listening endpoint.</summary>
     public IPEndPoint? LocalEndPoint => SocketSession.LocalEndPoint;
@@ -482,22 +461,6 @@ public string? CurrentCommand { get; set; }
     }
 
 
-    public bool CollectSend(byte[] source, int pos, int count)
-    {
-        return this.SocketSession.CollectSend(source, pos, count);
-    }
-
-    public ArraySegment<byte> GetCollectSendData()
-    {
-        return this.SocketSession.GetCollectSendData();
-    }
-
-    public void CommitCollectSend(int size)
-    {
-        this.SocketSession.CommitCollectSend(size);
-    }
-
-
     /// <summary>Sets the next Receive filter which will be used when next data block received</summary>
     protected void SetNextReceiveFilter(IReceiveFilter<TRequestInfo> nextReceiveFilter)
     {
@@ -515,13 +478,6 @@ public string? CurrentCommand { get; set; }
     /// <param name="offsetDelta">return offset delta of next receiving buffer.</param>
     TRequestInfo? FilterRequest(byte[] readBuffer, int offset, int length, bool toBeCopied, out int rest, out int offsetDelta)
     {
-        if (!AppServer.OnRawDataReceived(this, readBuffer, offset, length))
-        {
-            rest = 0;
-            offsetDelta = 0;
-            return null;
-        }
-
         var currentRequestLength = _receiveFilter.LeftBufferSize;
 
         var requestInfo = _receiveFilter.Filter(readBuffer, offset, length, toBeCopied, out rest);
@@ -611,7 +567,7 @@ public string? CurrentCommand { get; set; }
     /// </summary>
     ProcessReceiveResult IAppSession.ProcessRequest(ReadOnlySequence<byte> sequence)
     {
-        if (!AppServer.HasRawDataReceivedHandler && _receiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
+        if (_receiveFilter is ISequenceReceiveFilter<TRequestInfo> sequenceReceiveFilter)
         {
             return ProcessSequenceRequest(sequence, sequenceReceiveFilter);
         }

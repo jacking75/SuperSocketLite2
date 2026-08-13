@@ -74,42 +74,6 @@ static class FilterAndQueueTests
         }
     }
 
-    /// <summary>
-    /// TODO-18: ReuseLockBaseBuffer boundary behaviour after the double-copy simplification.
-    /// </summary>
-    public static void ReuseLockBaseBufferHandlesCommitBoundaries()
-    {
-        var buffer = new ReuseLockBaseBuffer(16);
-
-        Assert.True(buffer.Copy(new byte[] { 1, 2, 3, 4, 5, 6 }, 0, 6), "the first copy should fit");
-
-        // Partial commit keeps the leftover bytes and slides them to the front.
-        buffer.Commit(2);
-        AssertSegment(new byte[] { 3, 4, 5, 6 }, buffer.GetData(), "a partial commit should keep the unread bytes");
-
-        buffer.Commit(0);
-        AssertSegment(new byte[] { 3, 4, 5, 6 }, buffer.GetData(), "committing zero bytes should be a no-op");
-
-        buffer.Commit(-5);
-        AssertSegment(new byte[] { 3, 4, 5, 6 }, buffer.GetData(), "a negative commit should be a no-op");
-
-        // Committing everything resets to the front.
-        buffer.Commit(4);
-        Assert.Equal(0, buffer.GetData().Count, "committing everything should empty the buffer");
-
-        Assert.True(buffer.Copy(new byte[] { 7, 8 }, 0, 2), "the buffer should be reusable after a full commit");
-        AssertSegment(new byte[] { 7, 8 }, buffer.GetData(), "the reused buffer should start from the front");
-
-        // Committing more than is available also resets instead of corrupting the positions.
-        buffer.Commit(100);
-        Assert.Equal(0, buffer.GetData().Count, "an over-commit should reset the buffer");
-
-        // The buffer refuses a copy that would exactly fill it (deliberately conservative).
-        var full = new ReuseLockBaseBuffer(8);
-        Assert.True(!full.Copy(new byte[8], 0, 8), "an exactly-filling copy is rejected");
-        Assert.True(full.Copy(new byte[7], 0, 7), "one byte below capacity should fit");
-    }
-
     private static void AssertSegment(byte[] expected, ArraySegment<byte> actual, string message)
     {
         Assert.Equal(expected.Length, actual.Count, message);

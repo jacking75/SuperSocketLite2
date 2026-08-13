@@ -16,9 +16,6 @@ public interface IAppSession : ISessionBase
     /// <summary>Gets the socket session of the AppSession.</summary>
     ISocketSession SocketSession { get; }
 
-    /// <summary>Gets the items.</summary>
-    IDictionary<object, object> Items { get; }
-
     /// <summary>Gets the config of the server.</summary>
     IServerConfig Config { get; }
 
@@ -44,12 +41,6 @@ public interface IAppSession : ISessionBase
     /// <summary>Gets or sets the charset which is used for transfering text message.</summary>
     Encoding Charset { get; set; }
 
-    /// <summary>Gets or sets the previous command.</summary>
-    string? PrevCommand { get; set; }
-
-    /// <summary>Gets or sets the current executing command.</summary>
-    string? CurrentCommand { get; set; }
-
     /// <summary>Gets the logger assosiated with this session.</summary>
     ILog Logger { get; }
 
@@ -71,12 +62,6 @@ public interface IAppSession : ISessionBase
 
     /// <summary>Starts the session.</summary>
     void StartSession();
-
-
-    ArraySegment<byte> GetCollectSendData();
-
-    void CommitCollectSend(int size);
-    
 }
 
 /// <summary>The interface for appSession</summary>

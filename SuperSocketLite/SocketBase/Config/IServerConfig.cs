@@ -30,8 +30,6 @@ public interface IServerConfig
     /// <summary>Gets a value indicating whether sending is in synchronous mode.</summary>
     bool SyncSend { get; }
 
-    /// <summary>Gets a value indicating whether log command in log file.</summary>
-    bool LogCommand { get; }
 
     /// <summary>Gets a value indicating whether clear idle session.</summary>
     bool ClearIdleSession { get; }
@@ -75,9 +73,6 @@ public interface IServerConfig
     /// <summary>Nodelay</summary>
     bool NoDelay { get; }
 
-    /// <summary>Gets the interval for collect send, in milliseconds.</summary>
-    /// <value>default is 0</value>
-    int CollectSendIntervalMillSec { get; }
 
     /// <summary>
     /// Gets a value indicating whether to pre-allocate SocketAsyncEventArgs objects at startup.

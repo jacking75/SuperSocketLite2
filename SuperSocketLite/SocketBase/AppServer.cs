@@ -36,11 +36,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         if (Config.ClearIdleSession)
             StartClearSessionTimer();
 
-        if(Config.CollectSendIntervalMillSec > 0)
-        {
-            StartCollectSendSessionTimer();
-        }
-
         return true;
     }
 
@@ -135,55 +130,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         timer.Dispose();
         timer = null;
     }
-
-
-    private Timer? _collectSendSessionTimer = null;
-
-    private void StartCollectSendSessionTimer()
-    {
-        int interval = Config.CollectSendIntervalMillSec;
-        _collectSendSessionTimer = StartPeriodicTimer(CollectSendSession, interval);
-
-        if (Logger.IsInfoEnabled)
-        {
-            Logger.Info($"StartCollectSendSessionTimer. CollectSendIntervalMillSec:{interval}");
-        }
-    }
-
-    /// <summary>세션들의 데이터를 모아서 보내기</summary>
-    private void CollectSendSession()
-    {
-        try
-        {
-            var sessionSource = SessionSource;
-
-            if (sessionSource == null)
-                return;
-
-            Parallel.ForEach(sessionSource, s =>
-            {
-                var session = s.Value;
-                var sendData = session.GetCollectSendData();
-                var sendDataLength = sendData.Count;
-
-                if (sendData.Count > 0)
-                {
-                    //SendCopied takes its own pooled copy, so the collect buffer can be
-                    //committed right after without the extra snapshot array.
-                    session.SendCopied(new ReadOnlySpan<byte>(sendData.Array!, sendData.Offset, sendData.Count));
-                }
-
-                session.CommitCollectSend(sendDataLength);
-            });
-        }
-        catch (Exception e)
-        {
-            if (Logger.IsErrorEnabled)
-                Logger.Error("Collect Send Session error!", e);
-        }
-    }
-
-     
 
 
     private Timer? _clearIdleSessionTimer = null;
@@ -287,7 +233,6 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
         StopTimer(ref _sessionSnapshotTimer);
         StopTimer(ref _clearIdleSessionTimer);
-        StopTimer(ref _collectSendSessionTimer);
 
         _sessionsSnapshot = null;
 

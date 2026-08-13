@@ -14,7 +14,7 @@ namespace SuperSocketLite.SocketBase;
 /// <summary>AppServer base class</summary>
 /// <typeparam name="TAppSession">The type of the app session.</typeparam>
 /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRawDataProcessor<TAppSession>, IRequestHandler<TRequestInfo>, IActiveConnector, IDisposable
+public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TAppSession, TRequestInfo>, IRequestHandler<TRequestInfo>, IActiveConnector, IDisposable
     where TRequestInfo : class, IRequestInfo
     where TAppSession : AppSession<TAppSession, TRequestInfo>, IAppSession, new()
 {
@@ -35,9 +35,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     /// <summary>Gets the Receive filter factory.</summary>
     object IAppServer.ReceiveFilterFactory => this.ReceiveFilterFactory;
-       
-
-    private ISocketServerFactory _socketServerFactory = null!;
 
     /// <summary>Gets the root config.</summary>
     protected IRootConfig RootConfig { get; private set; } = null!;
@@ -53,8 +50,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     // Holds the registration created by Start(CancellationToken) so it can be
     // disposed in Stop() ??prevents the callback from firing after the server stops.
     private CancellationTokenRegistration _stopRegistration;
-
-    private List<IConnectionFilter>? _connectionFilters;
 
     private long _totalHandledRequests = 0;
 
@@ -164,7 +159,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
             
     /// <summary>
-    /// Called from <see cref="Setup(IRootConfig, IServerConfig, ISocketServerFactory, IReceiveFilterFactory{TRequestInfo}, ILogFactory, IEnumerable{IConnectionFilter})"/>
+    /// Called from <see cref="Setup(IRootConfig, IServerConfig, IReceiveFilterFactory{TRequestInfo}, ILogFactory)"/>
     /// once the config, logger, receive filter factory and listeners are in place. Override to add
     /// server specific initialization; return false to fail the setup.
     /// </summary>
@@ -173,7 +168,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
         return true;
     }
 
-    private void SetupBasic(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory)
+    private void SetupBasic(IRootConfig rootConfig, IServerConfig config)
     {
         if (rootConfig == null)
             throw new ArgumentNullException("rootConfig");
@@ -202,8 +197,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
                 throw new Exception("Failed to configure thread pool!");
             }
         }
-
-        _socketServerFactory = socketServerFactory ?? new SocketServerFactory();
 
         //Read text encoding from the configuration
         if (!string.IsNullOrEmpty(config.TextEncoding))
@@ -251,18 +244,18 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
     /// <summary>Setups with the specified config.</summary>
     /// <param name="config">The server config.</param>
-    public bool Setup(IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
+    public bool Setup(IServerConfig config, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null)
     {
-        return Setup(new RootConfig(), config, socketServerFactory, receiveFilterFactory, logFactory, connectionFilters);
+        return Setup(new RootConfig(), config, receiveFilterFactory, logFactory);
     }
 
     /// <summary>Setups the specified root config, this method used for programming setup</summary>
     /// <param name="config">The server config.</param>
-    public bool Setup(IRootConfig rootConfig, IServerConfig config, ISocketServerFactory? socketServerFactory = null, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null, IEnumerable<IConnectionFilter>? connectionFilters = null)
+    public bool Setup(IRootConfig rootConfig, IServerConfig config, IReceiveFilterFactory<TRequestInfo>? receiveFilterFactory = null, ILogFactory? logFactory = null)
     {
         TrySetInitializedState();
 
-        SetupBasic(rootConfig, config, socketServerFactory);
+        SetupBasic(rootConfig, config);
 
         SetupLogFactory(logFactory);
 
@@ -270,12 +263,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         if (receiveFilterFactory != null)
             ReceiveFilterFactory = receiveFilterFactory;
-
-        if (connectionFilters != null && connectionFilters.Any())
-        {
-            _connectionFilters ??= [];
-            _connectionFilters.AddRange(connectionFilters);
-        }
 
         if (!SetupListeners(config))
             return false;
@@ -314,7 +301,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     {
         try
         {
-            _socketServer = _socketServerFactory.CreateSocketServer<TRequestInfo>(this, _listeners!, Config);
+            _socketServer = SocketServerFactory.CreateSocketServer<TRequestInfo>(this, _listeners!, Config);
             return _socketServer != null;
         }
         catch (Exception e)
@@ -598,34 +585,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     }
 
 
-    private Func<TAppSession, byte[], int, int, bool>? _rawDataReceivedHandler;
-
-    /// <summary>
-    /// Gets or sets the raw binary data received event handler.
-    /// TAppSession: session
-    /// byte[]: receive buffer
-    /// int: receive buffer offset
-    /// int: receive lenght
-    /// bool: whether process the received data further
-    /// </summary>
-    event Func<TAppSession, byte[], int, int, bool> IRawDataProcessor<TAppSession>.RawDataReceived
-    {
-        add { _rawDataReceivedHandler += value; }
-        remove { _rawDataReceivedHandler -= value; }
-    }
-
-    /// <summary>Called when [raw data received].</summary>
-    internal bool OnRawDataReceived(IAppSession session, byte[] buffer, int offset, int length)
-    {
-        var handler = _rawDataReceivedHandler;
-        if (handler == null)
-            return true;
-
-        return handler((TAppSession)session, buffer, offset, length);
-    }
-
-    internal bool HasRawDataReceivedHandler => _rawDataReceivedHandler != null;
-
     private RequestHandler<TAppSession, TRequestInfo>? _requestHandler;
 
     /// <summary>Occurs when a full request item received.</summary>
@@ -639,8 +598,6 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     /// <summary>Executes the command.</summary>
     protected virtual void ExecuteCommand(TAppSession session, TRequestInfo requestInfo)
     {
-        session.CurrentCommand = requestInfo.Key;
-
         var handler = _requestHandler;
         if (handler == null)
             return;
@@ -659,14 +616,7 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
 
         s_RequestDurationHistogram.Record(Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds, ServerTag);
 
-        session.PrevCommand = requestInfo.Key;
         session.MarkActive();
-
-        if (Config.LogCommand && Logger.IsInfoEnabled)
-        {
-            Logger.Log(LogEventLevel.Info, session.SessionLogContext,
-                string.Format("Command - {0}", requestInfo.Key));
-        }
 
         Interlocked.Increment(ref _totalHandledRequests);
 
@@ -682,35 +632,9 @@ public abstract class AppServerBase<TAppSession, TRequestInfo> : IAppServer<TApp
     void IRequestHandler<TRequestInfo>.ExecuteCommand(IAppSession session, TRequestInfo requestInfo)
         => ExecuteCommand(session, requestInfo);
 
-    /// <summary>Gets or sets the server's connection filter</summary>
-    public IEnumerable<IConnectionFilter>? ConnectionFilters => _connectionFilters;
-
-    /// <summary>Executes the connection filters.</summary>
-    private bool ExecuteConnectionFilters(IPEndPoint? remoteAddress)
-    {
-        if (_connectionFilters == null)
-            return true;
-
-        for (var i = 0; i < _connectionFilters.Count; i++)
-        {
-            var currentFilter = _connectionFilters[i];
-            if (!currentFilter.AllowConnect(remoteAddress))
-            {
-                if (Logger.IsInfoEnabled)
-                    Logger.Info($"A connection from {remoteAddress} has been refused by filter {currentFilter.Name}!");
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     /// <summary>Creates the app session.</summary>
     IAppSession IAppServer.CreateAppSession(ISocketSession socketSession)
     {
-        if (!ExecuteConnectionFilters(socketSession.RemoteEndPoint))
-            return null!;
-
         var appSession = CreateAppSession(socketSession);
         
         appSession.Initialize(this, socketSession);

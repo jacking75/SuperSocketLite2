@@ -12,7 +12,6 @@ using SuperSocketLite.SocketEngine.Protocol;
 
 var tests = new (string Name, Action Test)[]
 {
-    ("ReuseLockBaseBuffer.Copy appends data and Commit preserves remaining bytes", ReuseLockBaseBufferCopyAppendsData),
     ("FixedHeaderReceiveFilter reports accumulated body length and rejects negative body length", FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength),
     ("UDP receive packet exposes pooled payload without cloning and snapshots endpoint", UdpReceivePacketExposesPooledPayloadAndEndpoint),
     ("Channel send queue drains batches in FIFO order with bounded capacity", ChannelSendQueueDrainsBatchesInFifoOrder),
@@ -38,7 +37,6 @@ var tests = new (string Name, Action Test)[]
     ("Connections refused by the connection limit are counted", LiveServerTests.RejectedSessionsAreCounted),
     ("Send queue EnqueueAsync waits for space and resumes after a drain", FilterAndQueueTests.SendQueueEnqueueAsyncWaitsForSpace),
     ("Send queue EnqueueAsync unblocks on Complete and on cancellation", FilterAndQueueTests.SendQueueEnqueueAsyncUnblocksOnCompleteAndCancel),
-    ("ReuseLockBaseBuffer handles commit boundaries", FilterAndQueueTests.ReuseLockBaseBufferHandlesCommitBoundaries),
     ("A minimal ILog adapter still receives session-scoped entries", LoggingTests.MinimalAdapterStillReceivesSessionScopedEntries),
     ("Flattened log entries never span more than one line", LoggingTests.FlattenedEntriesAreSingleLine),
     ("Every log level accepts an exception", LoggingTests.EveryLevelAcceptsAnException),
@@ -66,22 +64,6 @@ foreach (var (name, test) in tests)
 
 if (failures > 0)
     Environment.Exit(1);
-
-static void ReuseLockBaseBufferCopyAppendsData()
-{
-    var buffer = new ReuseLockBaseBuffer(16);
-
-    AssertTrue(buffer.Copy(new byte[] { 1, 2, 3 }, 0, 3), "first copy should fit");
-    AssertEqual(3, buffer.GetData().Count, "first copy should advance write position");
-
-    AssertTrue(buffer.Copy(new byte[] { 4, 5 }, 0, 2), "second copy should fit");
-    var data = buffer.GetData();
-    AssertEqual(5, data.Count, "second copy should append after first copy");
-    AssertSequence(new byte[] { 1, 2, 3, 4, 5 }, data);
-
-    buffer.Commit(3);
-    AssertSequence(new byte[] { 4, 5 }, buffer.GetData());
-}
 
 static void FixedHeaderReceiveFilterTracksBodyAndRejectsNegativeLength()
 {

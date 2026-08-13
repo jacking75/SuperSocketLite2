@@ -42,8 +42,6 @@ abstract partial class SocketSession : ISocketSession
     // up the Closed bit (0x01000000) as soon as it was set, yielding a bogus reason.
     private int _closeReasonCode = NoCloseReason;
 
-    private ReuseLockBaseBuffer? CollectSendBuffer = null;
-
     protected Pipe? _receivePipe;
     protected PipeWriter? _pipeWriter;
     protected PipeReader? _pipeReader;
@@ -121,12 +119,6 @@ abstract partial class SocketSession : ISocketSession
 
         _sendQueue = new ChannelSendingQueue(Math.Max(Config.SendingQueueSize, 1));
 
-        if (Config.CollectSendIntervalMillSec > 0)
-        {
-            CollectSendBuffer = new ReuseLockBaseBuffer(Config.ReceiveBufferSize);
-            SyncSend = true;
-        }
-
         // Initialize the receive pipeline. PipeOptions.useSynchronizationContext=false keeps
         // ProcessPipeAsync off the captured SynchronizationContext.
         var segmentSize = Math.Max(Config.ReceiveBufferSize, 1);
@@ -193,22 +185,6 @@ abstract partial class SocketSession : ISocketSession
 
     /// <summary>Occurs when [closed].</summary>
     public Action<ISocketSession, CloseReason>? Closed { get; set; }
-
-    public bool CollectSend(byte[] source, int pos, int count)
-    {
-        return CollectSendBuffer!.Copy(source, pos, count);
-    }
-
-    public ArraySegment<byte> GetCollectSendData()
-    {
-        return CollectSendBuffer!.GetData();
-    }
-
-    public void CommitCollectSend(int size)
-    {
-        CollectSendBuffer!.Commit(size);
-    }
-
 
     /// <summary>Tries to send array segment.</summary>
     public bool TrySend(IList<ArraySegment<byte>> segments)

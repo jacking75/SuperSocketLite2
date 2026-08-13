@@ -5,12 +5,12 @@ using SuperSocketLite.SocketBase.Config;
 
 namespace SuperSocketLite.SocketEngine;
 
-/// <summary>Default socket server factory</summary>
-public class SocketServerFactory : ISocketServerFactory
+/// <summary>Creates the socket server matching the configured <see cref="SocketMode"/>.</summary>
+internal static class SocketServerFactory
 {
     /// <summary>Creates the socket server.</summary>
     /// <typeparam name="TRequestInfo">The type of the request info.</typeparam>
-    public ISocketServer CreateSocketServer<TRequestInfo>(IAppServer appServer, ListenerInfo[] listeners, IServerConfig config)
+    public static ISocketServer CreateSocketServer<TRequestInfo>(IAppServer appServer, ListenerInfo[] listeners, IServerConfig config)
         where TRequestInfo : IRequestInfo
     {
         if (appServer == null)

@@ -109,8 +109,6 @@ public class ServerConfig : IServerConfig
     /// <summary>Gets a value indicating whether sending is in synchronous mode.</summary>
     public bool SyncSend { get; set; }
 
-    /// <summary>Gets/sets a value indicating whether log command in log file.</summary>
-    public bool LogCommand { get; set; }
 
     /// <summary>Gets/sets a value indicating whether clear idle session.</summary>
     public bool ClearIdleSession { get; set; }
@@ -164,7 +162,6 @@ public class ServerConfig : IServerConfig
 
     public bool NoDelay { get; set; }
 
-    public int CollectSendIntervalMillSec { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to pre-allocate SocketAsyncEventArgs objects at startup.

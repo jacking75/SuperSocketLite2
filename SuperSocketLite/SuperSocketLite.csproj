@@ -13,7 +13,7 @@
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
     <PackageVersion>0.91.0</PackageVersion>
     <Version>0.91.0</Version>
-	<PackageId>SuperSocketLite</PackageId>
+	<PackageId>SuperSocketLite2</PackageId>
 	<Authors>jacking75</Authors>
 	<Company>Com2us</Company>	
     <Description>SuperSocketLite의 차기 버전</Description>

@@ -64,8 +64,15 @@ path, the send queue, the object pools — with a design built around `Pipelines
 ### Get the library
 
 SuperSocketLite2 (0.91+, targeting .NET 10, the `Pipelines`-based engine described in this
-document) has not been published to NuGet yet — the `SuperSocketLite` package on NuGet.org is
-still the older, pre-rewrite line. Until a new release goes out, reference the project directly:
+document) ships as its own NuGet package, **`SuperSocketLite2`** — a separate package ID from the
+older, pre-rewrite `SuperSocketLite` package on NuGet.org (still the .NET 9 line, unaffected by
+this repository).
+
+```bash
+dotnet add package SuperSocketLite2
+```
+
+Until the first release is published, reference the project directly instead:
 
 ```bash
 git clone https://github.com/jacking75/SuperSocketLite2.git
@@ -297,8 +304,9 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 - [Known caveats](.claude/cautions.md) *(Korean)* — thread-safety notes, zero-copy buffer lifetime, UDP quirks
 - [Minimising GC and copies](Docs/GC_Copy_Minimization.md) *(Korean)* — how to get to zero
   per-packet allocations in your receive filter, packet handlers, and send calls
-- [Diagrams](Docs/index.html) *(Korean)* — architecture, TCP connection flow, receive/send pipeline detail
-- [Setting up VS Code for whole-repository analysis](Docs/VSCode_Repository_Analysis.html) *(Korean)*
+- [Getting Started](Docs/Getting_Started.html) — build, usage, and the same caveats as one page
+- [Diagrams](Docs/index.html) — architecture, TCP connection flow, receive/send pipeline detail
+- [Setting up VS Code for whole-repository analysis](Docs/VSCode_Repository_Analysis.html)
 
 ## Contributing
 

@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite Getting Started — Build, Usage, Must-Knows</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); margin-left: 6px; vertical-align: middle;
+  }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SuperSocketLite Getting Started</h1>
+  <p class="lead">How to <strong>build</strong> the library, how to <strong>use</strong> it, and what you
+  <strong>need to know</strong> before you do — all in one document.</p>
+  <p class="lead">Internal mechanics and diagrams live in the <a href="Guide.html">Guide</a>; the full
+  source text is in the repository root's <code>README.md</code> and <code>.claude/cautions.md</code>
+  <em>(Korean)</em> — this page is a single-stop skim of both.</p>
+  <div class="linkrow">
+    <a href="#build">Build</a>
+    <a href="#start">Minimal Server</a>
+    <a href="#send">Send API</a>
+    <a href="#config">Key Settings</a>
+    <a href="#udp">UDP</a>
+    <a href="#observability">Observability</a>
+    <a href="#cautions">Must-Knows</a>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#build">Building</a></li>
+    <li><a href="#start">Building a Minimal Server</a></li>
+    <li><a href="#send">Which Send to Use — the Send API</a></li>
+    <li><a href="#config">Key Settings</a></li>
+    <li><a href="#udp">UDP Support</a></li>
+    <li><a href="#observability">Observability</a></li>
+    <li><a href="#cautions">Must-Knows</a></li>
+    <li><a href="#more">Further Reading</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ BUILD ============================ -->
+<h2 id="build">1. Building</h2>
+
+<h3>Requirements</h3>
+<ul class="tight">
+  <li>.NET 10.0 SDK</li>
+  <li>Windows or Linux — both the async socket engine (<code>SocketAsyncEventArgs</code>/IOCP) and the TCP keep-alive options are cross-platform.</li>
+</ul>
+
+<h3>Building just the library</h3>
+<pre><code>cd SuperSocketLite
+dotnet build -c Release</code></pre>
+<p>
+The output lands in <code>bin/net10.0/</code> at the repository root — <code>SuperSocketLite.csproj</code>
+sets <code>OutputPath</code> to <code>..\bin</code> (one level up from the csproj).
+</p>
+
+<div class="note">
+The package version in the current source (per <code>SuperSocketLite.csproj</code>) is
+<strong>0.91.0</strong>. Building the whole solution (<code>SuperSocketLite2.slnx</code>) also refreshes
+the example executables committed to the repo (<code>Tutorials/*/00_server_bins</code>, etc.). To verify
+just the library code, build only <code>SuperSocketLite/SuperSocketLite.csproj</code> and whichever test
+projects you need — that avoids the issue entirely.
+</div>
+
+<h3>Referencing it — a separate NuGet package, <code>SuperSocketLite2</code></h3>
+<p>
+This repository's code (receive built on <code>System.IO.Pipelines</code>, send built on
+<code>Channel&lt;T&gt;</code>) ships as its own NuGet package, <strong><code>SuperSocketLite2</code></strong> —
+a different package ID from the older <code>SuperSocketLite</code> package on NuGet.org (still the
+pre-rewrite, .NET 9 line, unaffected by this repository).
+</p>
+<pre><code>dotnet add package SuperSocketLite2</code></pre>
+<p>Until the first release is published, pull the source and reference the project directly instead.</p>
+<pre><code>git clone https://github.com/jacking75/SuperSocketLite2.git</code></pre>
+<pre><code>&lt;ItemGroup&gt;
+  &lt;ProjectReference Include="..\SuperSocketLite2\SuperSocketLite\SuperSocketLite.csproj" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<h3>Verifying with the tests</h3>
+<p>
+The repo ships both a regression suite that verifies the library itself and a load-test toolkit that
+drives real TCP/UDP traffic against a live server to measure throughput and latency. Neither is xUnit —
+both are custom runners.
+</p>
+<pre><code>dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
+dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release</code></pre>
+<p>For exact case counts and coverage, see the "Testing &amp; Quality" section of the repository root's <a href="../README.md"><code>README.md</code></a>.</p>
+
+<!-- ============================ START ============================ -->
+<h2 id="start">2. Building a Minimal Server</h2>
+
+<p>
+There are exactly two things you fill in: a <strong>receive filter</strong> that decides where packet
+boundaries fall, and a <strong>request handler</strong> for what to do with a packet once you have one.
+Below is a minimal server that echoes back a protocol consisting of a 4-byte length prefix followed by a
+body — it builds and runs as-is.
+</p>
+
+<pre><code>// EchoProtocol.cs
+using System.Buffers;
+using System.Buffers.Binary;
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Protocol;
+using SuperSocketLite.SocketEngine.Protocol;
+
+// The request info. Body points straight at the receive pipe's memory, and the filter
+// hands back the same instance every time, so receiving a packet allocates nothing.
+// Once the handler returns, though, this instance and Body are no longer valid (see 7.4).
+public sealed class MyRequestInfo : IRequestInfo
+{
+    public string Key =&gt; string.Empty;
+    public ReadOnlySequence&lt;byte&gt; Body { get; private set; }
+    public void Set(ReadOnlySequence&lt;byte&gt; body) =&gt; Body = body;
+}
+
+// Reads the 4-byte length prefix and reports how big the body is.
+public sealed class MyReceiveFilter : FixedHeaderReceiveFilter&lt;MyRequestInfo&gt;
+{
+    private readonly MyRequestInfo _reusable = new();
+
+    public MyReceiveFilter() : base(4) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence&lt;byte&gt; header)
+    {
+        Span&lt;byte&gt; buffer = stackalloc byte[4];
+        header.CopyTo(buffer);                       // safe even if the header spans segments
+        return BinaryPrimitives.ReadInt32LittleEndian(buffer);
+    }
+
+    protected override MyRequestInfo ResolveRequestInfo(
+        ReadOnlySequence&lt;byte&gt; header, ReadOnlySequence&lt;byte&gt; body)
+    {
+        _reusable.Set(body);
+        return _reusable;
+    }
+}
+
+public sealed class MySession : AppSession&lt;MySession, MyRequestInfo&gt; { }
+
+public sealed class MyServer : AppServer&lt;MySession, MyRequestInfo&gt;
+{
+    public MyServer() : base(new DefaultReceiveFilterFactory&lt;MyReceiveFilter, MyRequestInfo&gt;()) { }
+}</code></pre>
+
+<pre><code>// Program.cs
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Config;
+using SuperSocketLite.SocketBase.Logging;
+
+var config = new ServerConfig
+{
+    Ip = "Any",
+    Port = 2012,
+    MaxConnectionNumber = 1000,
+    Mode = SocketMode.Tcp,
+    Name = "EchoServer"
+};
+
+var server = new MyServer();
+
+server.NewRequestReceived += (session, request) =&gt;
+{
+    if (request.Body.IsSingleSegment)
+        session.SendCopied(request.Body.FirstSpan);
+    else
+        session.SendCopied(request.Body.ToArray());   // rare: the packet spans pipe segments
+};
+
+if (!server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory()))
+{
+    Console.WriteLine("Failed to set up the server.");
+    return;
+}
+
+server.Start();
+Console.WriteLine("Listening on 2012. Press any key to stop...");
+Console.ReadKey();
+server.Stop();</code></pre>
+
+<div class="note">
+A ready-to-run project version of this lives at <a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a>.
+The layered structure and animated receive/send flow are in chapters 1–3 of the
+<a href="Guide.html">Guide</a>; which tutorial to read next is in
+<a href="Tutorials_Path.html">Reading Order for the Examples</a>.
+</div>
+
+<!-- ============================ SEND ============================ -->
+<h2 id="send">3. Which Send to Use — the Send API</h2>
+
+<p>
+The four send APIs differ in <strong>whether they copy</strong> and <strong>what happens when the queue is
+full</strong>. Pick the one that fits.
+</p>
+
+<table>
+  <tr><th>Method</th><th>Copy semantics</th><th>When to use it</th></tr>
+  <tr>
+    <td><code>Send(byte[], offset, length)</code> / <code>TrySend</code></td>
+    <td>Zero-copy — the library keeps a reference to your array</td>
+    <td>You own a buffer you won't touch again until it's sent</td>
+  </tr>
+  <tr>
+    <td><code>SendCopied(ReadOnlySpan&lt;byte&gt;)</code> / <code>TrySendCopied</code></td>
+    <td>Copies into a pooled buffer</td>
+    <td>You need your buffer back immediately (e.g. a reused scratch buffer)</td>
+  </tr>
+  <tr>
+    <td><code>SendAsync(ReadOnlyMemory&lt;byte&gt;, CancellationToken)</code></td>
+    <td>Zero-copy for array-backed memory</td>
+    <td>You want to <code>await</code> when the send queue is full instead of spinning. <code>SendTimeOut</code> doesn't apply; cancel via the token</td>
+  </tr>
+  <tr>
+    <td><code>Send(IList&lt;ArraySegment&lt;byte&gt;&gt;)</code></td>
+    <td>The <strong>list</strong> is copied on enqueue (the arrays are not)</td>
+    <td>Sending several segments as one logical message — the list can be reused right after the call</td>
+  </tr>
+</table>
+
+<div class="warn">
+<code>TrySend</code>/<code>TrySendCopied</code> return <code>false</code> without throwing when the session is
+closed or the queue is full. <code>Send</code>/<code>SendCopied</code>, on the other hand, wait up to
+<code>ServerConfig.SendTimeOut</code> and then throw <code>TimeoutException</code> — see
+<a href="#caution-timeout">section 7.6</a> for the exact order of operations after you catch it.
+</div>
+
+<!-- ============================ CONFIG ============================ -->
+<h2 id="config">4. Key Settings</h2>
+
+<p>
+<code>ServerConfig</code> covers the usual suspects (<code>Port</code>, <code>MaxConnectionNumber</code>,
+<code>ReceiveBufferSize</code>, <code>SendTimeOut</code>, TCP keep-alive, idle session cleanup) plus a few
+knobs worth knowing about.
+</p>
+
+<table>
+  <tr><th>Setting</th><th>Default</th><th>What it's for</th></tr>
+  <tr>
+    <td><code>ReceiveInlineOnIocpThread</code></td>
+    <td><code>true</code></td>
+    <td>Advances the receive pipe directly on the IOCP completion thread instead of dispatching to the thread pool — saves a thread hop and two <code>Task</code> allocations per received packet.</td>
+  </tr>
+  <tr>
+    <td><code>PreAllocateSAEA</code> / <code>MinPoolSize</code></td>
+    <td><code>true</code> / <code>100</code></td>
+    <td>Pre-allocate every pooled <code>SocketAsyncEventArgs</code> at startup for the best accept-time latency, or grow the pool on demand from <code>MinPoolSize</code>.</td>
+  </tr>
+  <tr>
+    <td><code>MaxReceivePipeBufferSize</code></td>
+    <td><code>65536</code></td>
+    <td>The receive pipe's backpressure threshold; automatically raised to fit <code>MaxRequestLength</code>.</td>
+  </tr>
+  <tr>
+    <td><code>SyncSessionConnectedEvent</code></td>
+    <td><code>false</code></td>
+    <td>Raises <code>NewSessionConnected</code> synchronously during accept, structurally guaranteeing it runs before a fast client's first request. Keep the handler light — it now blocks accept.</td>
+  </tr>
+  <tr>
+    <td><code>AcceptLoopCount</code></td>
+    <td><code>1</code></td>
+    <td>Runs several concurrent accept loops on the same listening socket — helps absorb a reconnect storm.</td>
+  </tr>
+  <tr>
+    <td><code>UseZeroByteReceive</code></td>
+    <td><code>false</code></td>
+    <td>An idle session waits on a zero-byte receive instead of holding a real receive buffer — cuts idle-connection memory on servers where most sessions are quiet.</td>
+  </tr>
+  <tr>
+    <td><code>KeepAliveRetryCount</code></td>
+    <td><code>5</code></td>
+    <td>How many unacknowledged keep-alive probes go out before the connection is treated as dead. <code>0</code> or less leaves the OS default alone.</td>
+  </tr>
+</table>
+
+<div class="warn">
+The four settings above (<code>ReceiveInlineOnIocpThread</code>, <code>SyncSessionConnectedEvent</code>,
+<code>MaxReceivePipeBufferSize</code>, <code>KeepAliveRetryCount</code>) live only on the
+<strong><code>ServerConfig</code> class, not on the <code>IServerConfig</code> interface.</strong> If you're
+holding the config through an interface-typed variable, cast with <code>config as ServerConfig</code> to
+read or set them — a hand-written <code>IServerConfig</code> implementation gets the defaults instead.
+</div>
+
+<!-- ============================ UDP ============================ -->
+<h2 id="udp">5. UDP Support</h2>
+
+<p>
+UDP sessions go through the same <code>AppSession</code>/<code>IReceiveFilter</code> pipeline as TCP. UDP
+has no connection, though, so something has to decide "whose datagram is this" — there are two ways.
+</p>
+
+<ul class="tight">
+  <li><strong>Keyed by remote endpoint (default)</strong> — used whenever your request type doesn't inherit from <code>UdpRequestInfo</code>.</li>
+  <li><strong>Keyed by a session ID embedded in the payload</strong> — used when your request type inherits from <code>UdpRequestInfo</code>, so a client keeps the same logical session across a NAT rebind.</li>
+</ul>
+
+<p>An example lives at <a href="../Tutorials/SimpleUDPServer"><code>Tutorials/SimpleUDPServer</code></a>. UDP-specific caveats are in <a href="#caution-udp">section 7.8</a>.</p>
+
+<!-- ============================ OBSERVABILITY ============================ -->
+<h2 id="observability">6. Observability</h2>
+
+<p>
+Everything is published through a single <code>Meter("SuperSocketLite")</code> — built on
+<code>System.Diagnostics.Metrics</code>, so any OpenTelemetry-compatible collector can attach.
+</p>
+
+<table>
+  <tr><th>Kind</th><th>Name</th><th>Notes</th></tr>
+  <tr>
+    <td>Counters</td>
+    <td><code>total-requests</code>, <code>total-bytes-received</code>, <code>total-bytes-sent</code>,
+        <code>sessions-rejected</code>, <code>send-queue-full</code>, <code>send-errors</code>,
+        <code>active-connections</code> (an <code>UpDownCounter</code>)</td>
+    <td>Updated as events happen — costs one <code>Add</code> even with nobody listening</td>
+  </tr>
+  <tr>
+    <td>Histogram</td>
+    <td><code>request-duration</code></td>
+    <td>Time spent inside your request handler</td>
+  </tr>
+  <tr>
+    <td>Gauges</td>
+    <td><code>session-count</code>, plus internal send-queue-depth and <code>SocketAsyncEventArgs</code> pool-usage gauges (not public C# properties)</td>
+    <td><code>ObservableGauge</code>s — computed only when a collector actually asks, so the cost is zero when nobody is watching</td>
+  </tr>
+</table>
+
+<!-- ============================ CAUTIONS ============================ -->
+<h2 id="cautions">7. Must-Knows</h2>
+
+<p>
+The 8 items below compile fine and mostly work at light load — the kind of problem that only shows up
+under real traffic. The source text is <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>
+<em>(Korean)</em>; this section is a translation of it.
+</p>
+
+<h3 id="caution-thread">7.1 Thread safety</h3>
+<p>
+<code>NewSessionConnected</code> and <code>NewRequestReceived</code> can be called <strong>concurrently</strong>
+on different threads. If a client sends a packet immediately after connecting, you can hit a race where
+the first request arrives before the connected handler has finished setting up session state.
+</p>
+<div class="note">
+Set <code>ServerConfig.SyncSessionConnectedEvent = true</code> and <code>NewSessionConnected</code> is
+called synchronously in the accept path, structurally guaranteeing the "connected → first request" order.
+In exchange, that handler now blocks accept, so keep it light. (Default is <code>false</code> — the
+original behavior.)
+</div>
+
+<h3 id="caution-buffer">7.2 Send buffer lifetime (zero-copy)</h3>
+<p>
+<code>Send(byte[], int, int)</code> / <code>Send(ArraySegment&lt;byte&gt;)</code> /
+<code>Send(IList&lt;ArraySegment&lt;byte&gt;&gt;)</code> / <code>SendAsync(ReadOnlyMemory&lt;byte&gt;)</code>
+(when array-backed) <strong>enqueue a reference to your array.</strong> Modify that array before the send
+completes and corrupted data goes out on the wire.
+</p>
+<pre><code>// Dangerous: reusing buffer
+session.Send(buffer, 0, len);
+buffer[0] = 0;          // may still be in flight
+
+// Safe: the session copies into a pooled buffer
+session.SendCopied(buffer.AsSpan(0, len));
+buffer[0] = 0;          // OK</code></pre>
+<p>
+For <code>Send(IList&lt;...&gt;)</code>, the <strong>list itself</strong> is copied on enqueue, so it's safe
+to reuse right after the call (only the arrays it references are shared).
+</p>
+<div class="warn">
+<strong>Empty data is handled differently.</strong> <code>TrySendCopied</code>/<code>SendCopied</code>
+enqueue nothing and return success when given empty data. <code>Send(buffer, 0, 0)</code>, by contrast,
+enqueues a zero-length segment and actually attempts to send it — on UDP that means an empty datagram goes
+out. Only relevant if you're moving a protocol where an empty packet is meaningful from <code>Send</code>
+to <code>SendCopied</code>.
+</div>
+
+<h3 id="caution-filter">7.3 Receive filters</h3>
+<p>
+Your filter receives a <code>ReadOnlySequence&lt;byte&gt;</code> straight from the pipe. If a request isn't
+complete yet, just leave <code>consumed</code> where it is — the data stays in the pipe and continues on the
+next receive. A filter with its own carry buffer only adds copies back in.
+</p>
+<p>
+<code>header</code>/<code>body</code> can span multiple segments. Don't read <code>header.First.Span</code>
+directly — use <code>CopyTo(Span)</code> or <code>ToArray()</code>.
+</p>
+<div class="note">
+For UDP combined with <code>UdpRequestInfo</code>, the filter that parses the session ID is
+<strong>reused once per receive thread</strong> (via <code>Reset()</code>). It must not carry state between
+datagrams, and it must not capture the remote endpoint passed into <code>CreateFilter</code>.
+</div>
+
+<h3 id="caution-lifetime">7.4 RequestInfo and body lifetime</h3>
+<p>
+The library calls your <code>NewRequestReceived</code> handler <strong>synchronously</strong>, and only
+advances the pipe after the handler fully returns. UDP is the same — the receive buffer goes back to the
+pool after the handler returns.
+</p>
+<p>
+That guarantee is what lets an app get to <strong>zero allocations per packet</strong>: the filter reuses
+one request instance and hands the body across as a <code>ReadOnlySequence&lt;byte&gt;</code>
+(<a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a> is built this way). In exchange, a
+contract applies.
+</p>
+<div class="danger">
+Once the handler returns, that <code>RequestInfo</code> and its body are <strong>no longer valid.</strong>
+Don't store them in a field, capture them in a lambda, or push them onto another thread's queue.
+Deserialize or copy inside the handler if you need to keep the value. If your architecture hands packets
+off to a logic thread, this approach doesn't apply — borrow from <code>ArrayPool</code> instead, copy, and
+return it in exactly one place after processing
+(<a href="../Tutorials/PvPGameServer"><code>Tutorials/PvPGameServer</code></a> is built this way).
+<br><br>
+Violate this and it still compiles, and usually still works under light load. Data only corrupts once load
+is high enough for the pipe's buffer to get reused, which makes this a <strong>very hard bug to find.</strong>
+</div>
+<p>The diagram for this contract and its two branches (synchronous handling vs. thread handoff) is in
+<a href="Guide.html#part4">Guide chapter 4</a>; measured effects are in the
+<a href="GC_Copy_Minimization.md">GC and Copy Minimization guide</a> <em>(Korean)</em>.</p>
+
+<h3 id="caution-utc">7.5 Time values are UTC</h3>
+<p>
+<code>AppSession.StartTime</code>/<code>LastActiveTime</code> and <code>AppServerBase.StartedTime</code> are
+<strong>UTC</strong>. Call <code>.ToLocalTime()</code> before displaying them locally.
+<code>LastActiveTime</code> is derived from a monotonic tick count, so it can be off by a few milliseconds.
+</p>
+
+<h3 id="caution-timeout">7.6 Order of operations after a timeout</h3>
+<p>After a <code>TimeoutException</code>, closing the session requires this exact order.</p>
+<pre><code>// Correct order
+session.SendEndWhenSendingTimeOut();
+session.Close();</code></pre>
+<div class="danger">
+Calling <code>Close()</code> without <code>SendEndWhenSendingTimeOut()</code> first leaves the
+<code>InSending</code> flag set, and that session is never cleaned up.
+</div>
+
+<h3 id="caution-maxconn">7.7 Exceeding the maximum connection count</h3>
+<p>
+When <code>MaxConnectionNumber</code> is exceeded, SuperSocketLite drops the connection immediately, and
+<code>NewSessionConnected</code> is <strong>never called</strong> for it.
+</p>
+
+<h3 id="caution-udp">7.8 UDP mode</h3>
+<p>
+UDP sessions share an underlying socket instance across sessions, so close-detection behaves differently
+than on TCP. <code>Close()</code> branches internally between the UDP and TCP paths — be careful when
+touching UDP-related code.
+</p>
+
+<!-- ============================ MORE ============================ -->
+<h2 id="more">8. Further Reading</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>Guide &amp; Diagrams</h4>
+    <p>
+      <a href="Guide.html">Guide — reading the library and the examples</a> ·
+      <a href="Library_Architecture.html">Full Architecture</a> ·
+      <a href="Library_Receive_Flow.html">Receive Flow</a> ·
+      <a href="Library_Send_Flow.html">Send Flow</a> ·
+      <a href="Library_Session_Lifecycle.html">Session Lifecycle</a> ·
+      <a href="Tutorials_Path.html">Reading Order for the Examples</a>
+    </p>
+  </div>
+  <div class="card">
+    <h4>Performance</h4>
+    <p><a href="GC_Copy_Minimization.md">GC and Copy Minimization guide</a> <em>(Korean)</em> — how to get per-packet allocations to zero, with measured numbers</p>
+  </div>
+  <div class="card">
+    <h4>Source documents</h4>
+    <p>
+      <a href="../README.md"><code>README.md</code></a> (usage) ·
+      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a> (internals) <em>(Korean)</em> ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a> (coding conventions) <em>(Korean)</em> ·
+      <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a> (source text for chapter 7) <em>(Korean)</em>
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">If this page and README.md/.claude/cautions.md disagree</h4>
+  <p style="margin:0">
+    This page carries over the Quick Start, Configuration, and Observability sections of the repository
+    root's <code>README.md</code> and all of <code>.claude/cautions.md</code>, arranged for a single skim
+    inside this repo's HTML documentation set. If the code changes and something here no longer matches,
+    the source text (<code>README.md</code>, <code>.claude/cautions.md</code>) is correct — fix this page
+    to match it. A Korean translation of this page is at
+    <a href="Getting_Started_kr.html">Getting_Started_kr.html</a>; keep the two in sync.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

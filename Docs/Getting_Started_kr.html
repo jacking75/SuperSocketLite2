@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite 시작하기 — 빌드 · 사용법 · 꼭 알아야 할 것</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); margin-left: 6px; vertical-align: middle;
+  }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SuperSocketLite 시작하기</h1>
+  <p class="lead">라이브러리를 <strong>어떻게 빌드하고</strong>, <strong>어떻게 쓰고</strong>, 쓰기 전에 <strong>꼭 알아야 할 것</strong>이 무엇인지 한 문서에 모았습니다.</p>
+  <p class="lead">내부 동작 원리와 그림은 <a href="Guide_kr.html">안내서</a>에서, 전 항목의 원문은 저장소 루트 <code>README_kr.md</code>와 <code>.claude/cautions.md</code>에서 볼 수 있습니다 — 여기는 그 둘을 한자리에서 훑어보는 용도입니다.</p>
+  <div class="linkrow">
+    <a href="#build">빌드</a>
+    <a href="#start">최소 서버</a>
+    <a href="#send">Send API</a>
+    <a href="#config">주요 설정</a>
+    <a href="#udp">UDP</a>
+    <a href="#observability">관측</a>
+    <a href="#cautions">꼭 알아야 할 것</a>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#build">빌드하기</a></li>
+    <li><a href="#start">최소 서버 만들기</a></li>
+    <li><a href="#send">무엇을 보낼까 — Send API</a></li>
+    <li><a href="#config">주요 설정</a></li>
+    <li><a href="#udp">UDP 지원</a></li>
+    <li><a href="#observability">관측(Observability)</a></li>
+    <li><a href="#cautions">꼭 알아야 할 것</a></li>
+    <li><a href="#more">더 읽을 것</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ BUILD ============================ -->
+<h2 id="build">1. 빌드하기</h2>
+
+<h3>요구 사항</h3>
+<ul class="tight">
+  <li>.NET 10.0 SDK</li>
+  <li>Windows 또는 Linux — 비동기 소켓 엔진(<code>SocketAsyncEventArgs</code>/IOCP)과 TCP keep-alive 옵션 모두 크로스플랫폼입니다.</li>
+</ul>
+
+<h3>라이브러리만 빌드</h3>
+<pre><code>cd SuperSocketLite
+dotnet build -c Release</code></pre>
+<p>
+결과물은 저장소 루트의 <code>bin/net10.0/</code>에 쌓입니다 — <code>SuperSocketLite.csproj</code>의
+<code>OutputPath</code>가 <code>..\bin</code>으로 잡혀 있기 때문입니다(csproj 기준 한 단계 위).
+</p>
+
+<div class="note">
+현재 소스의 패키지 버전은 <code>SuperSocketLite.csproj</code> 기준 <strong>0.91.0</strong>입니다.
+전체 솔루션(<code>SuperSocketLite2.slnx</code>)을 빌드하면 저장소에 커밋되어 있는 예제 실행 파일(
+<code>Tutorials/*/00_server_bins</code> 등)도 함께 갱신됩니다. 라이브러리 코드만 검증할 때는
+<code>SuperSocketLite/SuperSocketLite.csproj</code>와 필요한 테스트 프로젝트만 빌드하면 이 문제가 없습니다.
+</div>
+
+<h3>참조 방법 — 별도 NuGet 패키지 <code>SuperSocketLite2</code></h3>
+<p>
+이 저장소의 코드(<code>System.IO.Pipelines</code> 기반 수신, <code>Channel&lt;T&gt;</code> 기반 송신)는
+<strong><code>SuperSocketLite2</code></strong>라는 별도의 NuGet 패키지로 배포됩니다 — NuGet.org의
+기존 <code>SuperSocketLite</code> 패키지(여전히 재작성 이전의 .NET 9 라인)와는 다른, 독립된 패키지 ID입니다.
+이 저장소의 변경은 기존 패키지에 영향을 주지 않습니다.
+</p>
+<pre><code>dotnet add package SuperSocketLite2</code></pre>
+<p>첫 릴리스가 올라가기 전까지는 소스를 내려받아 프로젝트 참조로 씁니다.</p>
+<pre><code>git clone https://github.com/jacking75/SuperSocketLite2.git</code></pre>
+<pre><code>&lt;ItemGroup&gt;
+  &lt;ProjectReference Include="..\SuperSocketLite2\SuperSocketLite\SuperSocketLite.csproj" /&gt;
+&lt;/ItemGroup&gt;</code></pre>
+
+<h3>테스트로 검증</h3>
+<p>
+라이브러리 자체를 검증하는 회귀 테스트와, 실제 TCP/UDP 트래픽을 서버에 흘려 처리량·지연을 재는
+부하 테스트 도구가 저장소에 함께 있습니다. 둘 다 xUnit이 아니라 자체 러너입니다.
+</p>
+<pre><code>dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
+dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release</code></pre>
+<p>정확한 케이스 수와 커버 범위는 저장소 루트 <a href="../README_kr.md"><code>README_kr.md</code></a>의 "테스트 및 품질" 절을 보세요.</p>
+
+<!-- ============================ START ============================ -->
+<h2 id="start">2. 최소 서버 만들기</h2>
+
+<p>
+채울 곳은 두 군데뿐입니다 — 패킷 경계를 정하는 <strong>수신 필터</strong>와, 패킷 하나를 받았을 때 할 일인
+<strong>요청 핸들러</strong>. 아래는 4바이트 길이 프리픽스 뒤에 본문이 오는 프로토콜을 그대로 에코하는,
+빌드하면 바로 도는 최소 서버입니다.
+</p>
+
+<pre><code>// EchoProtocol.cs
+using System.Buffers;
+using System.Buffers.Binary;
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Protocol;
+using SuperSocketLite.SocketEngine.Protocol;
+
+// 요청 하나를 나타내는 타입. Body는 수신 파이프의 메모리를 그대로 가리키고,
+// 필터가 인스턴스를 돌려 쓰므로 패킷을 받는 데 드는 할당이 없다.
+// 단, 핸들러가 리턴하면 이 인스턴스와 Body는 더 이상 유효하지 않다 (7.4절 참고).
+public sealed class MyRequestInfo : IRequestInfo
+{
+    public string Key =&gt; string.Empty;
+    public ReadOnlySequence&lt;byte&gt; Body { get; private set; }
+    public void Set(ReadOnlySequence&lt;byte&gt; body) =&gt; Body = body;
+}
+
+// 4바이트 길이 프리픽스를 읽고 본문 크기를 알려 준다.
+public sealed class MyReceiveFilter : FixedHeaderReceiveFilter&lt;MyRequestInfo&gt;
+{
+    private readonly MyRequestInfo _reusable = new();
+
+    public MyReceiveFilter() : base(4) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence&lt;byte&gt; header)
+    {
+        Span&lt;byte&gt; buffer = stackalloc byte[4];
+        header.CopyTo(buffer);                       // 헤더가 조각에 걸쳐 있어도 안전하다
+        return BinaryPrimitives.ReadInt32LittleEndian(buffer);
+    }
+
+    protected override MyRequestInfo ResolveRequestInfo(
+        ReadOnlySequence&lt;byte&gt; header, ReadOnlySequence&lt;byte&gt; body)
+    {
+        _reusable.Set(body);
+        return _reusable;
+    }
+}
+
+public sealed class MySession : AppSession&lt;MySession, MyRequestInfo&gt; { }
+
+public sealed class MyServer : AppServer&lt;MySession, MyRequestInfo&gt;
+{
+    public MyServer() : base(new DefaultReceiveFilterFactory&lt;MyReceiveFilter, MyRequestInfo&gt;()) { }
+}</code></pre>
+
+<pre><code>// Program.cs
+using SuperSocketLite.SocketBase;
+using SuperSocketLite.SocketBase.Config;
+using SuperSocketLite.SocketBase.Logging;
+
+var config = new ServerConfig
+{
+    Ip = "Any",
+    Port = 2012,
+    MaxConnectionNumber = 1000,
+    Mode = SocketMode.Tcp,
+    Name = "EchoServer"
+};
+
+var server = new MyServer();
+
+server.NewRequestReceived += (session, request) =&gt;
+{
+    if (request.Body.IsSingleSegment)
+        session.SendCopied(request.Body.FirstSpan);
+    else
+        session.SendCopied(request.Body.ToArray());   // 드묾: 패킷이 파이프 조각에 걸친 경우
+};
+
+if (!server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory()))
+{
+    Console.WriteLine("서버 설정에 실패했습니다.");
+    return;
+}
+
+server.Start();
+Console.WriteLine("2012 포트에서 대기 중. 아무 키나 누르면 종료합니다...");
+Console.ReadKey();
+server.Stop();</code></pre>
+
+<div class="note">
+그대로 실행 가능한 프로젝트가 <a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a>에 있습니다.
+계층 구조와 애니메이션으로 본 수신·송신 흐름은 <a href="Guide_kr.html">안내서</a> 1~3장에,
+어느 튜토리얼부터 볼지는 <a href="Tutorials_Path_kr.html">예제 읽는 순서</a>에 있습니다.
+</div>
+
+<!-- ============================ SEND ============================ -->
+<h2 id="send">3. 무엇을 보낼까 — Send API</h2>
+
+<p>
+네 가지 송신 API는 <strong>복사 여부</strong>와 <strong>큐가 찼을 때의 동작</strong>이 다릅니다. 상황에 맞는 것을 고르세요.
+</p>
+
+<table>
+  <tr><th>메서드</th><th>복사 여부</th><th>언제 쓰나</th></tr>
+  <tr>
+    <td><code>Send(byte[], offset, length)</code> / <code>TrySend</code></td>
+    <td>Zero-copy — 라이브러리가 배열을 참조로 들고 있는다</td>
+    <td>전송이 끝날 때까지 다시 건드리지 않을 버퍼가 있을 때</td>
+  </tr>
+  <tr>
+    <td><code>SendCopied(ReadOnlySpan&lt;byte&gt;)</code> / <code>TrySendCopied</code></td>
+    <td>풀 버퍼로 복사</td>
+    <td>호출 즉시 내 버퍼를 재사용해야 할 때(재사용 스크래치 버퍼 등)</td>
+  </tr>
+  <tr>
+    <td><code>SendAsync(ReadOnlyMemory&lt;byte&gt;, CancellationToken)</code></td>
+    <td>배열 기반 메모리면 zero-copy</td>
+    <td>큐가 찼을 때 스핀 대신 <code>await</code>로 기다리고 싶을 때. <code>SendTimeOut</code>은 적용되지 않고 취소는 CT로 건다</td>
+  </tr>
+  <tr>
+    <td><code>Send(IList&lt;ArraySegment&lt;byte&gt;&gt;)</code></td>
+    <td><strong>리스트 자체</strong>는 enqueue 시 복사(배열은 공유)</td>
+    <td>여러 세그먼트를 한 논리적 메시지로 보낼 때 — 호출 직후 리스트는 재사용 가능</td>
+  </tr>
+</table>
+
+<div class="warn">
+<code>TrySend</code>/<code>TrySendCopied</code>는 세션이 닫혔거나 큐가 찼을 때 예외 없이 <code>false</code>를
+돌려줍니다. 반면 <code>Send</code>/<code>SendCopied</code>는 <code>ServerConfig.SendTimeOut</code>까지
+기다리다가 <code>TimeoutException</code>을 던집니다 — 이 예외를 잡은 뒤의 처리 순서는
+<a href="#caution-timeout">7.6절</a>을 반드시 보세요.
+</div>
+
+<!-- ============================ CONFIG ============================ -->
+<h2 id="config">4. 주요 설정</h2>
+
+<p>
+<code>ServerConfig</code>는 <code>Port</code>, <code>MaxConnectionNumber</code>, <code>ReceiveBufferSize</code>,
+<code>SendTimeOut</code>, TCP keep-alive, 유휴 세션 정리 같은 보통의 항목 외에 알아 둘 만한 옵션이 몇 개 더 있습니다.
+</p>
+
+<table>
+  <tr><th>설정</th><th>기본값</th><th>용도</th></tr>
+  <tr>
+    <td><code>ReceiveInlineOnIocpThread</code></td>
+    <td><code>true</code></td>
+    <td>수신 파이프 전진을 스레드풀로 넘기지 않고 IOCP 완료 스레드에서 바로 한다 — 패킷마다 스레드 전환과 <code>Task</code> 할당 2회를 줄인다.</td>
+  </tr>
+  <tr>
+    <td><code>PreAllocateSAEA</code> / <code>MinPoolSize</code></td>
+    <td><code>true</code> / <code>100</code></td>
+    <td>풀링된 <code>SocketAsyncEventArgs</code>를 시작 시 미리 만들어 accept 지연을 최소화하거나, <code>MinPoolSize</code>부터 필요할 때마다 늘린다.</td>
+  </tr>
+  <tr>
+    <td><code>MaxReceivePipeBufferSize</code></td>
+    <td><code>65536</code></td>
+    <td>수신 파이프의 backpressure 임계값. <code>MaxRequestLength</code>를 넘기지 않도록 자동으로 보정된다.</td>
+  </tr>
+  <tr>
+    <td><code>SyncSessionConnectedEvent</code></td>
+    <td><code>false</code></td>
+    <td><code>NewSessionConnected</code>를 accept 경로에서 동기 호출해 "connected → 첫 요청" 순서를 구조적으로 보장한다. 대신 핸들러를 가볍게 유지해야 한다.</td>
+  </tr>
+  <tr>
+    <td><code>AcceptLoopCount</code></td>
+    <td><code>1</code></td>
+    <td>같은 리스닝 소켓에서 accept 루프를 여러 개 동시에 돌린다 — 재접속 폭주를 흡수할 때 유용하다.</td>
+  </tr>
+  <tr>
+    <td><code>UseZeroByteReceive</code></td>
+    <td><code>false</code></td>
+    <td>유휴 세션이 실제 수신 버퍼를 들고 있는 대신 0바이트 수신으로 대기한다 — 대부분 조용한 세션이 많은 서버에서 유휴 연결 메모리를 줄인다.</td>
+  </tr>
+  <tr>
+    <td><code>KeepAliveRetryCount</code></td>
+    <td><code>5</code></td>
+    <td>연결을 끊긴 것으로 볼 때까지 응답 없는 keep-alive probe를 몇 번 보낼지. <code>0</code> 이하면 OS 기본값을 그대로 둔다.</td>
+  </tr>
+</table>
+
+<div class="warn">
+위 표의 네 항목(<code>ReceiveInlineOnIocpThread</code>, <code>SyncSessionConnectedEvent</code>,
+<code>MaxReceivePipeBufferSize</code>, <code>KeepAliveRetryCount</code>)은 <strong><code>IServerConfig</code> 인터페이스에는
+없고 <code>ServerConfig</code> 클래스에만</strong> 있습니다. 설정 객체를 인터페이스 타입 변수로 들고 있다면
+<code>config as ServerConfig</code>로 캐스팅해야 값을 읽고 쓸 수 있고, 손으로 만든 <code>IServerConfig</code>
+구현체는 이 값들 대신 기본값을 씁니다.
+</div>
+
+<!-- ============================ UDP ============================ -->
+<h2 id="udp">5. UDP 지원</h2>
+
+<p>
+UDP 세션도 TCP와 같은 <code>AppSession</code>/<code>IReceiveFilter</code> 파이프라인을 씁니다. 다만 UDP에는
+연결이 없으므로 "이 데이터그램이 누구 것인지"를 스스로 정해야 하고, 두 방식이 있습니다.
+</p>
+
+<ul class="tight">
+  <li><strong>원격 엔드포인트로 키를 삼는다 (기본)</strong> — 요청 타입이 <code>UdpRequestInfo</code>를 상속하지 않으면 이 방식입니다.</li>
+  <li><strong>페이로드에 담은 세션 ID로 키를 삼는다</strong> — 요청 타입이 <code>UdpRequestInfo</code>를 상속하면, 클라이언트가 NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있습니다.</li>
+</ul>
+
+<p>예제는 <a href="../Tutorials/SimpleUDPServer"><code>Tutorials/SimpleUDPServer</code></a>에 있습니다. UDP 관련 주의사항은 <a href="#caution-udp">7.8절</a>을 보세요.</p>
+
+<!-- ============================ OBSERVABILITY ============================ -->
+<h2 id="observability">6. 관측(Observability)</h2>
+
+<p>
+모든 지표는 <code>Meter("SuperSocketLite")</code> 하나로 나갑니다 — <code>System.Diagnostics.Metrics</code> 기반이라
+OpenTelemetry 호환 수집기라면 무엇이든 붙일 수 있습니다.
+</p>
+
+<table>
+  <tr><th>종류</th><th>이름</th><th>비고</th></tr>
+  <tr>
+    <td>카운터</td>
+    <td><code>total-requests</code>, <code>total-bytes-received</code>, <code>total-bytes-sent</code>,
+        <code>sessions-rejected</code>, <code>send-queue-full</code>, <code>send-errors</code>,
+        <code>active-connections</code>(<code>UpDownCounter</code>)</td>
+    <td>이벤트가 일어날 때마다 갱신 — 수집기가 없어도 <code>Add</code> 한 번의 비용이 든다</td>
+  </tr>
+  <tr>
+    <td>히스토그램</td>
+    <td><code>request-duration</code></td>
+    <td>요청 핸들러 안에서 보낸 시간</td>
+  </tr>
+  <tr>
+    <td>게이지</td>
+    <td><code>session-count</code> 외 송신 큐 깊이·<code>SocketAsyncEventArgs</code> 풀 사용량(내부용, C# 공개 속성은 아님)</td>
+    <td><code>ObservableGauge</code> — 수집기가 실제로 물어볼 때만 계산되어 아무도 안 보면 비용이 0</td>
+  </tr>
+</table>
+
+<!-- ============================ CAUTIONS ============================ -->
+<h2 id="cautions">7. 꼭 알아야 할 것</h2>
+
+<p>
+아래 8가지는 컴파일은 되지만 부하가 걸려야 드러나는 종류의 문제들입니다. 원문은
+<a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>에 있고, 이 절은 그것을 그대로 옮긴 것입니다.
+</p>
+
+<h3 id="caution-thread">7.1 스레드 안전성</h3>
+<p>
+<code>NewSessionConnected</code>와 <code>NewRequestReceived</code>는 서로 다른 스레드에서 <strong>동시에</strong>
+호출될 수 있습니다. 클라이언트가 접속 직후 바로 패킷을 보내면 "connected 핸들러가 세션 상태를 아직 다 만들기 전에
+첫 요청이 먼저 들어오는" 레이스가 생길 수 있습니다.
+</p>
+<div class="note">
+<code>ServerConfig.SyncSessionConnectedEvent = true</code>로 두면 <code>NewSessionConnected</code>가 accept 경로에서
+동기 호출되어 "connected → 첫 요청" 순서가 구조적으로 보장됩니다. 대신 이 핸들러가 accept 자체를 블로킹하므로
+반드시 가볍게 유지해야 합니다. (기본값은 <code>false</code> = 기존 동작)
+</div>
+
+<h3 id="caution-buffer">7.2 송신 버퍼 수명 (zero-copy)</h3>
+<p>
+<code>Send(byte[], int, int)</code> / <code>Send(ArraySegment&lt;byte&gt;)</code> /
+<code>Send(IList&lt;ArraySegment&lt;byte&gt;&gt;)</code> / <code>SendAsync(ReadOnlyMemory&lt;byte&gt;)</code>(배열 기반일 때)는
+<strong>호출자의 배열을 참조로 큐에 넣습니다.</strong> 전송이 완료되기 전에 그 배열을 수정하면 잘못된 데이터가 나갑니다.
+</p>
+<pre><code>// 위험: buffer를 재사용하는 코드
+session.Send(buffer, 0, len);
+buffer[0] = 0;          // 아직 전송 중일 수 있다
+
+// 안전: 세션이 풀 버퍼로 복사해 간다
+session.SendCopied(buffer.AsSpan(0, len));
+buffer[0] = 0;          // OK</code></pre>
+<p>
+<code>Send(IList&lt;...&gt;)</code>의 <strong>리스트 자체</strong>는 enqueue 시 복사되므로 호출 직후 재사용해도 됩니다
+(배열만 공유됩니다).
+</p>
+<div class="warn">
+<strong>빈 데이터 처리가 다릅니다.</strong> <code>TrySendCopied</code>/<code>SendCopied</code>는 데이터가 비면 아무것도
+큐에 넣지 않고 성공으로 돌아갑니다. 반면 <code>Send(buffer, 0, 0)</code>은 길이 0 세그먼트를 큐에 넣어 실제로 전송을
+시도합니다 — UDP에서는 빈 데이터그램이 나갑니다. 빈 패킷에 의미가 있는 프로토콜을 <code>Send</code>에서
+<code>SendCopied</code>로 옮길 때만 확인하면 됩니다.
+</div>
+
+<h3 id="caution-filter">7.3 수신 필터</h3>
+<p>
+필터는 파이프에서 <code>ReadOnlySequence&lt;byte&gt;</code>를 직접 받습니다. 요청이 아직 완성되지 않았으면
+<code>consumed</code>를 전진시키지 말고 그대로 두면 됩니다 — 데이터는 파이프에 남고 다음 수신 때 이어서 옵니다.
+필터가 자체 캐리 버퍼를 두면 오히려 복사가 늘어납니다.
+</p>
+<p>
+<code>header</code>/<code>body</code>는 세그먼트 여러 개에 걸쳐 있을 수 있습니다. <code>header.First.Span</code>으로
+바로 읽지 말고 <code>CopyTo(Span)</code>이나 <code>ToArray()</code>를 씁니다.
+</p>
+<div class="note">
+UDP + <code>UdpRequestInfo</code> 조합에서 세션 ID 파싱용 필터는 <strong>수신 스레드당 1개가 재사용</strong>됩니다
+(<code>Reset()</code> 후 재사용). 이 필터는 데이터그램 간 상태를 갖지 않아야 하고, <code>CreateFilter</code>에
+넘어온 원격 엔드포인트를 캡처해서는 안 됩니다.
+</div>
+
+<h3 id="caution-lifetime">7.4 RequestInfo와 본문의 수명</h3>
+<p>
+라이브러리는 <code>NewRequestReceived</code> 핸들러를 <strong>동기로</strong> 부르고, 핸들러가 전부 리턴한 뒤에야
+파이프를 전진시킵니다. UDP도 같습니다 — 수신 버퍼는 핸들러 리턴 후에 풀로 돌아갑니다.
+</p>
+<p>
+이 보장 덕분에 앱은 <strong>패킷당 할당을 0으로</strong> 만들 수 있습니다. 필터가 요청 인스턴스 하나를 돌려 쓰고
+본문을 <code>ReadOnlySequence&lt;byte&gt;</code>로 그대로 넘기면 됩니다(<a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a>가 그 형태). 대신 계약이 생깁니다.
+</p>
+<div class="danger">
+핸들러가 리턴하면 그 <code>RequestInfo</code>와 본문은 <strong>더 이상 유효하지 않습니다.</strong> 필드에 저장하거나,
+람다에 캡처하거나, 다른 스레드 큐에 넣으면 안 됩니다. 값을 남기려면 핸들러 안에서 역직렬화하거나 복사하세요.
+패킷을 로직 스레드로 넘기는 구조라면 이 방식을 쓸 수 없습니다 — 그때는 <code>ArrayPool</code>에서 빌려 복사하고
+처리 후 한 곳에서만 반납합니다(<a href="../Tutorials/PvPGameServer"><code>Tutorials/PvPGameServer</code></a>가 그 형태).
+<br><br>
+어겨도 컴파일은 되고 가벼운 부하에서는 대개 동작합니다. 파이프 버퍼가 재사용될 만큼 부하가 올라가야 데이터가
+깨지므로 <strong>찾기 매우 어려운 버그</strong>가 됩니다.
+</div>
+<p>이 계약의 그림과 두 갈래(동기 처리 vs 스레드 핸드오프)는 <a href="Guide.html#part4">안내서 4장</a>에,
+실제로 잰 효과는 <a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a>에 있습니다.</p>
+
+<h3 id="caution-utc">7.5 시간 값은 UTC</h3>
+<p>
+<code>AppSession.StartTime</code>/<code>LastActiveTime</code>, <code>AppServerBase.StartedTime</code>은
+<strong>UTC</strong>입니다. 화면·로그에 로컬 시간으로 찍으려면 <code>.ToLocalTime()</code>을 붙이세요.
+<code>LastActiveTime</code>은 단조 tick에서 역산하므로 수 ms 오차가 있습니다.
+</p>
+
+<h3 id="caution-timeout">7.6 타임아웃 처리 순서</h3>
+<p><code>TimeoutException</code> 발생 후 세션을 종료할 때 반드시 아래 순서를 지킵니다.</p>
+<pre><code>// 올바른 순서
+session.SendEndWhenSendingTimeOut();
+session.Close();</code></pre>
+<div class="danger">
+<code>SendEndWhenSendingTimeOut()</code> 없이 <code>Close()</code>만 호출하면 <code>InSending</code> 플래그가 풀리지 않아
+그 세션은 영영 정리되지 않습니다.
+</div>
+
+<h3 id="caution-maxconn">7.7 최대 연결 수 초과</h3>
+<p>
+<code>MaxConnectionNumber</code> 초과 시 SuperSocketLite가 즉시 연결을 끊습니다. 이 경우
+<code>NewSessionConnected</code>가 <strong>호출되지 않습니다.</strong>
+</p>
+
+<h3 id="caution-udp">7.8 UDP 모드</h3>
+<p>
+UDP 세션은 내부 소켓 인스턴스가 세션 간에 공유되는 구조라 <code>TryValidateClosedBySocket</code>류 판정이 TCP와
+다르게 동작합니다. <code>Close()</code> 내부에서 UDP/TCP 경로가 분기되므로 UDP 관련 코드를 수정할 때는 주의하세요.
+</p>
+
+<!-- ============================ MORE ============================ -->
+<h2 id="more">8. 더 읽을 것</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>안내서 &amp; 다이어그램</h4>
+    <p>
+      <a href="Guide_kr.html">안내서 — 라이브러리와 예제 읽기</a> ·
+      <a href="Library_Architecture_kr.html">전체 구조</a> ·
+      <a href="Library_Receive_Flow_kr.html">수신 흐름</a> ·
+      <a href="Library_Send_Flow_kr.html">송신 흐름</a> ·
+      <a href="Library_Session_Lifecycle_kr.html">세션 수명</a> ·
+      <a href="Tutorials_Path_kr.html">예제 읽는 순서</a>
+    </p>
+  </div>
+  <div class="card">
+    <h4>성능</h4>
+    <p><a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a> — 패킷당 할당을 0으로 만드는 방법과 실제 측정치</p>
+  </div>
+  <div class="card">
+    <h4>저장소 문서 (원문)</h4>
+    <p>
+      <a href="../README_kr.md"><code>README_kr.md</code></a>(한글 사용법) ·
+      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a>(내부 구조) ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a>(코딩 컨벤션) ·
+      <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>(이 문서 7장의 원문)
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">이 문서와 README_kr.md/.claude/cautions.md가 어긋나면</h4>
+  <p style="margin:0">
+    이 문서는 저장소 루트 <code>README_kr.md</code>의 빠른 시작·설정·관측성 절과
+    <code>.claude/cautions.md</code>를 이 저장소의 HTML 문서 모음 안에서 한 번에 훑어보기 좋게 옮긴 것입니다.
+    코드가 바뀌어 내용이 어긋나면 원문(<code>README.md</code>/<code>README_kr.md</code>, <code>.claude/cautions.md</code>)이 맞는 것이니
+    그쪽을 기준으로 이 문서를 고치세요. 영어판은 <a href="Getting_Started.html">Getting_Started.html</a>에 있습니다 —
+    두 판은 내용이 같아야 하니 한쪽을 고치면 다른 쪽도 확인하세요.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

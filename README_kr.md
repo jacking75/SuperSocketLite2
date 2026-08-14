@@ -63,9 +63,16 @@
 
 ### 라이브러리 가져오기
 
-SuperSocketLite2(이 문서가 설명하는 0.91 이상, .NET 10 대상, `Pipelines` 기반 엔진)는 아직
-NuGet에 올라가 있지 않다 — NuGet.org의 `SuperSocketLite` 패키지는 여전히 재작성 이전의 구버전
-라인이다. 새 릴리스가 나오기 전까지는 프로젝트를 직접 참조한다.
+SuperSocketLite2(이 문서가 설명하는 0.91 이상, .NET 10 대상, `Pipelines` 기반 엔진)는 별도의
+NuGet 패키지 **`SuperSocketLite2`**로 배포된다 — NuGet.org의 기존 `SuperSocketLite` 패키지(여전히
+재작성 이전의 .NET 9 라인)와는 다른, 독립된 패키지 ID다. 이 저장소의 변경은 기존 패키지에 영향을
+주지 않는다.
+
+```bash
+dotnet add package SuperSocketLite2
+```
+
+첫 릴리스가 올라가기 전까지는 프로젝트를 직접 참조한다.
 
 ```bash
 git clone https://github.com/jacking75/SuperSocketLite2.git
@@ -293,8 +300,9 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 - [알려진 주의 사항](.claude/cautions.md) — 스레드 안전성, zero-copy 버퍼 수명, UDP 특이사항
 - [GC·데이터 복사 최소화 가이드](Docs/GC_Copy_Minimization.md) — 수신 필터·패킷 핸들러·송신
   호출부에서 패킷당 할당을 0으로 만드는 방법
-- [다이어그램](Docs/index.html) — 아키텍처, TCP 연결 흐름, 수신/송신 파이프라인 상세
-- [VS Code에서 저장소 전체 분석 설정하기](Docs/VSCode_Repository_Analysis.html)
+- [시작하기](Docs/Getting_Started_kr.html) — 빌드, 사용법, 위 주의 사항을 한 문서에서
+- [다이어그램](Docs/index_kr.html) — 아키텍처, TCP 연결 흐름, 수신/송신 파이프라인 상세
+- [VS Code에서 저장소 전체 분석 설정하기](Docs/VSCode_Repository_Analysis_kr.html)
 
 ## 기여
 

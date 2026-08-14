@@ -264,9 +264,9 @@
       "dot": "violet",
       "title": "그림 속 이름의 원래 프로젝트",
       "items": [
-        "이진 패킷 = BinaryPacketServer · 멀티 포트 = MultiPortServer · UDP 서버 = SimpleUDPServer",
+        "이진 패킷·멀티 포트·UDP 서버 = BinaryPacketServer·MultiPortServer·SimpleUDPServer",
         "PvP 게임 = PvPGameServer · GenericHost = EchoServer_GenericHost",
-        "그림에 없는 것: sendFailTestServer, GateServer_GameServer, GameServer_MoDedicated(2)"
+        "그림에 없는 것: EchoServer_NuGet, sendFailTestServer, GateServer_GameServer, GameServer_MoDedicated(2)"
       ]
     }
   ]

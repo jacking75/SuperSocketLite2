@@ -266,7 +266,7 @@
       "items": [
         "BinaryPacketServer, MultiPortServer, SimpleUDPServer (left to right)",
         "PvP Game = PvPGameServer · GenericHost = EchoServer_GenericHost",
-        "Not pictured: sendFailTestServer, GateServer_GameServer, GameServer_MoDedicated(2)"
+        "Not pictured: EchoServer_NuGet, sendFailTestServer, GateServer_GameServer, GameServer_MoDedicated(2)"
       ]
     }
   ]

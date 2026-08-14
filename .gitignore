@@ -55,3 +55,6 @@ Desktop.ini
 
 # archify visual-check 증적 (스크린샷·대조표). 검사용이라 커밋하지 않는다.
 Docs/*.visual-check.*
+
+# 개인 작업용 검토/계획 메모. 커밋하지 않는다.
+NUGET_PUBLISH_REVIEW.md

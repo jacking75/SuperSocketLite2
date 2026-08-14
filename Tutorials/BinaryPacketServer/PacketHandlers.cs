@@ -1,17 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+using System;
+using System.Buffers;
+using System.Buffers.Binary;
 
 namespace BinaryPacketServer;
 
-public class PacketData
-{
-    public NetworkSession Session;
-    public EFBinaryRequestInfo ReqInfo;
-}
+// 예전에는 여기에 세션과 요청 정보를 함께 담아 두는 PacketData 클래스가 있었다(쓰이지는 않았다).
+// 지금은 EFBinaryRequestInfo를 필터가 돌려 쓰고 Body가 수신 파이프를 가리키므로,
+// 요청 정보를 이렇게 보관하면 핸들러가 리턴한 순간 내용이 바뀌어 버린다.
+// 패킷을 다른 곳으로 넘겨야 한다면 Docs/GC_Copy_Minimization.md의 개선 2를 따른다.
 
 public enum PACKETID : int
 {
@@ -20,14 +16,54 @@ public enum PACKETID : int
 
 public class CommonHandler
 {
+    /// <summary>응답 헤더입니다. 패킷 ID(4) + 본문 길이(4)로, 요청 헤더와는 형식이 다릅니다.</summary>
+    private const int ResponseHeaderSize = 8;
+
+    /// <summary>스택에 담아 보낼 응답의 상한입니다. 이보다 크면 풀에서 빌립니다.</summary>
+    private const int StackBufferSize = 512;
+
+    /// <summary>
+    /// 받은 패킷을 그대로 돌려보냅니다.
+    /// </summary>
+    /// <remarks>
+    /// 응답 버퍼를 스택이나 <see cref="ArrayPool{T}"/>에서 마련하므로 응답마다 배열을 새로 만들지
+    /// 않습니다. <c>SendCopied</c>는 라이브러리 풀 버퍼로 복사해 큐에 넣고 전송이 끝나면 그 버퍼를
+    /// 스스로 반납하므로, 이 메서드가 리턴하는 즉시 여기 버퍼를 다시 써도 됩니다.
+    /// 큐가 <c>SendTimeOut</c>동안 계속 가득 차 있으면 <c>Send</c>와 똑같이 예외를 던집니다.
+    /// </remarks>
     public void RequestEcho(NetworkSession session, EFBinaryRequestInfo requestInfo)
     {
-        List<byte> dataSource = new List<byte>();
-        dataSource.AddRange(BitConverter.GetBytes((int)PACKETID.ReqEcho));
-        dataSource.AddRange(BitConverter.GetBytes(requestInfo.Body.Length));
-        dataSource.AddRange(requestInfo.Body);
+        var totalSize = ResponseHeaderSize + checked((int)requestInfo.Body.Length);
 
-        session.Send(dataSource.ToArray(), 0, dataSource.Count);
+        if (totalSize <= StackBufferSize)
+        {
+            Span<byte> packet = stackalloc byte[StackBufferSize];
+            session.SendCopied(packet.Slice(0, WritePacket(packet, requestInfo.Body)));
+            return;
+        }
+
+        var rented = ArrayPool<byte>.Shared.Rent(totalSize);
+
+        try
+        {
+            session.SendCopied(rented.AsSpan(0, WritePacket(rented, requestInfo.Body)));
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>헤더와 본문을 <paramref name="destination"/>에 써 넣고 쓴 바이트 수를 돌려줍니다.</summary>
+    private static int WritePacket(Span<byte> destination, ReadOnlySequence<byte> body)
+    {
+        var bodyLength = checked((int)body.Length);
+
+        BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(0, 4), (int)PACKETID.ReqEcho);
+        BinaryPrimitives.WriteInt32LittleEndian(destination.Slice(4, 4), bodyLength);
+        body.CopyTo(destination.Slice(ResponseHeaderSize));
+
+        return ResponseHeaderSize + bodyLength;
     }
 }
 

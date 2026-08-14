@@ -16,6 +16,27 @@ public enum ServerMetricsMode
     Off
 }
 
+/// <summary>
+/// 서버가 패킷당 버퍼를 어떻게 다루는지입니다.
+/// <c>Docs/GC_Copy_Minimization.md</c>의 개선 1·3을 켜고 끄는 스위치로,
+/// 같은 부하를 두 번 돌려 alloc-rate와 GC 횟수를 비교하는 데 씁니다.
+/// 이진 TCP 경로에만 적용됩니다. 부가 리스너(text-line·UDP)는 언제나 풀 경로로 동작합니다.
+/// </summary>
+public enum AllocationMode
+{
+    /// <summary>
+    /// 수신은 파이프 메모리를 그대로 넘기고(요청 인스턴스도 재사용),
+    /// 송신은 스택·풀 버퍼에 직렬화합니다. 패킷당 할당이 없습니다.
+    /// </summary>
+    Pooled,
+
+    /// <summary>
+    /// 개선 전 방식입니다. 패킷마다 본문 배열과 요청 인스턴스를 새로 만들고
+    /// 응답도 새 배열에 담습니다. 개선 전 수치를 재는 데만 씁니다.
+    /// </summary>
+    Legacy
+}
+
 public sealed class LoadTestServerOptions
 {
     public static string HelpText { get; } = string.Join(Environment.NewLine, [
@@ -30,6 +51,7 @@ public sealed class LoadTestServerOptions
         "  --sample-interval-ms <milliseconds>",
         "  --server-event-request-sampling <0.0-1.0>",
         "  --metrics <full|no-gauges|off>",
+        "  --alloc-mode <pooled|legacy>",
         "  --duration <hh:mm:ss>",
         "  --run-id <id>",
         "  --help"
@@ -52,6 +74,9 @@ public sealed class LoadTestServerOptions
 
     /// <summary>서버 계측 수준입니다. 기본은 전부 켬입니다.</summary>
     public ServerMetricsMode Metrics { get; set; } = ServerMetricsMode.Full;
+
+    /// <summary>패킷당 버퍼 처리 방식입니다. 기본은 할당이 없는 풀 경로입니다.</summary>
+    public AllocationMode Allocation { get; set; } = AllocationMode.Pooled;
 
     public static bool IsHelpRequest(string[] args)
     {
@@ -99,6 +124,9 @@ public sealed class LoadTestServerOptions
                 case "--metrics":
                     options.Metrics = ParseMetricsMode(value);
                     break;
+                case "--alloc-mode":
+                    options.Allocation = ParseAllocationMode(value);
+                    break;
                 default:
                     throw new ArgumentException($"Unknown option '{arg}'.");
             }
@@ -116,6 +144,16 @@ public sealed class LoadTestServerOptions
             "no-gauges" or "nogauges" => ServerMetricsMode.NoGauges,
             "off" or "none" => ServerMetricsMode.Off,
             _ => throw new ArgumentException($"Unknown metrics mode '{value}'. Use full, no-gauges, or off.")
+        };
+    }
+
+    private static AllocationMode ParseAllocationMode(string value)
+    {
+        return value.ToLowerInvariant() switch
+        {
+            "pooled" or "zero" => AllocationMode.Pooled,
+            "legacy" or "copy" => AllocationMode.Legacy,
+            _ => throw new ArgumentException($"Unknown allocation mode '{value}'. Use pooled or legacy.")
         };
     }
 

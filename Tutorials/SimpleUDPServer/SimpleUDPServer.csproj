@@ -8,4 +8,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\SuperSocketLite\SuperSocketLite.csproj" />
   </ItemGroup>
+  <!-- Docs/GC_Copy_Minimization.md 개선 4: 서버는 Server GC로 돌린다.
+       DATAS(동적 힙 조정)는 .NET 10 Server GC에서 기본 켬이다. 상시 부하 서버에서 지연이 튀면
+       빌드를 고치지 말고 DOTNET_GCDynamicAdaptationMode=0 으로 실행해 비교한다. -->
+  <PropertyGroup>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
 </Project>

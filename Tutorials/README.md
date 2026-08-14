@@ -261,48 +261,63 @@ void RequestReceived(NetworkSession session, EFBinaryRequestInfo reqInfo)
 }
 ```  
   
-```
-public class EFBinaryRequestInfo : BinaryRequestInfo
-{
-    public Int32 PacketID { get; private set; }
-    public Int16 Value1 { get; private set; }
-    public Int16 Value2 { get; private set; }
+필터는 수신 파이프의 `ReadOnlySequence<byte>`를 직접 파싱한다. 본문을 배열로 복사하지 않고
+그대로 가리키고, 요청 인스턴스도 세션마다 하나를 돌려 쓰므로 **패킷을 받는 데 드는 할당이 없다**.
+대신 핸들러가 리턴하면 요청과 본문은 모두 무효가 된다.
+자세한 근거와 다른 방식(패킷을 로직 스레드로 넘길 때)은 [`Docs/GC_Copy_Minimization.md`](../Docs/GC_Copy_Minimization.md)를 보라.
 
-    public EFBinaryRequestInfo(int packetID, short value1, short value2, byte[] body)
-        : base(null, body)
+```csharp
+public class EFBinaryRequestInfo : IRequestInfo
+{
+    public int PacketID { get; private set; }
+    public short Value1 { get; private set; }
+    public short Value2 { get; private set; }
+
+    public string Key => string.Empty;
+
+    /// 헤더를 뺀 본문. 핸들러가 리턴하면 무효가 된다.
+    public ReadOnlySequence<byte> Body { get; private set; }
+
+    public void Set(int packetID, short value1, short value2, ReadOnlySequence<byte> body)
     {
-        this.PacketID = packetID;
-        this.Value1 = value1;
-        this.Value2 = value2;
+        PacketID = packetID;
+        Value1 = value1;
+        Value2 = value2;
+        Body = body;
     }
 }
 
 public class ReceiveFilter : FixedHeaderReceiveFilter<EFBinaryRequestInfo>
 {
+    private const int FrameHeaderSize = 12;
+
+    // 필터는 세션마다 하나이고 요청 처리는 동기로 끝나므로 인스턴스를 돌려 써도 된다.
+    private readonly EFBinaryRequestInfo _reusable = new();
+
     public ReceiveFilter()
-        : base(12)
+        : base(FrameHeaderSize)
     {
-
     }
 
-    protected override int GetBodyLengthFromHeader(byte[] header, int offset, int length)
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header, offset + 8, 4);
-
-        var nBodySize = BitConverter.ToInt32(header, offset + 8);
-        return nBodySize;
+        Span<byte> headerBuffer = stackalloc byte[FrameHeaderSize];
+        header.CopyTo(headerBuffer);
+        return BinaryPrimitives.ReadInt32LittleEndian(headerBuffer.Slice(8, 4));
     }
 
-    protected override EFBinaryRequestInfo ResolveRequestInfo(ArraySegment<byte> header, byte[] bodyBuffer, int offset, int length)
+    protected override EFBinaryRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        if (!BitConverter.IsLittleEndian)
-            Array.Reverse(header.Array, 0, 12);
+        Span<byte> headerBuffer = stackalloc byte[FrameHeaderSize];
+        header.CopyTo(headerBuffer);
 
-        return new EFBinaryRequestInfo(BitConverter.ToInt32(header.Array, 0),
-                                       BitConverter.ToInt16(header.Array, 0 + 4),
-                                       BitConverter.ToInt16(header.Array, 0 + 6), 
-                                       bodyBuffer.CloneRange(offset, length));
+        _reusable.Set(
+            BinaryPrimitives.ReadInt32LittleEndian(headerBuffer.Slice(0, 4)),
+            BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(4, 2)),
+            BinaryPrimitives.ReadInt16LittleEndian(headerBuffer.Slice(6, 2)),
+            body);
+
+        return _reusable;
     }
 }
 ```  

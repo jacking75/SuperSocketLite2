@@ -91,7 +91,8 @@ public class PKHRoom : PKHandler
             }
 
 
-            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomEnter>(packetData.Data);
+            // 풀 배열은 패킷보다 클 수 있으므로 유효 구간(DataSpan)만 넘긴다.
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomEnter>(packetData.DataSpan);
             
             var room = GetRoom(reqData.RoomNumber);
 
@@ -207,7 +208,7 @@ public class PKHRoom : PKHandler
         var sessionID = packetData.SessionID;
         MainServer.s_MainLogger.Debug($"NotifyLeaveInternal. SessionID: {sessionID}");
 
-        var reqData = MemoryPackSerializer.Deserialize<PKTInternalNtfRoomLeave>(packetData.Data);            
+        var reqData = MemoryPackSerializer.Deserialize<PKTInternalNtfRoomLeave>(packetData.DataSpan);
         LeaveRoomUser(sessionID, reqData.RoomNumber);
     }
             
@@ -226,7 +227,8 @@ public class PKHRoom : PKHandler
             }
 
 
-            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomChat>(packetData.Data);
+            // 풀 배열은 패킷보다 클 수 있으므로 유효 구간(DataSpan)만 넘긴다.
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqRoomChat>(packetData.DataSpan);
 
             var notifyPacket = new PKTNtfRoomChat()
             {

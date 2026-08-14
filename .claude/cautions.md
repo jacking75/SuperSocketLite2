@@ -26,6 +26,11 @@ buffer[0] = 0;          // OK
 
 `Send(IList<...>)`의 **리스트 자체**는 enqueue 시 복사되므로 호출 직후 재사용해도 된다
 (배열만 공유된다).
+
+**빈 데이터 처리가 다르다.** `TrySendCopied` / `SendCopied`는 데이터가 비면 아무것도 큐에 넣지
+않고 성공으로 돌아간다. 반면 `Send(buffer, 0, 0)`은 길이 0 세그먼트를 큐에 넣어 실제로 전송을
+시도한다 — UDP에서는 빈 데이터그램이 나간다. 빈 패킷에 의미가 있는 프로토콜을 `Send`에서
+`SendCopied`로 옮길 때만 확인하면 된다.
   
 
 ## 수신 필터
@@ -39,6 +44,28 @@ buffer[0] = 0;          // OK
 UDP + `UdpRequestInfo` 조합에서 sessionID 파싱용 필터는 **수신 스레드당 1개가 재사용**된다
 (`Reset()` 후 재사용). 이 필터는 데이터그램 간 상태를 갖지 않아야 하고
 `CreateFilter`에 넘어온 remote endpoint를 캡처해서는 안 된다.
+  
+
+## RequestInfo와 본문의 수명
+
+라이브러리는 `NewRequestReceived` 핸들러를 **동기로** 부르고, 핸들러가 전부 리턴한 뒤에야
+파이프를 전진시킨다(`AppServerBase.ExecuteCommand` → `ProcessPipeAsync`의 `AdvanceTo`).
+UDP도 같다 — `UdpReceivePacket.Dispose()`가 핸들러 리턴 후에 수신 버퍼를 풀에 돌려준다.
+
+이 보장 덕분에 앱은 **패킷당 할당을 0으로** 만들 수 있다. 필터가 요청 인스턴스 하나를 돌려 쓰고
+본문을 `ReadOnlySequence<byte>`로 그대로 넘기면 된다. `Tutorials/EchoServer`가 그 형태다.
+
+대신 계약이 생긴다:
+
+- 핸들러가 리턴하면 그 `RequestInfo`와 본문은 **더 이상 유효하지 않다.** 필드에 저장하거나,
+  람다에 캡처하거나, 다른 스레드 큐에 넣으면 안 된다.
+- 값을 남기려면 핸들러 안에서 역직렬화하거나 복사한다.
+- 패킷을 로직 스레드로 넘기는 구조라면 이 방식을 쓸 수 없다. 그때는 `ArrayPool`에서 빌려
+  복사하고 처리 후 한 곳에서 반납한다 — `Tutorials/PvPGameServer`가 그 형태다.
+
+어겼을 때 컴파일은 되고 가벼운 부하에서는 대개 동작한다. 파이프 버퍼가 재사용될 만큼
+부하가 올라야 데이터가 깨지므로 찾기 어렵다. 자세한 내용은
+[`Docs/GC_Copy_Minimization.md`](../Docs/GC_Copy_Minimization.md).
   
 
 ## 시간 값은 UTC

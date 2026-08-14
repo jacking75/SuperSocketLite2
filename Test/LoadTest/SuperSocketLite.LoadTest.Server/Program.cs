@@ -19,7 +19,7 @@ catch (Exception ex) when (ex is ArgumentException or FormatException)
     return 2;
 }
 
-using var server = new LoadTestServer();
+using var server = new LoadTestServer(options.Allocation);
 
 if (!server.Configure(options))
 {
@@ -37,6 +37,9 @@ Console.WriteLine($"LoadTestServer listening on port {options.Port}. Output: {op
 
 if (options.Metrics != ServerMetricsMode.Full)
     Console.WriteLine($"  metrics: {options.Metrics.ToString().ToLowerInvariant()}");
+
+if (options.Allocation != AllocationMode.Pooled)
+    Console.WriteLine($"  alloc-mode: {options.Allocation.ToString().ToLowerInvariant()}");
 
 // 부가 리스너는 바이너리 서버의 계측기를 함께 쓴다. 프로세스 자원은 하나이기 때문이다.
 using var textServer = new TextLineServer();

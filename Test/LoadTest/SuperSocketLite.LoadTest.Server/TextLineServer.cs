@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Text;
 using SuperSocketLite.LoadTest.ServerProbe;
 using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Config;
@@ -21,6 +20,12 @@ namespace SuperSocketLite.LoadTest.Server;
 /// </remarks>
 public sealed class TextLineServer : AppServer<TextLineSession, TextLineRequestInfo>, IDisposable
 {
+    /// <summary>줄 끝에 붙여 돌려보내는 종결자입니다.</summary>
+    private static ReadOnlySpan<byte> Terminator => "\r\n"u8;
+
+    /// <summary>스택에 담아 보낼 응답의 상한입니다. 이보다 크면 풀에서 빌립니다.</summary>
+    private const int StackBufferSize = 512;
+
     private ServerMetricsCollector? _metrics;
     private bool _stopped;
 
@@ -67,20 +72,55 @@ public sealed class TextLineServer : AppServer<TextLineSession, TextLineRequestI
 
     private void OnRequestReceived(TextLineSession session, TextLineRequestInfo request)
     {
-        // 계측기가 없어도(--metrics off) 에코는 그대로 한다.
-        using var recorder = _metrics?.BeginRequest(session.SessionID, packetId: 0, bytesIn: request.Line.Length);
+        // 종료 중에 Dispose가 _metrics를 null로 만들 수 있으므로 한 번만 읽어서 쓴다.
+        // 검사와 사용 사이에 다시 읽으면 그 틈에 null이 되어 NRE가 난다.
+        var metrics = _metrics;
 
-        // 클라이언트가 줄 단위로 응답을 읽으므로 종결자를 붙여 되돌려준다.
-        var response = Encoding.UTF8.GetBytes(request.Line + "\r\n");
+        // 계측기가 없어도(--metrics off) 에코는 그대로 한다.
+        // default 레코더는 아무것도 기록하지 않으므로 null 검사를 여기 한 번만 둔다.
+        using var recorder = metrics is null
+            ? default
+            : metrics.BeginRequest(session.SessionID, packetId: 0, bytesIn: request.Line.Length);
+
+        var lineLength = checked((int)request.Line.Length);
+        var totalSize = lineLength + Terminator.Length;
+
+        if (totalSize <= StackBufferSize)
+        {
+            Span<byte> buffer = stackalloc byte[StackBufferSize];
+            Echo(session, request.Line, buffer.Slice(0, totalSize), metrics);
+            return;
+        }
+
+        var rented = ArrayPool<byte>.Shared.Rent(totalSize);
 
         try
         {
-            session.Send(response, 0, response.Length);
-            _metrics?.OnBytesOut(response.Length);
+            Echo(session, request.Line, rented.AsSpan(0, totalSize), metrics);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
+    }
+
+    /// <summary>
+    /// 받은 줄에 종결자를 붙여 돌려보냅니다. 클라이언트가 줄 단위로 응답을 읽기 때문입니다.
+    /// 문자열을 거치지 않으므로 줄마다 생기는 할당이 없습니다.
+    /// </summary>
+    private static void Echo(TextLineSession session, ReadOnlySequence<byte> line, Span<byte> buffer, ServerMetricsCollector? metrics)
+    {
+        line.CopyTo(buffer);
+        Terminator.CopyTo(buffer.Slice(buffer.Length - Terminator.Length));
+
+        try
+        {
+            session.SendCopied(buffer);
+            metrics?.OnBytesOut(buffer.Length);
         }
         catch (Exception ex)
         {
-            _metrics?.OnSendFailed(session.SessionID, response.Length, ex.Message);
+            metrics?.OnSendFailed(session.SessionID, buffer.Length, ex.Message);
             throw;
         }
     }
@@ -105,17 +145,22 @@ public sealed class TextLineSession : AppSession<TextLineSession, TextLineReques
 {
 }
 
+/// <summary>텍스트 한 줄 요청입니다.</summary>
+/// <remarks>
+/// <see cref="Line"/>은 수신 파이프의 메모리를 그대로 가리키고 인스턴스도 필터가 돌려 쓰므로,
+/// 핸들러가 리턴하면 둘 다 유효하지 않습니다. 자세한 내용은 <c>Docs/GC_Copy_Minimization.md</c>의 개선 1을 보세요.
+/// </remarks>
 public sealed class TextLineRequestInfo : IRequestInfo
 {
-    public TextLineRequestInfo(string line)
+    public string Key => "line";
+
+    /// <summary>종결자를 뺀 한 줄입니다. 핸들러가 리턴하면 무효가 됩니다.</summary>
+    public ReadOnlySequence<byte> Line { get; private set; }
+
+    public void Set(ReadOnlySequence<byte> line)
     {
         Line = line;
     }
-
-    public string Key => "line";
-
-    /// <summary>종결자를 뺀 한 줄입니다.</summary>
-    public string Line { get; }
 }
 
 /// <summary>
@@ -125,6 +170,9 @@ public sealed class TextLineReceiveFilter : IReceiveFilter<TextLineRequestInfo>
 {
     private const byte LineFeed = (byte)'\n';
     private const byte CarriageReturn = (byte)'\r';
+
+    // 필터는 세션마다 하나이고 요청 처리는 동기로 끝나므로 인스턴스를 돌려 써도 된다.
+    private readonly TextLineRequestInfo _reusable = new();
 
     public IReceiveFilter<TextLineRequestInfo>? NextReceiveFilter => null;
 
@@ -146,12 +194,12 @@ public sealed class TextLineReceiveFilter : IReceiveFilter<TextLineRequestInfo>
         consumed = reader.Position;
         examined = consumed;
 
-        var bytes = line.ToArray();
-        var length = bytes.Length;
-        if (length > 0 && bytes[length - 1] == CarriageReturn)
-            length--;
+        // 줄을 배열로 펴지 않고 마지막 바이트만 들여다본다.
+        if (line.Length > 0 && line.Slice(line.Length - 1).FirstSpan[0] == CarriageReturn)
+            line = line.Slice(0, line.Length - 1);
 
-        return new TextLineRequestInfo(Encoding.UTF8.GetString(bytes, 0, length));
+        _reusable.Set(line);
+        return _reusable;
     }
 
     public void Reset()

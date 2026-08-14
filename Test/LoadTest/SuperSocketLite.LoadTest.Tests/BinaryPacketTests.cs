@@ -104,7 +104,7 @@ internal static class BinaryPacketTests
     {
         var header = new byte[BinaryPacket.HeaderSize];
         BinaryPrimitives.WriteInt16LittleEndian(header.AsSpan(0, 2), BinaryPacket.HeaderSize - 1);
-        var filter = new ReceiveFilter();
+        var filter = new ReceiveFilter(AllocationMode.Pooled);
         var method = typeof(ReceiveFilter).GetMethod("GetBodyLengthFromHeader", BindingFlags.Instance | BindingFlags.NonPublic);
 
         AssertEx.True(method is not null, "ReceiveFilter should expose protected GetBodyLengthFromHeader.");

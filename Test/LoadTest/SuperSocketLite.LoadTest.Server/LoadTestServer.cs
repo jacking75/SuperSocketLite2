@@ -8,14 +8,20 @@ namespace SuperSocketLite.LoadTest.Server;
 
 public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestInfo>, IDisposable
 {
+    private readonly AllocationMode _allocation;
     private ServerMetricsCollector? _metrics;
     private IDisposable? _metricsLoop;
     private bool _configured;
     private bool _stopped;
 
-    public LoadTestServer()
-        : base(new DefaultReceiveFilterFactory<ReceiveFilter, LoadTestRequestInfo>())
+    /// <param name="allocation">
+    /// 패킷당 버퍼 처리 방식입니다. 수신 필터가 만들어질 때 필요하므로 생성자에서 받습니다
+    /// (<see cref="Configure"/>는 이미 세션이 붙을 수 있는 시점입니다).
+    /// </param>
+    public LoadTestServer(AllocationMode allocation = AllocationMode.Pooled)
+        : base(new ReceiveFilterFactory(allocation))
     {
+        _allocation = allocation;
         NewSessionConnected += OnConnected;
         SessionClosed += OnClosed;
         NewRequestReceived += OnRequestReceived;
@@ -85,12 +91,12 @@ public sealed class LoadTestServer : AppServer<LoadTestSession, LoadTestRequestI
         // 계측을 껐어도 에코는 그대로 해야 한다. 클라이언트 쪽 수치를 두 실행에서 비교하기 때문이다.
         if (_metrics is null)
         {
-            PacketHandlers.Handle(session, request, null);
+            PacketHandlers.Handle(session, request, null, _allocation);
             return;
         }
 
         using var recorder = _metrics.BeginRequest(session.SessionID, request.PacketId, request.TotalSize);
-        PacketHandlers.Handle(session, request, _metrics);
+        PacketHandlers.Handle(session, request, _metrics, _allocation);
     }
 
     /// <summary>

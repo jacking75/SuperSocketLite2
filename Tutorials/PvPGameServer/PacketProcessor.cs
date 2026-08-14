@@ -57,7 +57,12 @@ class PacketProcessor
           
     public void InsertPacket(MemoryPackBinaryRequestInfo data)
     {
-        _packetBuffer.Post(data);
+        // 큐가 이미 닫혔으면(서버 종료 중) 패킷은 처리되지 않는다.
+        // 그대로 두면 빌린 버퍼가 풀로 돌아오지 못하므로 여기서 돌려준다.
+        if (!_packetBuffer.Post(data))
+        {
+            data.ReturnBuffer();
+        }
     }
 
     
@@ -77,9 +82,11 @@ class PacketProcessor
     {
         while (_isThreadRunning)
         {
+            MemoryPackBinaryRequestInfo packet = null;
+
             try
             {
-                var packet = _packetBuffer.Receive();
+                packet = _packetBuffer.Receive();
 
                 var header = new MemoryPackPacketHeader();
                 header.Read(packet.Data);
@@ -90,7 +97,7 @@ class PacketProcessor
                 }
                 /*else
                 {
-                    System.Diagnostics.Debug.WriteLine("세션 번호 {0}, PacketID {1}, 받은 데이터 크기: {2}", packet.SessionID, packet.PacketID, packet.BodyData.Length);
+                    System.Diagnostics.Debug.WriteLine("세션 번호 {0}, PacketID {1}, 받은 데이터 크기: {2}", packet.SessionID, packet.PacketID, packet.DataSize);
                 }*/
             }
             catch (Exception ex)
@@ -99,6 +106,12 @@ class PacketProcessor
                 {
                     MainServer.s_MainLogger.Error(ex.ToString());
                 }
+            }
+            finally
+            {
+                // 빌린 버퍼를 풀에 돌려주는 유일한 지점이다.
+                // 여기를 지나면 packet.Data는 더 이상 이 패킷의 것이 아니다.
+                packet?.ReturnBuffer();
             }
         }
     }

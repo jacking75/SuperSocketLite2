@@ -8,6 +8,7 @@ internal static class Program
     {
         var tests = new List<TestCase>();
         tests.AddRange(BinaryPacketTests.Cases());
+        tests.AddRange(ZeroAllocationTests.Cases());
         tests.AddRange(CsvMetricWriterTests.Cases());
         tests.AddRange(LatencyHistogramTests.Cases());
         tests.AddRange(SharedPrimitiveTests.Cases());

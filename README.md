@@ -272,6 +272,8 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 - [Coding conventions](.claude/conventions.md) *(Korean)*
 - [Known caveats](.claude/cautions.md) *(Korean)* — thread-safety notes, zero-copy buffer lifetime, UDP quirks
 - [Migrating from 0.90 to 0.91](Docs/Migration_0.90_to_0.91.md)
+- [Minimising GC and copies](Docs/GC_Copy_Minimization.md) *(Korean)* — how to get to zero
+  per-packet allocations in your receive filter, packet handlers, and send calls
 - [Diagrams](Docs/index.html) *(Korean)* — architecture, TCP connection flow, receive/send pipeline detail
 - [Setting up VS Code for whole-repository analysis](Docs/VSCode_Repository_Analysis.html) *(Korean)*
 

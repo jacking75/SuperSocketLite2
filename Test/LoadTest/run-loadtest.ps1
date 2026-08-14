@@ -28,6 +28,13 @@
     .\run-loadtest.ps1 -RunId m-full -Repeat 3 -Metrics full -SkipReport
     .\run-loadtest.ps1 -RunId m-off  -Repeat 3 -Metrics off  -SkipReport
     .\run-loadtest.ps1 -ReportOnly -Baseline m-full -Candidate m-off
+
+.EXAMPLE
+    # GC·복사 개선 전후 비교 (Docs/GC_Copy_Minimization.md 9장).
+    # 같은 빌드로 서버의 패킷당 버퍼 처리 방식만 바꿔 돌린다.
+    .\run-loadtest.ps1 -RunId a-legacy -Repeat 3 -AllocMode legacy -SkipReport
+    .\run-loadtest.ps1 -RunId a-pooled -Repeat 3 -AllocMode pooled -SkipReport
+    .\run-loadtest.ps1 -ReportOnly -Baseline a-legacy -Candidate a-pooled
 #>
 [CmdletBinding()]
 param(
@@ -53,6 +60,11 @@ param(
     # 서버 계측 수준. off 로 두면 서버 CSV가 남지 않는다. 계측 자체의 비용을 잴 때 쓴다.
     [ValidateSet('full', 'no-gauges', 'off')]
     [string]   $Metrics = 'full',
+
+    # 서버의 패킷당 버퍼 처리 방식. legacy 는 개선 전 동작(패킷마다 배열 할당)을 재현한다.
+    # 이진 TCP 경로에만 적용된다. Docs/GC_Copy_Minimization.md 참고.
+    [ValidateSet('pooled', 'legacy')]
+    [string]   $AllocMode = 'pooled',
 
     # 서버 장애 주입. 부하가 도는 중에 서버를 강제 종료했다가 다시 띄운다.
     # 클라이언트가 재접속하도록 -ExtraClientArgs 에 --reconnect-on-drop 이 자동으로 붙는다.
@@ -106,7 +118,8 @@ function Start-LoadTestServer {
     )
     if ($TextPort -gt 0)      { $serverArgs += @('--text-port', "$TextPort") }
     if ($UdpPort  -gt 0)      { $serverArgs += @('--udp-port',  "$UdpPort") }
-    if ($Metrics -ne 'full')  { $serverArgs += @('--metrics',   $Metrics) }
+    if ($Metrics -ne 'full')     { $serverArgs += @('--metrics',    $Metrics) }
+    if ($AllocMode -ne 'pooled') { $serverArgs += @('--alloc-mode', $AllocMode) }
 
     return Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden -ArgumentList $serverArgs
 }

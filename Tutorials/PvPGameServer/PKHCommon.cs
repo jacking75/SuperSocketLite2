@@ -54,7 +54,8 @@ public class PKHCommon : PKHandler
                 return;
             }
                             
-            var reqData = MemoryPackSerializer.Deserialize< PKTReqLogin>(packetData.Data);
+            // 풀 배열은 패킷보다 클 수 있으므로 유효 구간(DataSpan)만 넘긴다.
+            var reqData = MemoryPackSerializer.Deserialize<PKTReqLogin>(packetData.DataSpan);
             var errorCode = _userMgr.AddUser(reqData.UserID, sessionID);
             if (errorCode != ErrorCode.None)
             {

@@ -17,18 +17,20 @@ public class InnerPakcetMaker
 
         var sendData = MemoryPackSerializer.Serialize(packet);
         MemoryPackPacketHeader.Write(sendData, PacketId.NtfInRoomLeave);
-        
-        var memoryPakcPacket = new MemoryPackBinaryRequestInfo(null);
-        memoryPakcPacket.Data = sendData;
+
+        // 서버가 직접 만든 배열이므로 풀 반납 대상이 아니다.
+        var memoryPakcPacket = new MemoryPackBinaryRequestInfo();
+        memoryPakcPacket.SetOwnedData(sendData);
         memoryPakcPacket.SessionID = sessionID;
         return memoryPakcPacket;
     }
 
     public static MemoryPackBinaryRequestInfo MakeNTFInConnectOrDisConnectClientPacket(bool isConnect, string sessionID)
     {
-        var memoryPakcPacket = new MemoryPackBinaryRequestInfo(null);
-        memoryPakcPacket.Data = new byte[MemoryPackPacketHeader.HeaderSize];
-        
+        // 서버가 직접 만든 배열이므로 풀 반납 대상이 아니다.
+        var memoryPakcPacket = new MemoryPackBinaryRequestInfo();
+        memoryPakcPacket.SetOwnedData(new byte[MemoryPackPacketHeader.HeaderSize]);
+
         if (isConnect)
         {
             MemoryPackPacketHeader.WritePacketId(memoryPakcPacket.Data, (UInt16)PacketId.NtfInConnectClient);

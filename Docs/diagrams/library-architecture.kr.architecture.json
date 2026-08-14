@@ -2,8 +2,8 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "SuperSocketLite Overall Architecture",
-    "output": "../Library_Architecture.html",
+    "title": "SuperSocketLite 전체 구조",
+    "output": "../Library_Architecture_kr.html",
     "quality_profile": "showcase",
     "animation": "trace",
     "repository": {
@@ -13,7 +13,7 @@
     "views": [
       {
         "id": "connect",
-        "label": "How a Connection Is Established",
+        "label": "연결이 만들어지기까지",
         "focus": [
           "client",
           "listener",
@@ -21,11 +21,11 @@
           "saeaPool",
           "socketSession"
         ],
-        "note": "Two SAEA objects are attached to the accepted socket to create a session. If the pool is empty, the connection is rejected."
+        "note": "accept한 소켓에 SAEA 두 개를 붙여 세션을 만든다. 풀이 비면 접속을 거부한다."
       },
       {
         "id": "receive",
-        "label": "How a Packet Reaches the Handler",
+        "label": "패킷이 핸들러에 닿기까지",
         "focus": [
           "socketSession",
           "recvPipe",
@@ -33,18 +33,18 @@
           "appSession",
           "handler"
         ],
-        "note": "The socket writes directly into the Pipe buffer, and the filter reads that memory as-is. There is no intermediate copy."
+        "note": "소켓이 Pipe 버퍼에 직접 쓰고, 필터가 그 메모리를 그대로 읽는다. 중간 복사가 없다."
       },
       {
         "id": "send",
-        "label": "How a Response Goes Out",
+        "label": "응답이 나가기까지",
         "focus": [
           "appSession",
           "sendQueue",
           "socketSession",
           "client"
         ],
-        "note": "Each session has one queue and one sending thread. Collected segments go out in a single batch."
+        "note": "세션마다 큐가 하나이고 보내는 스레드도 하나다. 모인 세그먼트는 한 번에 나간다."
       }
     ]
   },
@@ -52,7 +52,7 @@
     {
       "id": "client",
       "type": "external",
-      "label": "Client",
+      "label": "클라이언트",
       "sublabel": "TCP / UDP",
       "pos": [
         60,
@@ -67,7 +67,7 @@
       "id": "listener",
       "type": "backend",
       "label": "TcpAsyncSocketListener",
-      "sublabel": "accept loop",
+      "sublabel": "accept 루프",
       "tag": "AcceptLoopCount",
       "pos": [
         300,
@@ -87,7 +87,7 @@
       "id": "socketServer",
       "type": "backend",
       "label": "AsyncSocketServer",
-      "sublabel": "Session creation · SAEA allocation",
+      "sublabel": "세션 생성 · SAEA 배분",
       "pos": [
         540,
         250
@@ -106,8 +106,8 @@
       "id": "saeaPool",
       "type": "database",
       "label": "SmartPool",
-      "sublabel": "Receive proxy · Send SAEA",
-      "tag": "Rejects connections when exhausted",
+      "sublabel": "수신 proxy · 송신 SAEA",
+      "tag": "고갈 시 접속 거부",
       "pos": [
         540,
         60
@@ -126,7 +126,7 @@
       "id": "socketSession",
       "type": "backend",
       "label": "SocketSession",
-      "sublabel": "State machine · socket I/O",
+      "sublabel": "상태 머신 · 소켓 I/O",
       "pos": [
         780,
         250
@@ -144,7 +144,7 @@
     {
       "id": "recvPipe",
       "type": "messagebus",
-      "label": "Receive Pipe",
+      "label": "수신 Pipe",
       "sublabel": "System.IO.Pipelines",
       "pos": [
         1020,
@@ -159,8 +159,8 @@
       "id": "filter",
       "type": "backend",
       "label": "IReceiveFilter",
-      "sublabel": "Implemented by the app",
-      "tag": "Packet boundary",
+      "sublabel": "앱이 구현한다",
+      "tag": "패킷 경계",
       "pos": [
         1260,
         130
@@ -179,7 +179,7 @@
       "id": "appSession",
       "type": "backend",
       "label": "AppSession",
-      "sublabel": "Request assembly · Send API",
+      "sublabel": "요청 조립 · Send API",
       "pos": [
         1260,
         350
@@ -197,9 +197,9 @@
     {
       "id": "handler",
       "type": "frontend",
-      "label": "App Handler",
+      "label": "앱 핸들러",
       "sublabel": "NewRequestReceived",
-      "tag": "Implemented by the app",
+      "tag": "앱이 구현한다",
       "pos": [
         1260,
         460
@@ -213,7 +213,7 @@
       "id": "sendQueue",
       "type": "messagebus",
       "label": "ChannelSendingQueue",
-      "sublabel": "Bounded Channel per session",
+      "sublabel": "세션당 bounded Channel",
       "pos": [
         1020,
         350
@@ -234,7 +234,7 @@
       "id": "connect",
       "from": "client",
       "to": "listener",
-      "label": "TCP connection",
+      "label": "TCP 연결",
       "variant": "emphasis"
     },
     {
@@ -247,7 +247,7 @@
       "id": "lease",
       "from": "socketServer",
       "to": "saeaPool",
-      "label": "Lease · return",
+      "label": "대여 · 반납",
       "fromSide": "top",
       "toSide": "bottom"
     },
@@ -255,19 +255,19 @@
       "id": "makeSession",
       "from": "socketServer",
       "to": "socketSession",
-      "label": "Create session"
+      "label": "세션 생성"
     },
     {
       "id": "recvInto",
       "from": "socketSession",
       "to": "recvPipe",
-      "label": "Writes directly"
+      "label": "직접 쓴다"
     },
     {
       "id": "parse",
       "from": "recvPipe",
       "to": "filter",
-      "label": "Sequence"
+      "label": "시퀀스"
     },
     {
       "id": "request",
@@ -280,7 +280,7 @@
       "id": "dispatch",
       "from": "appSession",
       "to": "handler",
-      "label": "Synchronous call",
+      "label": "동기 호출",
       "variant": "emphasis",
       "labelDy": 24
     },
@@ -288,49 +288,49 @@
       "id": "enqueue",
       "from": "appSession",
       "to": "sendQueue",
-      "label": "Enqueue Send"
+      "label": "Send 적재"
     },
     {
       "id": "drain",
       "from": "sendQueue",
       "to": "socketSession",
-      "label": "Batch drain"
+      "label": "배치 드레인"
     }
   ],
   "cards": [
     {
       "dot": "cyan",
-      "title": "Receive",
+      "title": "수신",
       "items": [
-        "The socket writes directly into the Pipe buffer — zero receive copies",
-        "The filter reads that memory as-is via ReadOnlySequence",
-        "Data that hasn't yet formed a complete request stays in the Pipe"
+        "소켓이 Pipe 버퍼에 직접 쓴다 — 수신 복사 0회",
+        "필터는 그 메모리를 ReadOnlySequence로 그대로 읽는다",
+        "아직 요청이 못 된 데이터는 Pipe에 남는다"
       ]
     },
     {
       "dot": "emerald",
-      "title": "Send",
+      "title": "송신",
       "items": [
-        "One queue per session, one sending thread (single-flight)",
-        "Collected segments go out at once via BufferList",
-        "SendCopied copies into a pooled buffer, so the caller's buffer can be reused immediately"
+        "세션마다 큐 하나, 보내는 스레드도 하나(single-flight)",
+        "모인 세그먼트는 BufferList로 한 번에 나간다",
+        "SendCopied는 풀 버퍼로 복사하므로 호출자 버퍼를 바로 재사용해도 된다"
       ]
     },
     {
       "dot": "violet",
-      "title": "App Extension Points",
+      "title": "앱이 채우는 두 곳",
       "items": [
-        "IReceiveFilter — determines packet boundaries in the byte stream",
-        "NewRequestReceived — handles a single request",
-        "Once the handler returns, the request and its body become invalid"
+        "IReceiveFilter — 바이트 스트림에서 패킷 경계를 정한다",
+        "NewRequestReceived — 요청 하나를 처리한다",
+        "핸들러가 리턴하면 요청과 본문은 무효가 된다"
       ]
     },
     {
       "dot": "amber",
-      "title": "Observability",
+      "title": "관측",
       "items": [
-        "A single Meter(\"SuperSocketLite\") emits counters, histograms, and gauges",
-        "Gauges are computed only when a collector observes them"
+        "Meter(\"SuperSocketLite\") 하나로 카운터·히스토그램·게이지를 낸다",
+        "게이지는 수집기가 볼 때만 계산한다"
       ]
     }
   ]

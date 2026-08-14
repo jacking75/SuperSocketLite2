@@ -2,8 +2,8 @@
   "schema_version": 1,
   "diagram_type": "sequence",
   "meta": {
-    "title": "How a Packet Reaches the Handler",
-    "output": "../Library_Receive_Flow.html",
+    "title": "패킷 하나가 핸들러에 닿기까지",
+    "output": "../Library_Receive_Flow_kr.html",
     "viewBox": [
       1180,
       636
@@ -13,33 +13,33 @@
     "views": [
       {
         "id": "borrow",
-        "label": "Borrowing the buffer",
+        "label": "버퍼를 빌려 받는다",
         "focus": [
           "session",
           "pipe",
           "socket"
         ],
-        "note": "The memory the Pipe hands out is passed straight to the socket. There is no step where received data gets copied elsewhere."
+        "note": "Pipe가 내준 메모리를 소켓에 그대로 건넨다. 받은 데이터를 옮겨 담는 단계가 없다."
       },
       {
         "id": "wake",
-        "label": "The pipe task wakes up",
+        "label": "파이프 태스크가 깨어난다",
         "focus": [
           "pipe",
           "pipeTask",
           "appSession"
         ],
-        "note": "The IOCP thread is only used to advance the pipe; request processing is handled by a single task per session."
+        "note": "IOCP 스레드는 파이프를 전진시키는 데까지만 쓰고, 요청 처리는 세션마다 하나인 태스크가 맡는다."
       },
       {
         "id": "parse",
-        "label": "The filter determines the boundary",
+        "label": "필터가 경계를 정한다",
         "focus": [
           "appSession",
           "filter",
           "handler"
         ],
-        "note": "The filter reads the sequence directly. Whatever hasn't become a full request yet stays in the pipe."
+        "note": "필터는 시퀀스를 그대로 읽는다. 요청이 되지 못한 나머지는 파이프에 남는다."
       }
     ]
   },
@@ -47,61 +47,61 @@
     {
       "id": "socket",
       "type": "external",
-      "label": "Socket",
-      "sublabel": "IOCP completion"
+      "label": "소켓",
+      "sublabel": "IOCP 완료"
     },
     {
       "id": "session",
       "type": "backend",
-      "label": "Receive Loop",
+      "label": "수신 루프",
       "sublabel": "AsyncSocketSession"
     },
     {
       "id": "pipe",
       "type": "messagebus",
-      "label": "Receive Pipe",
-      "sublabel": "Owns the buffer"
+      "label": "수신 Pipe",
+      "sublabel": "버퍼 소유"
     },
     {
       "id": "pipeTask",
       "type": "backend",
-      "label": "Pipe Task",
-      "sublabel": "Per-session task"
+      "label": "파이프 처리",
+      "sublabel": "세션당 태스크"
     },
     {
       "id": "appSession",
       "type": "backend",
       "label": "AppSession",
-      "sublabel": "Request assembly"
+      "sublabel": "요청 조립"
     },
     {
       "id": "filter",
       "type": "backend",
-      "label": "Filter",
-      "sublabel": "App-implemented"
+      "label": "수신 필터",
+      "sublabel": "앱이 구현"
     },
     {
       "id": "handler",
       "type": "frontend",
-      "label": "App Handler",
-      "sublabel": "Request handling"
+      "label": "앱 핸들러",
+      "sublabel": "요청 처리"
     }
   ],
   "segments": [
     {
       "from": 150,
       "to": 324,
-      "label": "Borrowing the buffer"
+      "label": "버퍼를 빌려 받는다"
     },
     {
       "from": 334,
       "to": 462,
-      "label": "Parsing"
+      "label": "파싱"
     },
     {
       "from": 472,
       "to": 562,
-      "label": "Handle and consume"
+      "label": "처리하고 소비한다"
     }
   ],
   "messages": [
@@ -118,7 +118,7 @@
       "from": "pipe",
       "to": "session",
       "y": 212,
-      "label": "buffer to write into",
+      "label": "쓸 버퍼",
       "variant": "return"
     },
     {
@@ -126,7 +126,7 @@
       "from": "session",
       "to": "socket",
       "y": 244,
-      "label": "ReceiveAsync — directly into this buffer",
+      "label": "ReceiveAsync — 이 버퍼에 직접",
       "variant": "emphasis"
     },
     {
@@ -134,7 +134,7 @@
       "from": "socket",
       "to": "session",
       "y": 276,
-      "label": "completed · N bytes",
+      "label": "완료 · N바이트",
       "variant": "return"
     },
     {
@@ -150,7 +150,7 @@
       "from": "pipe",
       "to": "pipeTask",
       "y": 346,
-      "label": "ReadAsync wakes up",
+      "label": "ReadAsync 깨어남",
       "variant": "default"
     },
     {
@@ -158,7 +158,7 @@
       "from": "pipeTask",
       "to": "appSession",
       "y": 378,
-      "label": "ProcessRequest(sequence)",
+      "label": "ProcessRequest(시퀀스)",
       "variant": "emphasis"
     },
     {
@@ -166,7 +166,7 @@
       "from": "appSession",
       "to": "filter",
       "y": 410,
-      "label": "Filter(sequence)",
+      "label": "Filter(시퀀스)",
       "variant": "default"
     },
     {
@@ -182,7 +182,7 @@
       "from": "appSession",
       "to": "handler",
       "y": 482,
-      "label": "synchronous call",
+      "label": "동기 호출",
       "variant": "emphasis"
     },
     {
@@ -190,7 +190,7 @@
       "from": "handler",
       "to": "appSession",
       "y": 514,
-      "label": "response Send",
+      "label": "응답 Send",
       "variant": "dashed"
     },
     {
@@ -198,7 +198,7 @@
       "from": "pipeTask",
       "to": "pipe",
       "y": 548,
-      "label": "AdvanceTo — leaves the rest behind",
+      "label": "AdvanceTo — 나머지는 남긴다",
       "variant": "default"
     }
   ],
@@ -243,29 +243,29 @@
   "cards": [
     {
       "dot": "cyan",
-      "title": "Why there's no copying",
+      "title": "왜 복사가 없나",
       "items": [
-        "Pipe memory goes right to the socket",
-        "Filter reads it too, as a ReadOnlySequence",
-        "No copy from socket to deserialization"
+        "Pipe가 내준 메모리를 소켓에 그대로 건넨다",
+        "필터도 같은 메모리를 ReadOnlySequence로 읽는다",
+        "소켓에서 역직렬화까지 옮겨 담는 단계가 없다"
       ]
     },
     {
       "dot": "emerald",
-      "title": "Threads are split",
+      "title": "스레드가 나뉜다",
       "items": [
-        "IOCP thread only advances the pipe",
-        "ProcessPipeAsync runs once per session",
-        "ReceiveInlineOnIocpThread=false moves it to the pool too"
+        "IOCP 스레드는 파이프를 전진시키는 데까지만 쓴다",
+        "요청 처리는 세션마다 하나인 ProcessPipeAsync 태스크가 한다",
+        "ReceiveInlineOnIocpThread=false로 두면 전진도 스레드 풀로 넘어간다"
       ]
     },
     {
       "dot": "violet",
-      "title": "After the handler returns",
+      "title": "핸들러가 리턴한 뒤에",
       "items": [
-        "AdvanceTo runs after the handler ends",
-        "Body memory stays alive during the handler",
-        "Invalid after return — copy it first"
+        "AdvanceTo는 핸들러가 끝난 뒤에 불린다",
+        "그래서 핸들러가 도는 동안에는 본문 메모리가 살아 있다",
+        "리턴 뒤에는 무효다 — 남기려면 핸들러 안에서 복사한다"
       ]
     }
   ]

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SuperSocketLite 2 문서</title>
+  <title>SuperSocketLite 2 Documentation</title>
   <style>
     :root {
       color-scheme: light;
@@ -17,7 +17,7 @@
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+      font-family: "Segoe UI", Arial, sans-serif;
       background: var(--bg);
       color: var(--text);
       line-height: 1.6;
@@ -74,76 +74,92 @@
 </head>
 <body>
   <main>
-    <h1>SuperSocketLite 2 문서</h1>
+    <h1>SuperSocketLite 2 Documentation</h1>
     <p class="lead">
-      SuperSocketLite 2의 문서 모음입니다. 라이브러리를 <strong>쓰는 방법</strong>은 저장소 루트의
-      <code>README.md</code>(한글판 <code>README_kr.md</code>)가, <strong>내부 구조</strong>는
-      <code>.claude/architecture.md</code>가 다룹니다. 여기에는 그 둘로 나누기 어려운 주제만 둡니다.
+      The documentation set for SuperSocketLite 2. <strong>Building and using the library, plus what you
+      need to know before you do</strong> is document 1 below. The <strong>source text</strong> lives in
+      the repository root's <code>README.md</code> (Korean translation: <code>README_kr.md</code>) and
+      <code>.claude/cautions.md</code>. <strong>Internal architecture</strong> is covered by
+      <code>.claude/architecture.md</code>.
     </p>
 
     <div class="grid">
-      <a class="card" href="Guide.html">
+      <a class="card" href="Getting_Started.html">
         <span class="num">1</span>
-        <h2>안내서 — 라이브러리와 예제 읽기</h2>
-        <p>라이브러리가 어떻게 도는지와 <code>Tutorials/</code> 예제 하나하나가 무엇을 가르치는지 그림과 함께 설명합니다. 여기서 시작하세요.</p>
+        <h2>Getting Started — build, usage, must-knows</h2>
+        <p>From requirements through building the library, a minimal server example, the Send API and config tables, and the 8 gotchas that compile fine but only bite under load — all in one document.</p>
+        <div class="file">Getting_Started.html</div>
+      </a>
+
+      <a class="card" href="Guide.html">
+        <span class="num">2</span>
+        <h2>Guide — reading the library and the examples</h2>
+        <p>How the library runs internally, and what each <code>Tutorials/</code> example teaches, with diagrams.</p>
         <div class="file">Guide.html</div>
       </a>
 
       <a class="card" href="Library_Architecture.html">
-        <span class="num">2</span>
-        <h2>전체 구조</h2>
-        <p>리스너부터 핸들러까지 어떤 부품이 어떻게 이어지는지 봅니다. 확대·검색·단계별 보기가 됩니다.</p>
+        <span class="num">3</span>
+        <h2>Full Architecture</h2>
+        <p>How every piece connects, from the listener to your handler. Zoomable, searchable, and steppable.</p>
         <div class="file">Library_Architecture.html</div>
       </a>
 
       <a class="card" href="Library_Receive_Flow.html">
-        <span class="num">3</span>
-        <h2>수신 흐름</h2>
-        <p>패킷 하나가 소켓에서 앱 핸들러에 닿기까지의 순서. 어디서 복사가 없는지 보입니다.</p>
+        <span class="num">4</span>
+        <h2>Receive Flow</h2>
+        <p>The path one packet takes from the socket to your handler — and exactly where no copy happens.</p>
         <div class="file">Library_Receive_Flow.html</div>
       </a>
 
       <a class="card" href="Library_Send_Flow.html">
-        <span class="num">4</span>
-        <h2>송신 흐름</h2>
-        <p>응답 한 번이 큐를 거쳐 소켓으로 나가기까지. 버퍼가 언제 풀로 돌아오는지도 함께 봅니다.</p>
+        <span class="num">5</span>
+        <h2>Send Flow</h2>
+        <p>How a single response travels through the queue to the socket, and when its buffer returns to the pool.</p>
         <div class="file">Library_Send_Flow.html</div>
       </a>
 
       <a class="card" href="Library_Session_Lifecycle.html">
-        <span class="num">5</span>
-        <h2>세션 수명</h2>
-        <p>세션이 만들어지고 닫히기까지의 상태 전이. 종료가 미뤄지는 구간과 예외 경로를 다룹니다.</p>
+        <span class="num">6</span>
+        <h2>Session Lifecycle</h2>
+        <p>The state transitions from session creation to close — where shutdown is deferred, and the exception paths.</p>
         <div class="file">Library_Session_Lifecycle.html</div>
       </a>
 
       <a class="card" href="Tutorials_Path.html">
-        <span class="num">6</span>
-        <h2>예제 읽는 순서</h2>
-        <p><code>Tutorials/</code> 예제를 어떤 순서로 볼지, 어디서 구조가 갈라지는지 보여 줍니다.</p>
+        <span class="num">7</span>
+        <h2>Reading Order for the Examples</h2>
+        <p>Which order to read the <code>Tutorials/</code> examples in, and where their structure branches.</p>
         <div class="file">Tutorials_Path.html</div>
       </a>
 
       <a class="card" href="GC_Copy_Minimization.md">
-        <span class="num">7</span>
-        <h2>GC·데이터 복사 최소화</h2>
-        <p>수신 필터·핸들러·송신 호출부에서 패킷당 할당을 0으로 만드는 방법과 실제로 잰 수치입니다.</p>
+        <span class="num">8</span>
+        <h2>Minimizing GC and Copies</h2>
+        <p>How to get per-packet allocations to zero across the receive filter, the handler, and the send call — with measured numbers. <em>(Korean only)</em></p>
         <div class="file">GC_Copy_Minimization.md</div>
       </a>
 
       <a class="card" href="VSCode_Repository_Analysis.html">
-        <span class="num">8</span>
-        <h2>VS Code 저장소 전체 분석</h2>
-        <p><code>SuperSocketLite2.slnx</code>를 기본 솔루션으로 지정해 저장소 전체에서 정의 이동과 코드 탐색이 되게 합니다.</p>
+        <span class="num">9</span>
+        <h2>Whole-Repository Analysis in VS Code</h2>
+        <p>Set <code>SuperSocketLite2.slnx</code> as the default solution so go-to-definition and code search work across the whole repository.</p>
         <div class="file">VSCode_Repository_Analysis.html</div>
       </a>
     </div>
 
     <div class="note">
-      다이어그램은 <code>Docs/diagrams/</code>의 JSON 명세에서 <code>archify</code> 스킬로 생성합니다.
-      코드가 바뀌어 그림이 맞지 않으면 명세를 고쳐 다시 만드세요 — 손으로 HTML을 고치면 그림 안까지는 고쳐지지 않습니다.
-      0.90 → 0.91 마이그레이션 가이드는 삭제했고, 무엇을 뺐고 대신 무엇을 하면 되는지는
-      <code>.claude/architecture.md</code>의 "제거된 기능" 절에 있습니다.
+      This repository's documentation defaults to English on the assumption that most readers are
+      English speakers. A Korean translation of each page lives alongside it with a <code>_kr</code>
+      suffix — see <a href="index_kr.html">Docs/index_kr.html</a>. The two tracks should stay in sync;
+      when you edit one, check the other.
+      <br><br>
+      Diagrams are generated from the JSON specs in <code>Docs/diagrams/</code> (English specs are
+      unsuffixed, Korean specs are <code>*.kr.&lt;type&gt;.json</code>) using the <code>archify</code> skill.
+      If the code changes and a diagram no longer matches, fix the spec and regenerate — hand-editing the
+      HTML won't fix what's inside the diagram itself.
+      The 0.90 → 0.91 migration guide has been removed; what was dropped and what to do instead is now in
+      the "Removed Features" section of <code>.claude/architecture.md</code> <em>(Korean)</em>.
     </div>
   </main>
 </body>

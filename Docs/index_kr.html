@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SuperSocketLite 2 문서</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f7f9fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #64748b;
+      --line: #d8e0ea;
+      --accent: #156f6b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    main {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    h1 { margin: 0 0 12px; font-size: 34px; letter-spacing: 0; }
+    p { margin: 0; }
+    .lead { color: var(--muted); max-width: 820px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+    a.card {
+      display: block;
+      min-height: 210px;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      color: inherit;
+      text-decoration: none;
+    }
+    a.card:hover { border-color: var(--accent); }
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      margin-bottom: 16px;
+      border-radius: 50%;
+      background: #e7f5f2;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    h2 { margin: 0 0 10px; font-size: 20px; letter-spacing: 0; }
+    .file { margin-top: 16px; color: var(--accent); font-family: Consolas, monospace; font-size: 13px; }
+    .note {
+      margin-top: 28px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+    }
+    code { font-family: Consolas, monospace; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SuperSocketLite 2 문서</h1>
+    <p class="lead">
+      SuperSocketLite 2의 문서 모음입니다. 라이브러리를 <strong>빌드·사용하는 방법과 꼭 알아야 할 것</strong>은
+      아래 1번 문서가, <strong>원문</strong>은 저장소 루트의 <code>README.md</code>(한글판 <code>README_kr.md</code>)와
+      <code>.claude/cautions.md</code>가 다룹니다. <strong>내부 구조</strong>는 <code>.claude/architecture.md</code>가 다룹니다.
+    </p>
+
+    <div class="grid">
+      <a class="card" href="Getting_Started_kr.html">
+        <span class="num">1</span>
+        <h2>시작하기 — 빌드 · 사용법 · 꼭 알아야 할 것</h2>
+        <p>요구 사항부터 빌드, 최소 서버 예제, Send API·설정 표, 컴파일은 되지만 부하가 걸려야 드러나는 8가지 주의사항까지 한 문서에 모았습니다.</p>
+        <div class="file">Getting_Started_kr.html</div>
+      </a>
+
+      <a class="card" href="Guide_kr.html">
+        <span class="num">2</span>
+        <h2>안내서 — 라이브러리와 예제 읽기</h2>
+        <p>라이브러리가 어떻게 도는지와 <code>Tutorials/</code> 예제 하나하나가 무엇을 가르치는지 그림과 함께 설명합니다.</p>
+        <div class="file">Guide_kr.html</div>
+      </a>
+
+      <a class="card" href="Library_Architecture_kr.html">
+        <span class="num">3</span>
+        <h2>전체 구조</h2>
+        <p>리스너부터 핸들러까지 어떤 부품이 어떻게 이어지는지 봅니다. 확대·검색·단계별 보기가 됩니다.</p>
+        <div class="file">Library_Architecture_kr.html</div>
+      </a>
+
+      <a class="card" href="Library_Receive_Flow_kr.html">
+        <span class="num">4</span>
+        <h2>수신 흐름</h2>
+        <p>패킷 하나가 소켓에서 앱 핸들러에 닿기까지의 순서. 어디서 복사가 없는지 보입니다.</p>
+        <div class="file">Library_Receive_Flow_kr.html</div>
+      </a>
+
+      <a class="card" href="Library_Send_Flow_kr.html">
+        <span class="num">5</span>
+        <h2>송신 흐름</h2>
+        <p>응답 한 번이 큐를 거쳐 소켓으로 나가기까지. 버퍼가 언제 풀로 돌아오는지도 함께 봅니다.</p>
+        <div class="file">Library_Send_Flow_kr.html</div>
+      </a>
+
+      <a class="card" href="Library_Session_Lifecycle_kr.html">
+        <span class="num">6</span>
+        <h2>세션 수명</h2>
+        <p>세션이 만들어지고 닫히기까지의 상태 전이. 종료가 미뤄지는 구간과 예외 경로를 다룹니다.</p>
+        <div class="file">Library_Session_Lifecycle_kr.html</div>
+      </a>
+
+      <a class="card" href="Tutorials_Path_kr.html">
+        <span class="num">7</span>
+        <h2>예제 읽는 순서</h2>
+        <p><code>Tutorials/</code> 예제를 어떤 순서로 볼지, 어디서 구조가 갈라지는지 보여 줍니다.</p>
+        <div class="file">Tutorials_Path_kr.html</div>
+      </a>
+
+      <a class="card" href="GC_Copy_Minimization.md">
+        <span class="num">8</span>
+        <h2>GC·데이터 복사 최소화</h2>
+        <p>수신 필터·핸들러·송신 호출부에서 패킷당 할당을 0으로 만드는 방법과 실제로 잰 수치입니다.</p>
+        <div class="file">GC_Copy_Minimization.md</div>
+      </a>
+
+      <a class="card" href="VSCode_Repository_Analysis_kr.html">
+        <span class="num">9</span>
+        <h2>VS Code 저장소 전체 분석</h2>
+        <p><code>SuperSocketLite2.slnx</code>를 기본 솔루션으로 지정해 저장소 전체에서 정의 이동과 코드 탐색이 되게 합니다.</p>
+        <div class="file">VSCode_Repository_Analysis_kr.html</div>
+      </a>
+    </div>
+
+    <div class="note">
+      이 저장소를 보는 사람은 대부분 영어권이라 가정해 문서 기본판은 영어입니다 — 영어판은
+      <a href="index.html">Docs/index.html</a>에 있고, 파일 이름이 같은 위치의 <code>_kr</code>이 이 한글판입니다.
+      두 판은 내용이 같아야 하니, 한쪽을 고치면 다른 쪽도 확인하세요.
+      <br><br>
+      다이어그램은 <code>Docs/diagrams/</code>의 JSON 명세(한글판은 <code>*.kr.&lt;종류&gt;.json</code>)에서
+      <code>archify</code> 스킬로 생성합니다. 코드가 바뀌어 그림이 맞지 않으면 명세를 고쳐 다시 만드세요 —
+      손으로 HTML을 고치면 그림 안까지는 고쳐지지 않습니다.
+      0.90 → 0.91 마이그레이션 가이드는 삭제했고, 무엇을 뺐고 대신 무엇을 하면 되는지는
+      <code>.claude/architecture.md</code>의 "제거된 기능" 절에 있습니다.
+    </div>
+  </main>
+</body>
+</html>

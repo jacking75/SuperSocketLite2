@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VS Code 저장소 전체 분석</title>
+  <title>Whole-Repository Analysis in VS Code</title>
   <style>
-    body { margin: 0; font-family: "Segoe UI", "Malgun Gothic", Arial, sans-serif; color: #1f2937; background: #f7f9fb; line-height: 1.65; }
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #1f2937; background: #f7f9fb; line-height: 1.65; }
     main { max-width: 960px; margin: 0 auto; padding: 44px 24px 64px; }
     h1 { margin: 0 0 12px; font-size: 34px; letter-spacing: 0; }
     h2 { margin: 34px 0 12px; font-size: 24px; letter-spacing: 0; }
@@ -23,84 +23,87 @@
 </head>
 <body>
 <main>
-  <a class="back" href="index.html">← 문서 목록</a>
-  <h1>VS Code 저장소 전체 분석</h1>
+  <a class="back" href="index.html">← Document index</a>
+  <h1>Whole-Repository Analysis in VS Code</h1>
   <p class="lead">
-    VS Code C# 언어 서버가 루트 통합 솔루션 <code>SuperSocketLite2.slnx</code>를 로드하도록 설정하는 방법을 설명합니다.
-    이 솔루션에는 라이브러리, 템플릿, 테스트, 튜토리얼을 포함한 C# 프로젝트 33개가 등록되어 있습니다.
+    How to get the VS Code C# language server to load the root unified solution
+    <code>SuperSocketLite2.slnx</code>. That solution registers 33 C# projects, including the library,
+    templates, tests, and tutorials.
   </p>
 
-  <h2>1. 설정이 필요한 이유</h2>
+  <h2>1. Why this setting is needed</h2>
   <p>
-    확인한 C# 확장의 standalone 모드는 기본 솔루션을 자동 선택할 때 <code>.sln</code> 파일을 검색합니다.
-    이 저장소의 통합 솔루션은 루트의 <code>.slnx</code>이고 하위 디렉터리에는 여러 <code>.sln</code>이 있으므로,
-    기본 솔루션을 지정하지 않으면 원하는 통합 솔루션이 자동으로 선택되지 않을 수 있습니다.
+    In standalone mode, the C# extension picks a default solution by searching for <code>.sln</code> files.
+    This repository's unified solution is the root's <code>.slnx</code>, and several subdirectories each
+    have their own <code>.sln</code> — so without pinning a default solution, the extension may not pick the
+    unified one automatically.
   </p>
   <p>
-    솔루션이 선택되지 않은 상태에서 C# 파일을 열면 Roslyn은 해당 파일들을 임시 <code>Canonical.csproj</code>에 넣어 분석합니다.
-    이 방식은 파일 단위 편집에는 사용할 수 있지만 저장소 전체의 프로젝트 관계와 모든 소스 파일을 제공하지 않습니다.
+    If you open a C# file with no solution selected, Roslyn analyzes it inside a throwaway
+    <code>Canonical.csproj</code>. That's fine for editing a single file, but it doesn't give you the
+    repository's project relationships or its full set of source files.
   </p>
 
-  <h2>2. 작업 영역 설정</h2>
-  <p>저장소 루트에 <code>.vscode/settings.json</code>을 만들고 다음 내용을 저장합니다.</p>
+  <h2>2. Configuring the workspace</h2>
+  <p>Create <code>.vscode/settings.json</code> at the repository root with this content.</p>
   <pre><code>{
   "dotnet.defaultSolution": "SuperSocketLite2.slnx"
 }</code></pre>
   <div class="note">
-    <code>.vscode/</code>는 현재 <code>.gitignore</code> 대상입니다. 따라서 이 설정은 저장소를 사용하는 각 컴퓨터에서
-    로컬로 만들어야 합니다. 저장소 전체 대신 핵심 라이브러리만 분석하려면 값으로
-    <code>SuperSocketLite/SuperSocketLite.sln</code>을 사용할 수 있습니다.
+    <code>.vscode/</code> is currently gitignored, so this setting has to be created locally on every
+    machine that uses the repository. To analyze just the core library instead of the whole repository, use
+    <code>SuperSocketLite/SuperSocketLite.sln</code> as the value instead.
   </div>
 
-  <h2>3. 설정 적용</h2>
+  <h2>3. Applying the setting</h2>
   <ol>
-    <li>VS Code에서 <code>C:\github_dev\SuperSocketLite2</code>처럼 저장소 루트를 작업 영역으로 엽니다.</li>
-    <li>작업 영역을 신뢰한 상태인지 확인합니다. 제한 모드에서는 C# 확장이 limited mode로 실행됩니다.</li>
-    <li>명령 팔레트에서 <code>개발자: 창 다시 로드</code>를 실행합니다.</li>
-    <li>솔루션과 NuGet 복원이 끝날 때까지 기다린 뒤 F12를 다시 실행합니다.</li>
+    <li>Open the repository root as a workspace in VS Code (e.g. <code>C:\github_dev\SuperSocketLite2</code>).</li>
+    <li>Make sure the workspace is trusted — in restricted mode, the C# extension runs in limited mode.</li>
+    <li>Run <code>Developer: Reload Window</code> from the command palette.</li>
+    <li>Wait for the solution and NuGet restore to finish, then try F12 again.</li>
   </ol>
 
-  <h2>4. 정상 로드 확인</h2>
-  <p><code>보기 → 출력</code>에서 출력 채널을 <code>C#</code>으로 바꾸고 로드 메시지를 확인합니다.</p>
+  <h2>4. Confirming it loaded correctly</h2>
+  <p>Switch the output channel to <code>C#</code> under <code>View → Output</code> and check the load message.</p>
   <table>
     <thead>
-      <tr><th>로그 상태</th><th>의미</th></tr>
+      <tr><th>Log state</th><th>Meaning</th></tr>
     </thead>
     <tbody>
-      <tr><td><code>SuperSocketLite2.slnx</code>와 여러 프로젝트를 로드</td><td>저장소 전체 분석이 활성화된 정상 상태입니다.</td></tr>
-      <tr><td><code>Canonical.csproj</code>만 로드</td><td>통합 솔루션이 선택되지 않아 열어 본 파일만 분석하는 상태입니다.</td></tr>
-      <tr><td><code>limited mode</code></td><td>작업 영역 신뢰가 허용되지 않은 상태입니다.</td></tr>
+      <tr><td>Loads <code>SuperSocketLite2.slnx</code> and multiple projects</td><td>Correct — whole-repository analysis is active.</td></tr>
+      <tr><td>Only <code>Canonical.csproj</code> loads</td><td>The unified solution wasn't selected; only the files you've opened are being analyzed.</td></tr>
+      <tr><td><code>limited mode</code></td><td>Workspace trust wasn't granted.</td></tr>
     </tbody>
   </table>
 
-  <h2>5. F12가 일부 심볼에서만 동작하는 경우</h2>
+  <h2>5. When F12 only works for some symbols</h2>
   <table>
     <thead>
-      <tr><th>현상</th><th>가능한 이유</th><th>확인 방법</th></tr>
+      <tr><th>Symptom</th><th>Likely cause</th><th>How to check</th></tr>
     </thead>
     <tbody>
       <tr>
-        <td>같은 파일의 정의는 이동되지만 다른 파일은 이동되지 않음</td>
-        <td>임시 <code>Canonical.csproj</code>가 열린 파일만 알고 있습니다.</td>
-        <td>C# 출력 로그에서 실제 통합 솔루션이 로드됐는지 확인합니다.</td>
+        <td>Go-to-definition works within the same file but not across files</td>
+        <td>The throwaway <code>Canonical.csproj</code> only knows about the files you've opened.</td>
+        <td>Check the C# output log to see whether the real unified solution actually loaded.</td>
       </tr>
       <tr>
-        <td><code>Task</code>, <code>Socket</code> 등은 이동되지만 저장소 타입은 실패함</td>
-        <td>.NET 참조 어셈블리는 로드됐지만 저장소 프로젝트는 로드되지 않았습니다.</td>
-        <td><code>dotnet.defaultSolution</code>과 창 재로드 여부를 확인합니다.</td>
+        <td><code>Task</code>, <code>Socket</code>, and similar work, but repository types fail</td>
+        <td>The .NET reference assemblies loaded, but the repository's own projects didn't.</td>
+        <td>Check <code>dotnet.defaultSolution</code> and whether you reloaded the window.</td>
       </tr>
       <tr>
-        <td>인터페이스 메서드의 선언으로만 이동함</td>
-        <td>F12는 정적 타입 기준 정의를 반환합니다.</td>
-        <td>VS Code의 구현으로 이동 기능으로 실제 구현 후보를 확인합니다.</td>
+        <td>Go-to-definition only lands on an interface method's declaration</td>
+        <td>F12 returns the statically-typed definition.</td>
+        <td>Use VS Code's Go to Implementation to find the actual implementing candidates.</td>
       </tr>
     </tbody>
   </table>
 
-  <h2>6. 솔루션 등록 확인</h2>
-  <p>터미널에서 다음 명령을 실행하면 통합 솔루션에 포함된 프로젝트를 확인할 수 있습니다.</p>
+  <h2>6. Verifying the solution's project list</h2>
+  <p>Run this in a terminal to see which projects the unified solution includes.</p>
   <pre><code>dotnet sln SuperSocketLite2.slnx list</code></pre>
-  <p>현재 통합 솔루션에는 C# 프로젝트 33개가 등록되어 있습니다.</p>
+  <p>The unified solution currently registers 33 C# projects.</p>
 </main>
 </body>
 </html>

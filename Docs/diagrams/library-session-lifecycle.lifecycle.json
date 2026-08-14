@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "세션이 태어나서 닫히기까지",
+    "output": "../Library_Session_Lifecycle.html",
+    "viewBox": [
+      1440,
+      700
+    ],
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "normal",
+        "label": "정상 수명",
+        "focus": [
+          "accepted",
+          "running",
+          "closing",
+          "closed"
+        ],
+        "note": "accept한 소켓에 자원을 붙여 세션을 만들고, 다 쓰면 자원을 풀에 돌려주며 닫는다."
+      },
+      {
+        "id": "drain",
+        "label": "종료를 기다리는 구간",
+        "focus": [
+          "closing",
+          "drain",
+          "closed"
+        ],
+        "note": "보내던 배치가 남아 있으면 소켓을 바로 닫지 않는다. 닫으면 전송이 중간에서 잘린다."
+      },
+      {
+        "id": "edge",
+        "label": "예외 경로",
+        "focus": [
+          "rejected",
+          "sendTimeout",
+          "running"
+        ],
+        "note": "풀이 비면 접속은 조용히 거부된다. 송신 타임아웃은 플래그를 풀어 줘야 세션이 다시 움직인다."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "main",
+      "label": "세션 상태"
+    },
+    {
+      "id": "event",
+      "label": "도중에 생기는 일"
+    },
+    {
+      "id": "terminal",
+      "label": "세션이 되지 못한 경우"
+    }
+  ],
+  "states": [
+    {
+      "id": "accepted",
+      "type": "start",
+      "label": "accept",
+      "sublabel": "소켓 수락",
+      "lane": "main",
+      "col": 0
+    },
+    {
+      "id": "running",
+      "type": "active",
+      "label": "Normal",
+      "sublabel": "송수신 중",
+      "tag": "플래그 0",
+      "lane": "main",
+      "col": 1
+    },
+    {
+      "id": "closing",
+      "type": "waiting",
+      "label": "InClosing",
+      "sublabel": "종료가 요청됨",
+      "lane": "main",
+      "col": 2
+    },
+    {
+      "id": "drain",
+      "type": "active",
+      "label": "송신 마무리",
+      "sublabel": "배치가 끝날 때까지",
+      "lane": "main",
+      "col": 3
+    },
+    {
+      "id": "closed",
+      "type": "success",
+      "label": "Closed",
+      "sublabel": "SessionClosed 발생",
+      "tag": "SAEA 반납",
+      "lane": "main",
+      "col": 4
+    },
+    {
+      "id": "sendTimeout",
+      "type": "failure",
+      "label": "송신 타임아웃",
+      "sublabel": "TimeoutException",
+      "lane": "event",
+      "col": 1
+    },
+    {
+      "id": "rejected",
+      "type": "failure",
+      "label": "접속 거부",
+      "sublabel": "SAEA 풀 고갈",
+      "lane": "terminal",
+      "col": 0
+    }
+  ],
+  "transitions": [
+    {
+      "id": "init",
+      "from": "accepted",
+      "to": "running",
+      "label": "Initialize · 수신 시작",
+      "route": "straight",
+      "labelDy": -25
+    },
+    {
+      "id": "reject",
+      "from": "accepted",
+      "to": "rejected",
+      "label": "풀이 비었다"
+    },
+    {
+      "id": "close",
+      "from": "running",
+      "to": "closing",
+      "label": "Close() · 소켓 오류",
+      "route": "straight",
+      "labelDy": -25
+    },
+    {
+      "id": "timeout",
+      "from": "running",
+      "to": "sendTimeout",
+      "label": "SendTimeOut 초과",
+      "labelDx": 6,
+      "labelDy": -20
+    },
+    {
+      "id": "recover",
+      "from": "sendTimeout",
+      "to": "running",
+      "label": "플래그 해제",
+      "labelDy": 44,
+      "labelDx": -32
+    },
+    {
+      "id": "wait",
+      "from": "closing",
+      "to": "drain",
+      "label": "보낼 게 남았다",
+      "route": "straight",
+      "labelDy": -25
+    },
+    {
+      "id": "closeNow",
+      "from": "closing",
+      "to": "closed",
+      "label": "보낼 게 없다",
+      "route": "bottom-channel"
+    },
+    {
+      "id": "afterDrain",
+      "from": "drain",
+      "to": "closed",
+      "label": "배치가 끝났다",
+      "route": "straight",
+      "labelDy": -25
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "상태는 비트 플래그다",
+      "items": [
+        "Normal=0, InSending=1, InReceiving=2, InClosing=16, Closed=0x01000000",
+        "전환은 Interlocked.CompareExchange로 한 번에 한다",
+        "여러 스레드가 동시에 건드려도 상태가 어긋나지 않는다"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "종료가 미뤄지는 이유",
+      "items": [
+        "송신이 진행 중이면 소켓을 바로 닫지 않는다",
+        "닫아 버리면 보내던 배치가 중간에서 잘린다",
+        "배치가 끝난 뒤 SessionClosed가 정확히 한 번 발생한다"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "접속이 조용히 거부될 때",
+      "items": [
+        "MaxConnectionNumber를 넘으면 SAEA 풀이 빈다",
+        "이때는 NewSessionConnected가 호출되지 않는다",
+        "sessions-rejected 카운터로만 드러난다"
+      ]
+    }
+  ]
+}

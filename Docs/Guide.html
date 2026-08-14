@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite 안내서 — 라이브러리와 예제 읽기</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+    --pipe: #0ea5e9;
+    --send: #10b981;
+    --app: #8b5cf6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  figure { margin: 24px 0; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; text-align: center; }
+  svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  .svg-box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; overflow-x: auto; }
+  .proj { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); padding: 22px 24px; margin: 22px 0; }
+  .proj h3 { margin-top: 0; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .tag {
+    font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--line);
+  }
+  .tag.sync { background: var(--accent-soft); color: var(--accent); }
+  .tag.handoff { background: var(--warn-soft); color: var(--warn); }
+  .meta { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .st-label { font: 600 13px/1 sans-serif; fill: var(--ink); }
+  .st-sub { font: 400 11px/1 sans-serif; fill: var(--muted); }
+  .st-box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+  .st-flow { stroke: var(--line); stroke-width: 2; fill: none; marker-end: url(#arrow); }
+  @media (prefers-reduced-motion: reduce) {
+    .anim { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SuperSocketLite 안내서</h1>
+  <p class="lead">라이브러리가 어떻게 도는지, 그리고 <code>Tutorials/</code>의 예제 하나하나가 무엇을 가르치는지 정리한 문서입니다.</p>
+  <p class="lead">움직이는 그림은 흐름을 눈으로 따라가라고 넣었습니다. 정확한 구조도는 아래 다이어그램 문서에 따로 있습니다.</p>
+  <div class="linkrow">
+    <a href="Library_Architecture.html">전체 구조도</a>
+    <a href="Library_Receive_Flow.html">수신 흐름</a>
+    <a href="Library_Send_Flow.html">송신 흐름</a>
+    <a href="Library_Session_Lifecycle.html">세션 수명</a>
+    <a href="Tutorials_Path.html">예제 읽는 순서</a>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>차례</strong>
+  <ol>
+    <li><a href="#part1">라이브러리는 무엇을 대신해 주나</a></li>
+    <li><a href="#part2">받는 쪽 — 바이트가 요청이 되기까지</a></li>
+    <li><a href="#part3">보내는 쪽 — 응답이 소켓으로 나가기까지</a></li>
+    <li><a href="#part4">꼭 지켜야 할 계약 하나</a></li>
+    <li><a href="#part5">Tutorials 예제 안내</a></li>
+    <li><a href="#part6">더 읽을 것</a></li>
+  </ol>
+</nav>
+
+<!-- ============================ PART 1 ============================ -->
+<h2 id="part1">1. 라이브러리는 무엇을 대신해 주나</h2>
+
+<p>
+소켓 서버를 직접 짜면 늘 같은 문제를 다시 풉니다. 비동기 accept 루프, <code>SocketAsyncEventArgs</code> 재사용,
+TCP는 스트림이라 패킷 경계가 없다는 사실, 여러 스레드가 같은 세션에 동시에 쓰려 할 때의 경합, 종료 중에 보내던
+데이터가 잘리는 문제. SuperSocketLite는 이 다섯 가지를 대신 처리합니다.
+</p>
+
+<p>여러분이 채우는 곳은 <strong>두 군데</strong>뿐입니다.</p>
+
+<div class="cards">
+  <div class="card">
+    <h4>1. 수신 필터</h4>
+    <p>바이트 스트림에서 "여기까지가 패킷 하나"를 정하는 규칙. <code>IReceiveFilter</code>를 상속해 만듭니다.</p>
+  </div>
+  <div class="card">
+    <h4>2. 요청 핸들러</h4>
+    <p>패킷 하나를 받았을 때 할 일. <code>NewRequestReceived</code> 이벤트에 붙입니다.</p>
+  </div>
+</div>
+
+<h3>가장 작은 서버</h3>
+
+<p>4바이트 길이 프리픽스 뒤에 본문이 오는 프로토콜을 그대로 되돌려 보내는 서버입니다.</p>
+
+<pre><code>// 요청 하나를 나타내는 타입.
+// Body는 수신 파이프의 메모리를 그대로 가리키고, 필터가 인스턴스를 돌려 쓴다.
+public sealed class MyRequestInfo : IRequestInfo
+{
+    public string Key =&gt; string.Empty;
+    public ReadOnlySequence&lt;byte&gt; Body { get; private set; }
+    public void Set(ReadOnlySequence&lt;byte&gt; body) =&gt; Body = body;
+}
+
+// 4바이트 길이 프리픽스를 읽고 본문 크기를 알려 준다.
+public sealed class MyReceiveFilter : FixedHeaderReceiveFilter&lt;MyRequestInfo&gt;
+{
+    private readonly MyRequestInfo _reusable = new();
+
+    public MyReceiveFilter() : base(4) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence&lt;byte&gt; header)
+    {
+        Span&lt;byte&gt; buf = stackalloc byte[4];
+        header.CopyTo(buf);                       // 헤더가 조각에 걸쳐 있어도 안전하다
+        return BinaryPrimitives.ReadInt32LittleEndian(buf);
+    }
+
+    protected override MyRequestInfo ResolveRequestInfo(
+        ReadOnlySequence&lt;byte&gt; header, ReadOnlySequence&lt;byte&gt; body)
+    {
+        _reusable.Set(body);
+        return _reusable;
+    }
+}
+
+public sealed class MySession : AppSession&lt;MySession, MyRequestInfo&gt; { }
+
+public sealed class MyServer : AppServer&lt;MySession, MyRequestInfo&gt;
+{
+    public MyServer() : base(new DefaultReceiveFilterFactory&lt;MyReceiveFilter, MyRequestInfo&gt;()) { }
+}</code></pre>
+
+<p>띄우는 코드는 이렇게 짧습니다.</p>
+
+<pre><code>var config = new ServerConfig
+{
+    Ip = "Any", Port = 2012, MaxConnectionNumber = 1000,
+    Mode = SocketMode.Tcp, Name = "EchoServer"
+};
+
+var server = new MyServer();
+server.NewRequestReceived += (session, request) =&gt;
+{
+    if (request.Body.IsSingleSegment)
+        session.SendCopied(request.Body.FirstSpan);
+    else
+        session.SendCopied(request.Body.ToArray());   // 드묾: 패킷이 파이프 조각에 걸친 경우
+};
+
+server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory());
+server.Start();</code></pre>
+
+<div class="note">
+  <strong>여기서 이미 중요한 선택이 하나 끝났습니다.</strong> 위 핸들러는 받은 자리에서 바로 응답하고 끝납니다.
+  그래서 요청 객체를 돌려 쓰고 본문을 복사하지 않아도 됩니다. 패킷을 다른 스레드로 넘기는 서버라면 이야기가 달라집니다 —
+  <a href="#part4">4장</a>에서 자세히 봅니다.
+</div>
+
+<h3>계층은 이렇게 쌓여 있습니다</h3>
+
+<figure>
+<div class="svg-box">
+<svg viewBox="0 0 880 300" role="img" aria-label="라이브러리 계층 구조">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" opacity="0.55"/>
+    </marker>
+  </defs>
+  <g color="var(--muted)">
+    <rect class="st-box" x="20" y="20" width="200" height="64" rx="9"/>
+    <text class="st-label" x="120" y="46" text-anchor="middle">앱 코드</text>
+    <text class="st-sub" x="120" y="64" text-anchor="middle">필터 + 핸들러</text>
+
+    <rect class="st-box" x="20" y="118" width="200" height="64" rx="9"/>
+    <text class="st-label" x="120" y="144" text-anchor="middle">AppServer / AppSession</text>
+    <text class="st-sub" x="120" y="162" text-anchor="middle">이벤트 · Send API</text>
+
+    <rect class="st-box" x="20" y="216" width="200" height="64" rx="9"/>
+    <text class="st-label" x="120" y="242" text-anchor="middle">SocketSession</text>
+    <text class="st-sub" x="120" y="260" text-anchor="middle">상태 머신 · 소켓 I/O</text>
+
+    <path class="st-flow" d="M 120 84 L 120 112"/>
+    <path class="st-flow" d="M 120 182 L 120 210"/>
+
+    <rect class="st-box" x="330" y="20" width="230" height="64" rx="9"/>
+    <text class="st-label" x="445" y="46" text-anchor="middle">수신 Pipe</text>
+    <text class="st-sub" x="445" y="64" text-anchor="middle">System.IO.Pipelines</text>
+
+    <rect class="st-box" x="330" y="118" width="230" height="64" rx="9"/>
+    <text class="st-label" x="445" y="144" text-anchor="middle">ChannelSendingQueue</text>
+    <text class="st-sub" x="445" y="162" text-anchor="middle">세션마다 하나</text>
+
+    <rect class="st-box" x="330" y="216" width="230" height="64" rx="9"/>
+    <text class="st-label" x="445" y="242" text-anchor="middle">SmartPool</text>
+    <text class="st-sub" x="445" y="260" text-anchor="middle">SocketAsyncEventArgs</text>
+
+    <rect class="st-box" x="660" y="118" width="200" height="64" rx="9"/>
+    <text class="st-label" x="760" y="144" text-anchor="middle">Meter</text>
+    <text class="st-sub" x="760" y="162" text-anchor="middle">카운터 · 게이지</text>
+
+    <path class="st-flow" d="M 230 52 L 322 52"/>
+    <path class="st-flow" d="M 230 150 L 322 150"/>
+    <path class="st-flow" d="M 230 248 L 322 248"/>
+    <path class="st-flow" d="M 570 150 L 652 150"/>
+  </g>
+</svg>
+</div>
+<figcaption>왼쪽 세 칸이 여러분이 마주하는 타입, 오른쪽이 라이브러리가 안에서 굴리는 것들입니다.</figcaption>
+</figure>
+
+<p>
+자세한 관계는 <a href="Library_Architecture.html">전체 구조도</a>에서 확대·검색하며 볼 수 있습니다.
+</p>
+
+<!-- ============================ PART 2 ============================ -->
+<h2 id="part2">2. 받는 쪽 — 바이트가 요청이 되기까지</h2>
+
+<p>
+TCP는 스트림입니다. 클라이언트가 패킷 하나를 보내도 서버가 그것을 한 번에 받는다는 보장이 없고,
+반대로 세 개가 한 번에 붙어 올 수도 있습니다. 그래서 "지금까지 받은 바이트에서 완성된 패킷을 잘라내는" 일이 필요한데,
+그게 수신 필터입니다.
+</p>
+
+<p>라이브러리 쪽 흐름은 이렇습니다. 점이 데이터라고 생각하고 따라가 보세요.</p>
+
+<figure>
+<div class="svg-box">
+<svg viewBox="0 0 900 220" role="img" aria-label="수신 흐름 애니메이션">
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor" opacity="0.55"/>
+    </marker>
+    <path id="recvPath" d="M 70 100 L 250 100 L 460 100 L 660 100 L 830 100"/>
+  </defs>
+  <g color="var(--muted)">
+    <rect class="st-box" x="20" y="70" width="110" height="60" rx="9"/>
+    <text class="st-label" x="75" y="96" text-anchor="middle">소켓</text>
+    <text class="st-sub" x="75" y="114" text-anchor="middle">IOCP</text>
+
+    <rect class="st-box" x="200" y="70" width="120" height="60" rx="9"/>
+    <text class="st-label" x="260" y="96" text-anchor="middle">수신 Pipe</text>
+    <text class="st-sub" x="260" y="114" text-anchor="middle">버퍼 소유</text>
+
+    <rect class="st-box" x="400" y="70" width="130" height="60" rx="9"/>
+    <text class="st-label" x="465" y="96" text-anchor="middle">수신 필터</text>
+    <text class="st-sub" x="465" y="114" text-anchor="middle">경계를 자른다</text>
+
+    <rect class="st-box" x="610" y="70" width="120" height="60" rx="9"/>
+    <text class="st-label" x="670" y="96" text-anchor="middle">AppSession</text>
+    <text class="st-sub" x="670" y="114" text-anchor="middle">요청 조립</text>
+
+    <rect class="st-box" x="800" y="70" width="80" height="60" rx="9"/>
+    <text class="st-label" x="840" y="96" text-anchor="middle">핸들러</text>
+
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 132 100 L 194 100"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 322 100 L 394 100"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 532 100 L 604 100"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 732 100 L 794 100"/>
+
+    <text class="st-sub" x="163" y="88" text-anchor="middle">직접 쓴다</text>
+    <text class="st-sub" x="358" y="88" text-anchor="middle">시퀀스</text>
+    <text class="st-sub" x="568" y="88" text-anchor="middle">요청</text>
+    <text class="st-sub" x="763" y="88" text-anchor="middle">동기 호출</text>
+
+    <text class="st-sub" x="465" y="180" text-anchor="middle">덜 온 패킷은 여기 그대로 남는다 → 다음 수신 때 이어서 본다</text>
+    <path class="st-flow" style="stroke-dasharray:4 4" d="M 465 140 L 465 166"/>
+  </g>
+  <g class="anim">
+    <circle r="7" fill="var(--pipe)">
+      <animateMotion dur="4s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear">
+        <mpath href="#recvPath"/>
+      </animateMotion>
+      <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" dur="4s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>
+</div>
+<figcaption>소켓이 파이프가 내준 버퍼에 직접 씁니다. 필터도 같은 메모리를 읽습니다 — 옮겨 담는 단계가 없습니다.</figcaption>
+</figure>
+
+<h3>필터가 하는 일은 두 가지입니다</h3>
+
+<p>
+<code>FixedHeaderReceiveFilter&lt;T&gt;</code>를 쓰면 딱 두 메서드만 채우면 됩니다.
+</p>
+
+<table>
+  <tr><th>메서드</th><th>답해야 하는 질문</th></tr>
+  <tr>
+    <td><code>GetBodyLengthFromHeader(header)</code></td>
+    <td>헤더를 봤다. 본문은 몇 바이트 더 와야 하나?</td>
+  </tr>
+  <tr>
+    <td><code>ResolveRequestInfo(header, body)</code></td>
+    <td>다 왔다. 이걸 무슨 요청 객체로 만들까?</td>
+  </tr>
+</table>
+
+<p>
+길이가 모자라면 아무것도 하지 않아도 됩니다. 라이브러리가 알아서 "아직"이라고 판단하고 데이터를 파이프에 남겨 둡니다.
+직접 버퍼를 이어 붙이거나 오프셋을 계산할 일이 없습니다.
+</p>
+
+<div class="note">
+  <code>header</code>와 <code>body</code>는 <strong>여러 조각에 걸쳐 있을 수 있습니다.</strong>
+  <code>header.First.Span</code>으로 바로 읽지 말고 <code>CopyTo(Span)</code>을 쓰세요.
+  위 예제가 <code>stackalloc</code>에 복사해서 읽는 이유가 이것입니다.
+</div>
+
+<p>더 자세한 단계별 흐름은 <a href="Library_Receive_Flow.html">수신 흐름 다이어그램</a>에 있습니다.</p>
+
+<!-- ============================ PART 3 ============================ -->
+<h2 id="part3">3. 보내는 쪽 — 응답이 소켓으로 나가기까지</h2>
+
+<p>
+보내는 쪽에서 라이브러리가 해결해 주는 것은 <strong>"같은 세션에 여러 스레드가 동시에 쓰면 어떻게 되나"</strong>입니다.
+답은 간단합니다. 아무나 큐에 넣을 수 있지만, 실제로 소켓에 쓰는 것은 언제나 한 줄기뿐입니다.
+</p>
+
+<figure>
+<div class="svg-box">
+<svg viewBox="0 0 900 240" role="img" aria-label="송신 흐름 애니메이션">
+  <defs>
+    <path id="sendPathA" d="M 90 60 L 300 60 L 300 120"/>
+    <path id="sendPathB" d="M 90 180 L 300 180 L 300 130"/>
+    <path id="sendPathC" d="M 340 120 L 560 120 L 800 120"/>
+  </defs>
+  <g color="var(--muted)">
+    <rect class="st-box" x="20" y="35" width="140" height="50" rx="9"/>
+    <text class="st-label" x="90" y="65" text-anchor="middle">스레드 A의 Send</text>
+
+    <rect class="st-box" x="20" y="155" width="140" height="50" rx="9"/>
+    <text class="st-label" x="90" y="185" text-anchor="middle">스레드 B의 Send</text>
+
+    <rect class="st-box" x="250" y="95" width="110" height="55" rx="9"/>
+    <text class="st-label" x="305" y="120" text-anchor="middle">송신 큐</text>
+    <text class="st-sub" x="305" y="138" text-anchor="middle">세션당 하나</text>
+
+    <rect class="st-box" x="520" y="95" width="150" height="55" rx="9"/>
+    <text class="st-label" x="595" y="120" text-anchor="middle">배치로 꺼내기</text>
+    <text class="st-sub" x="595" y="138" text-anchor="middle">한 번에 모아서</text>
+
+    <rect class="st-box" x="790" y="95" width="90" height="55" rx="9"/>
+    <text class="st-label" x="835" y="127" text-anchor="middle">소켓</text>
+
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 162 60 L 246 60 L 246 92"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 162 180 L 246 180 L 246 154"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 362 122 L 514 122"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 672 122 L 784 122"/>
+
+    <text class="st-sub" x="440" y="110" text-anchor="middle">InSending을 얻은 하나만</text>
+    <text class="st-sub" x="728" y="110" text-anchor="middle">BufferList로 한 번에</text>
+  </g>
+  <g class="anim">
+    <circle r="6" fill="var(--send)">
+      <animateMotion dur="3.2s" repeatCount="indefinite"><mpath href="#sendPathA"/></animateMotion>
+      <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.85;1" dur="3.2s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="6" fill="var(--app)" opacity="0">
+      <animateMotion dur="3.2s" begin="0.9s" repeatCount="indefinite"><mpath href="#sendPathB"/></animateMotion>
+      <animate attributeName="opacity" values="1;1;0" keyTimes="0;0.85;1" dur="3.2s" begin="0.9s" repeatCount="indefinite"/>
+    </circle>
+    <rect x="-9" y="-6" width="18" height="12" rx="3" fill="var(--send)" opacity="0">
+      <animateMotion dur="3.2s" begin="1.6s" repeatCount="indefinite"><mpath href="#sendPathC"/></animateMotion>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.9;1" dur="3.2s" begin="1.6s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+</svg>
+</div>
+<figcaption>여러 스레드가 큐에 넣어도, 실제 전송은 <code>InSending</code> 플래그를 얻은 하나가 모아서 합니다.</figcaption>
+</figure>
+
+<h3>어떤 Send를 쓸까</h3>
+
+<table>
+  <tr><th>상황</th><th>API</th><th>왜</th></tr>
+  <tr>
+    <td>보통의 단발 응답</td>
+    <td><code>SendCopied(span)</code></td>
+    <td>라이브러리 풀 버퍼로 복사해 넣는다. 내 버퍼를 곧바로 다시 써도 된다.</td>
+  </tr>
+  <tr>
+    <td>같은 내용을 여러 명에게</td>
+    <td><code>Send(byte[], 0, len)</code></td>
+    <td>복사하지 않고 배열을 공유한다. 대신 <strong>보낸 뒤 그 배열을 고치면 안 된다.</strong></td>
+  </tr>
+  <tr>
+    <td>느린 클라이언트, 기다려도 됨</td>
+    <td><code>SendAsync(memory, ct)</code></td>
+    <td>큐가 찼을 때 스핀 대신 비동기로 기다린다. 타임아웃은 취소 토큰으로 건다.</td>
+  </tr>
+  <tr>
+    <td>큐가 차면 그냥 포기</td>
+    <td><code>TrySendCopied(span)</code></td>
+    <td><code>false</code>를 돌려준다. 예외를 던지지 않는다.</td>
+  </tr>
+</table>
+
+<div class="warn">
+  <strong>타임아웃 뒤 처리 순서가 정해져 있습니다.</strong>
+  <code>TimeoutException</code>을 잡고 세션을 끊을 거라면 반드시
+  <code>session.SendEndWhenSendingTimeOut()</code>을 먼저 부르고 <code>Close()</code>를 부르세요.
+  이 호출이 <code>InSending</code> 플래그를 풀어 줍니다. 건너뛰면 그 세션은 영영 닫히지 않습니다.
+</div>
+
+<p>단계별 흐름은 <a href="Library_Send_Flow.html">송신 흐름 다이어그램</a>에 있습니다.</p>
+
+<!-- ============================ PART 4 ============================ -->
+<h2 id="part4">4. 꼭 지켜야 할 계약 하나</h2>
+
+<p>
+이 라이브러리에서 성능과 안전성을 동시에 가르는 결정은 딱 하나입니다.
+<strong>패킷을 핸들러 안에서 다 처리하는가, 아니면 다른 스레드로 넘기는가.</strong>
+</p>
+
+<figure>
+<div class="svg-box">
+<svg viewBox="0 0 880 260" role="img" aria-label="동기 처리와 스레드 핸드오프 비교">
+  <g color="var(--muted)">
+    <rect class="st-box" x="20" y="20" width="400" height="220" rx="12" style="stroke:var(--accent)"/>
+    <text class="st-label" x="220" y="48" text-anchor="middle" style="fill:var(--accent)">핸들러에서 다 처리한다</text>
+    <text class="st-sub" x="220" y="70" text-anchor="middle">에코 · 릴레이 · 즉시 응답</text>
+
+    <rect class="st-box" x="50" y="90" width="150" height="46" rx="8"/>
+    <text class="st-label" x="125" y="118" text-anchor="middle">핸들러</text>
+    <rect class="st-box" x="250" y="90" width="140" height="46" rx="8"/>
+    <text class="st-label" x="320" y="112" text-anchor="middle">응답</text>
+    <text class="st-sub" x="320" y="128" text-anchor="middle">바로 나간다</text>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 202 113 L 244 113"/>
+
+    <text class="st-sub" x="220" y="170" text-anchor="middle">요청 객체를 돌려 쓸 수 있다</text>
+    <text class="st-sub" x="220" y="190" text-anchor="middle">본문을 복사하지 않아도 된다</text>
+    <text class="st-sub" x="220" y="214" text-anchor="middle" style="fill:var(--accent)">패킷당 할당 0</text>
+
+    <rect class="st-box" x="460" y="20" width="400" height="220" rx="12" style="stroke:var(--warn)"/>
+    <text class="st-label" x="660" y="48" text-anchor="middle" style="fill:var(--warn)">로직 스레드로 넘긴다</text>
+    <text class="st-sub" x="660" y="70" text-anchor="middle">채팅 · 룸 · 게임 로직</text>
+
+    <rect class="st-box" x="490" y="90" width="110" height="46" rx="8"/>
+    <text class="st-label" x="545" y="118" text-anchor="middle">수신 스레드</text>
+    <rect class="st-box" x="650" y="90" width="80" height="46" rx="8"/>
+    <text class="st-label" x="690" y="118" text-anchor="middle">큐</text>
+    <rect class="st-box" x="770" y="90" width="70" height="46" rx="8"/>
+    <text class="st-label" x="805" y="118" text-anchor="middle">로직</text>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 602 113 L 644 113"/>
+    <path class="st-flow" style="marker-end:url(#arrow2)" d="M 732 113 L 764 113"/>
+
+    <text class="st-sub" x="660" y="170" text-anchor="middle">본문 복사는 피할 수 없다</text>
+    <text class="st-sub" x="660" y="190" text-anchor="middle">대신 ArrayPool에서 빌려 쓴다</text>
+    <text class="st-sub" x="660" y="214" text-anchor="middle" style="fill:var(--warn)">처리 후 정확히 한 번 반납</text>
+  </g>
+</svg>
+</div>
+<figcaption>왼쪽이 에코 계열, 오른쪽이 채팅·게임 계열입니다. 예제들이 이 두 갈래로 나뉩니다.</figcaption>
+</figure>
+
+<h3>왼쪽을 고를 수 있는 이유</h3>
+
+<p>
+라이브러리는 핸들러를 <strong>동기로</strong> 부르고, 핸들러가 전부 리턴한 뒤에야 파이프를 전진시킵니다.
+그래서 핸들러가 도는 동안에는 본문 메모리가 확실히 살아 있습니다.
+필터도 세션마다 하나이고, 같은 세션의 다음 패킷은 이번 핸들러가 끝난 뒤에 파싱됩니다.
+</p>
+
+<div class="danger">
+  <strong>그래서 생기는 제약:</strong> 핸들러가 리턴하면 그 요청 객체와 본문은 <strong>더 이상 유효하지 않습니다.</strong>
+  필드에 저장하거나, 람다에 캡처하거나, 다른 스레드 큐에 넣으면 안 됩니다.
+  <br><br>
+  어겨도 컴파일은 되고, 가벼운 부하에서는 대개 잘 돕니다. 파이프 버퍼가 재사용될 만큼 부하가 올라가야 데이터가 깨지므로
+  <strong>찾기 매우 어려운 버그</strong>가 됩니다. 값을 남겨야 하면 핸들러 안에서 역직렬화하거나 복사하세요.
+</div>
+
+<h3>오른쪽을 고를 때</h3>
+
+<p>
+패킷을 로직 스레드로 넘긴다면 본문 복사는 피할 수 없습니다. 다만 <code>new byte[]</code> 대신
+<code>ArrayPool&lt;byte&gt;.Shared</code>에서 빌리면 할당은 없앨 수 있습니다. 이때 규칙은 하나입니다 —
+<strong>반납 지점을 한 곳으로 정하고 거기서만 반납하는 것.</strong>
+<code>Tutorials/PvPGameServer</code>가 이 형태이며, 반납은 <code>PacketProcessor.Process()</code>의
+<code>finally</code> 한 곳에서만 합니다.
+</p>
+
+<p>
+두 방식의 자세한 근거와 실제로 측정한 효과는 <a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a>에 있습니다.
+</p>
+
+<!-- ============================ PART 5 ============================ -->
+<h2 id="part5">5. Tutorials 예제 안내</h2>
+
+<p>
+예제는 크게 세 묶음입니다. 위에서 본 갈림길이 그대로 묶음의 경계가 됩니다.
+전체 지도는 <a href="Tutorials_Path.html">예제 읽는 순서</a> 다이어그램에 있습니다.
+</p>
+
+<h3>기초 — 에코 서버 계열</h3>
+<p class="meta">모두 핸들러에서 바로 응답하고 끝납니다. 요청 인스턴스를 돌려 쓰는 형태로 작성되어 있습니다.</p>
+
+<div class="proj">
+  <h3>EchoServer <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">가장 먼저 볼 것 · 5바이트 헤더(전체 길이 2 + 패킷 ID 2 + 예약 1)</p>
+  <p>
+    받은 것을 그대로 돌려보내는 최소 구성입니다. <code>ReceiveFilter.cs</code>에 요청 타입과 필터가 함께 있고,
+    <code>MainServer.cs</code>에 서버 설정과 핸들러가 있습니다. 파일 세 개가 전부라서 라이브러리를 쓰는 데
+    최소한 무엇이 필요한지 한눈에 보입니다.
+  </p>
+  <ul class="tight">
+    <li>응답을 만들 때 <code>stackalloc</code> 버퍼에 직렬화하고 <code>SendCopied</code>로 보냅니다.</li>
+    <li>필터가 요청 인스턴스 하나를 돌려 씁니다 — 패킷을 받는 데 드는 할당이 없습니다.</li>
+  </ul>
+  <p class="meta">실행: 빌드 후 <code>Tutorials/00_server_bins/run_EchoServer.bat</code> · 클라이언트는 <code>EchoClient</code></p>
+</div>
+
+<div class="proj">
+  <h3>EchoServerEx <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">EchoServer + 실행 인자 + 로깅</p>
+  <p>
+    같은 에코 서버에 실무에서 필요한 두 가지를 붙였습니다. 포트·최대 접속 수 같은 설정을 명령행 인자로 받고
+    (<code>CommandLineParser</code>), 로그를 NLog로 내보냅니다. 그리고 패킷 ID로 핸들러를 찾아 부르는
+    <strong>디스패치 맵</strong>이 처음 등장합니다 — 패킷 종류가 늘어나면 필요한 구조입니다.
+  </p>
+  <p class="meta">실행: <code>run_EchoServerEx.bat</code></p>
+</div>
+
+<div class="proj">
+  <h3>EchoServer_GenericHost <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">.NET Generic Host 위에서 서비스로 띄우기</p>
+  <p>
+    서버를 <code>IHostedService</code>로 감싸 Generic Host가 수명을 관리하게 합니다.
+    설정은 <code>appsettings.json</code>에서 읽고, 로깅·DI도 호스트 것을 씁니다.
+    실제 배포에서 흔히 쓰는 형태라, 사내 표준이 Generic Host라면 여기부터 보면 됩니다.
+  </p>
+</div>
+
+<h3>프로토콜과 포트</h3>
+
+<div class="proj">
+  <h3>BinaryPacketServer <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">패킷 경계를 직접 설계해 보는 예제 · 요청 헤더 12바이트</p>
+  <p>
+    헤더에 패킷 ID(4바이트)와 값 두 개, 본문 길이(4바이트)가 들어 있는 구조입니다.
+    <code>GetBodyLengthFromHeader</code>가 헤더의 특정 위치에서 길이를 읽어 오는 모습을 보여 줍니다.
+  </p>
+  <div class="note">
+    이 예제는 <strong>요청 헤더(12바이트)와 응답 헤더(8바이트)의 형식이 다릅니다.</strong>
+    의도된 것이니 코드를 읽을 때 헷갈리지 마세요.
+  </div>
+</div>
+
+<div class="proj">
+  <h3>MultiPortServer <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">한 프로세스가 포트를 여러 개 여는 방법</p>
+  <p>
+    서버 인스턴스를 두 개 만들어 각각 다른 포트로 <code>Start()</code>합니다.
+    내부 서버용 포트와 외부 클라이언트용 포트를 분리하고 싶을 때 쓰는 형태입니다.
+    포트마다 다른 프로토콜을 쓰고 싶다면 필터와 요청 타입도 따로 두면 됩니다.
+  </p>
+</div>
+
+<div class="proj">
+  <h3>SimpleUDPServer <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">연결이 없는 UDP에서 세션을 무엇으로 찾을 것인가</p>
+  <p>
+    UDP에는 연결이 없으므로 "이 데이터그램이 누구 것인지"를 스스로 정해야 합니다.
+    이 예제는 요청 타입이 <code>UdpRequestInfo</code>를 <strong>상속</strong>해서, 페이로드에 직접 담은
+    세션 ID로 세션을 찾는 방식을 씁니다. 그렇게 하면 클라이언트가 NAT 재바인딩을 겪어도 같은 논리적 세션을 유지합니다.
+    상속하지 않으면 원격 엔드포인트를 키로 씁니다.
+  </p>
+  <div class="warn">
+    이 예제는 <strong>수신 핸들러를 등록하지 않은 최소 골격</strong>입니다. 필터가 데이터그램을 어떻게 해석하는지
+    보는 용도이지, 그대로 돌려서 에코를 기대하면 안 됩니다.
+  </div>
+</div>
+
+<div class="proj">
+  <h3>sendFailTestServer <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">받지 않는 클라이언트에 계속 보내면 무슨 일이 생기나</p>
+  <p>
+    <code>SendTimeOut</code>, <code>SendingQueueSize</code>, <code>SendBufferSize</code>를 작게 잡고
+    타이머로 계속 패킷을 밀어 넣어 <code>TimeoutException</code>을 일부러 재현합니다.
+    운영에서 만나기 전에 한 번은 봐 둘 만한 예제입니다.
+  </p>
+  <p>
+    핵심은 예외를 잡은 뒤의 <strong>순서</strong>입니다.
+  </p>
+<pre><code>catch (TimeoutException ex)
+{
+    // 이 호출이 InSending 플래그를 풀어 준다. 건너뛰면 세션이 닫히지 않는다.
+    session.SendEndWhenSendingTimeOut();
+    session.Close();
+}</code></pre>
+</div>
+
+<h3>게임 서버 구조 — 로직 스레드로 넘기는 예제</h3>
+<p class="meta">
+  여기부터는 수신 스레드에서 게임 로직을 돌리지 않습니다. 패킷을 큐에 넣고 별도 스레드가 꺼내 처리합니다.
+  그래서 <strong>본문을 복사해야</strong> 합니다.
+</p>
+
+<div class="proj">
+  <h3>ChatServer <span class="tag handoff">스레드 핸드오프</span></h3>
+  <p class="meta">가장 단순한 핸드오프 · 로직 스레드 1개</p>
+  <p>
+    수신 핸들러는 패킷을 <code>ServerPacketData</code>에 옮겨 담아 <code>BufferBlock</code> 큐에 넣고 곧바로 돌아갑니다.
+    <code>PacketProcessor</code>의 스레드 하나가 그 큐를 비우며 로그인·방 입장·채팅을 처리합니다.
+    <strong>로직이 한 스레드에서만 돌기 때문에 방·유저 자료구조에 락이 필요 없습니다</strong> — 이 예제의 핵심입니다.
+  </p>
+  <p>
+    브로드캐스트는 <code>Room.cs</code>에 있습니다. 패킷 배열을 <strong>하나만 만들어</strong> 방 안 모든 세션에
+    같은 배열을 넘깁니다. 사람 수만큼 복사하지 않습니다.
+  </p>
+</div>
+
+<div class="proj">
+  <h3>ChatServerEx <span class="tag handoff">스레드 핸드오프</span></h3>
+  <p class="meta">ChatServer + 로직 스레드 여러 개 + DB 워커</p>
+  <p>
+    ChatServer와 기능은 같지만 처리 구조가 다릅니다. 방을 스레드별로 나눠 배정해서
+    <strong>스레드마다 자기 방만 건드리게</strong> 합니다. 락 없이 병렬성을 얻는 흔한 방법입니다.
+    <code>PacketDistribute</code>가 패킷을 어느 프로세서로 보낼지 정합니다.
+  </p>
+  <p>
+    DB 접근은 또 한 번 넘깁니다. DB 워커 스레드가 처리한 뒤 결과를 다시 패킷으로 만들어 공용 큐에 넣습니다.
+    <strong>2단 핸드오프</strong>인 셈이라, 로직 스레드가 DB 응답을 기다리며 멈추지 않습니다.
+  </p>
+</div>
+
+<div class="proj">
+  <h3>PvPGameServer <span class="tag handoff">스레드 핸드오프</span></h3>
+  <p class="meta">MemoryPack 직렬화 · 룸 기반 대전 · ArrayPool 적용 예</p>
+  <p>
+    직렬화를 MemoryPack으로 하고, 요청 객체를 통째로 로직 스레드 큐에 넣습니다.
+    저장소 안에서 <strong>버퍼 풀링을 실제로 적용한 예제</strong>이기도 합니다 —
+    수신 필터가 <code>ArrayPool</code>에서 빌리고, <code>PacketProcessor.Process()</code>의
+    <code>finally</code> 한 곳에서 반납합니다.
+  </p>
+  <div class="warn">
+    풀에서 빌린 배열은 <strong>요청한 크기보다 클 수 있습니다.</strong>
+    그래서 길이는 <code>Data.Length</code>가 아니라 <code>DataSize</code>로 들고 다니고,
+    역직렬화에는 <code>DataSpan</code>을 넘깁니다. 풀링을 흉내 낼 때 가장 흔히 놓치는 지점입니다.
+  </div>
+</div>
+
+<div class="proj">
+  <h3>GameServer_MoDedicated / MoDedicated2 <span class="tag handoff">스레드 핸드오프</span></h3>
+  <p class="meta">전용(dedicated) 게임 서버 모양</p>
+  <p>
+    구조는 ChatServer와 같습니다(큐 + 로직 스레드). 차이는 게임 업데이트 루프가 따로 있다는 점입니다.
+    <code>MoDedicated2</code>는 업데이트 스레드를 여러 개(기본 4개) 두고 방을 나눠 맡깁니다.
+    패킷 처리와 게임 틱을 어떻게 나눌지 고민할 때 참고할 만합니다.
+  </p>
+</div>
+
+<div class="proj">
+  <h3>GateServer_GameServer <span class="tag handoff">스레드 핸드오프</span></h3>
+  <p class="meta">앞단 게이트 서버가 받아 뒤로 넘기는 구조</p>
+  <p>
+    클라이언트는 게이트에만 붙고, 게이트가 뒤쪽 게임 서버로 패킷을 넘깁니다.
+    접속 수와 인증을 앞단에서 흡수하고 게임 서버는 로직에 집중하게 하는 배치입니다.
+    <code>CommonLib</code>에 두 서버가 공유하는 패킷 정의가 있습니다.
+  </p>
+  <div class="note">
+    이 예제는 <strong>골격 위주</strong>입니다. 패킷 핸들러 등록이 비어 있어서 받은 패킷을 로그로만 남깁니다.
+    구조를 보는 용도로 읽으세요.
+  </div>
+</div>
+
+<h3>클라이언트 예제</h3>
+<p>
+  서버를 시험하려면 짝이 되는 클라이언트가 필요합니다.
+  <code>EchoClient</code>(WinForms)는 에코 계열 서버 대부분에 쓸 수 있고,
+  <code>ChatClient</code>(WPF)는 채팅 서버용, <code>PvPGameServer_Client</code>는 PvP 서버용입니다.
+  셋 다 <strong>패킷 조립 버퍼</strong>(<code>PacketBufferManager</code>)를 직접 구현하고 있어,
+  클라이언트 쪽에서 TCP 스트림을 어떻게 잘라 쓰는지도 함께 볼 수 있습니다.
+</p>
+
+<!-- ============================ PART 6 ============================ -->
+<h2 id="part6">6. 더 읽을 것</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>다이어그램</h4>
+    <p>
+      <a href="Library_Architecture.html">전체 구조</a> ·
+      <a href="Library_Receive_Flow.html">수신 흐름</a> ·
+      <a href="Library_Send_Flow.html">송신 흐름</a> ·
+      <a href="Library_Session_Lifecycle.html">세션 수명</a> ·
+      <a href="Tutorials_Path.html">예제 읽는 순서</a>
+    </p>
+  </div>
+  <div class="card">
+    <h4>성능</h4>
+    <p><a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a> — 패킷당 할당을 0으로 만드는 방법과 실제 측정치</p>
+  </div>
+  <div class="card">
+    <h4>저장소 문서</h4>
+    <p><code>README.md</code>(사용법) · <code>.claude/architecture.md</code>(내부 구조) · <code>.claude/cautions.md</code>(주의 사항) · <code>Tutorials/README.md</code>(예제별 코드 발췌)</p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">문서가 코드보다 뒤처지면</h4>
+  <p style="margin:0">
+    이 문서의 다이어그램은 <code>Docs/diagrams/</code>의 JSON 명세에서 만들어집니다.
+    코드가 바뀌어 그림이 맞지 않으면 명세를 고치고 <code>archify</code> 스킬로 다시 만드세요.
+    손으로 HTML을 고치면 그림 안까지는 고쳐지지 않습니다.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

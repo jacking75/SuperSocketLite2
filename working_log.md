@@ -5,6 +5,16 @@
 > 저장소에서 삭제했다. 내용은 git 이력에 남아 있고, 계속 쓸모 있는 부분(기각한 최적화 후보와
 > 그 이유)은 `.claude/architecture.md`로 옮겼다.
 
+## 2026-08-14 12:25 KST - 라이브러리·예제 설명 문서 신규 작성 (그림 6종)
+
+- 사용자 요청으로 라이브러리 이해와 `Tutorials/` 예제 설명을 HTML로 만들었다. 앞서 낡은 다이어그램 4종을 지웠던 자리를, 이번에는 **현재 코드 기준으로** 다시 채운 셈이다.
+- **`Docs/Guide.html`** — 본문 문서. 라이브러리가 무엇을 대신해 주는지, 수신·송신이 어떻게 도는지, 지켜야 할 수명 계약, 그리고 예제 13개를 하나씩 설명한다. 인라인 SVG에 `animateMotion`으로 흐름 애니메이션을 넣었다(`prefers-reduced-motion`이면 숨김). 40KB.
+- **archify 다이어그램 5종**: 전체 구조(architecture), 수신 흐름(sequence), 송신 흐름(sequence), 세션 수명(lifecycle), 예제 읽는 순서(workflow). 전부 `meta.animation: "trace"`로 흐름 재생이 되고 guided view 3개씩 들어 있다.
+- **명세를 저장소에 남겼다** — `Docs/diagrams/*.json`. 지난번 HTML이 낡아 버린 이유가 "생성물만 있고 소스가 없어서"였다. 이제 코드가 바뀌면 명세를 고쳐 `archify`로 다시 만들면 된다. 구조도에는 `meta.repository`로 커밋 SHA를 박아 어느 시점 코드인지 남겼다.
+- 전부 `--quality showcase`로 검증했다. 9개 아티팩트 검사 통과 + `visual-check`로 1440×900 / 1600×1000 / 1920×1080 / 2048×1320 라이트·다크에서 **가로·세로 모두 화면에 담기는 것**까지 확인했다. 처음엔 세 개가 세로로 넘쳐서 메시지 간격과 viewBox 높이를 줄여 맞췄다.
+- 함정 몇 가지: archify의 workflow는 **노드 폭 상한이 약 96px**이라 `BinaryPacketServer` 같은 긴 이름이 안 들어간다(짧은 라벨 + 카드에 원래 이름을 적었다). lifecycle은 레인 id가 `main`/`terminal`로 예약돼 있고 그 밖의 레인은 중간 밴드를 공유한다. sequence는 참여자 라벨이 박스보다 넓으면 바로 실패한다.
+- `visual-check`가 만드는 스크린샷·대조표는 검사 증적이라 `.gitignore`에 넣었다.
+
 ## 2026-08-14 12:04 KST - 마이그레이션 가이드 삭제
 
 - 사용자 판단으로 `Docs/Migration_0.90_to_0.91.md`를 지웠다. 0.91은 사실상 재작성이라 0.90에서 옮겨 올 사람이 없다는 것.

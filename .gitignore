@@ -52,3 +52,6 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
+
+# archify visual-check 증적 (스크린샷·대조표). 검사용이라 커밋하지 않는다.
+Docs/*.visual-check.*

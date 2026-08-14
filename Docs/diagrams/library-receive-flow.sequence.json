@@ -1,0 +1,272 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "패킷 하나가 핸들러에 닿기까지",
+    "output": "../Library_Receive_Flow.html",
+    "viewBox": [
+      1180,
+      636
+    ],
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "borrow",
+        "label": "버퍼를 빌려 받는다",
+        "focus": [
+          "session",
+          "pipe",
+          "socket"
+        ],
+        "note": "Pipe가 내준 메모리를 소켓에 그대로 건넨다. 받은 데이터를 옮겨 담는 단계가 없다."
+      },
+      {
+        "id": "wake",
+        "label": "파이프 태스크가 깨어난다",
+        "focus": [
+          "pipe",
+          "pipeTask",
+          "appSession"
+        ],
+        "note": "IOCP 스레드는 파이프를 전진시키는 데까지만 쓰고, 요청 처리는 세션마다 하나인 태스크가 맡는다."
+      },
+      {
+        "id": "parse",
+        "label": "필터가 경계를 정한다",
+        "focus": [
+          "appSession",
+          "filter",
+          "handler"
+        ],
+        "note": "필터는 시퀀스를 그대로 읽는다. 요청이 되지 못한 나머지는 파이프에 남는다."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "socket",
+      "type": "external",
+      "label": "소켓",
+      "sublabel": "IOCP 완료"
+    },
+    {
+      "id": "session",
+      "type": "backend",
+      "label": "수신 루프",
+      "sublabel": "AsyncSocketSession"
+    },
+    {
+      "id": "pipe",
+      "type": "messagebus",
+      "label": "수신 Pipe",
+      "sublabel": "버퍼 소유"
+    },
+    {
+      "id": "pipeTask",
+      "type": "backend",
+      "label": "파이프 처리",
+      "sublabel": "세션당 태스크"
+    },
+    {
+      "id": "appSession",
+      "type": "backend",
+      "label": "AppSession",
+      "sublabel": "요청 조립"
+    },
+    {
+      "id": "filter",
+      "type": "backend",
+      "label": "수신 필터",
+      "sublabel": "앱이 구현"
+    },
+    {
+      "id": "handler",
+      "type": "frontend",
+      "label": "앱 핸들러",
+      "sublabel": "요청 처리"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 324,
+      "label": "버퍼를 빌려 받는다"
+    },
+    {
+      "from": 334,
+      "to": 462,
+      "label": "파싱"
+    },
+    {
+      "from": 472,
+      "to": 562,
+      "label": "처리하고 소비한다"
+    }
+  ],
+  "messages": [
+    {
+      "id": "getMemory",
+      "from": "session",
+      "to": "pipe",
+      "y": 180,
+      "label": "GetMemory()",
+      "variant": "default"
+    },
+    {
+      "id": "buffer",
+      "from": "pipe",
+      "to": "session",
+      "y": 212,
+      "label": "쓸 버퍼",
+      "variant": "return"
+    },
+    {
+      "id": "receiveAsync",
+      "from": "session",
+      "to": "socket",
+      "y": 244,
+      "label": "ReceiveAsync — 이 버퍼에 직접",
+      "variant": "emphasis"
+    },
+    {
+      "id": "iocp",
+      "from": "socket",
+      "to": "session",
+      "y": 276,
+      "label": "완료 · N바이트",
+      "variant": "return"
+    },
+    {
+      "id": "advance",
+      "from": "session",
+      "to": "pipe",
+      "y": 308,
+      "label": "Advance(N) · FlushAsync",
+      "variant": "default"
+    },
+    {
+      "id": "wake",
+      "from": "pipe",
+      "to": "pipeTask",
+      "y": 346,
+      "label": "ReadAsync 깨어남",
+      "variant": "default"
+    },
+    {
+      "id": "process",
+      "from": "pipeTask",
+      "to": "appSession",
+      "y": 378,
+      "label": "ProcessRequest(시퀀스)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "filterCall",
+      "from": "appSession",
+      "to": "filter",
+      "y": 410,
+      "label": "Filter(시퀀스)",
+      "variant": "default"
+    },
+    {
+      "id": "requestInfo",
+      "from": "filter",
+      "to": "appSession",
+      "y": 442,
+      "label": "RequestInfo · consumed",
+      "variant": "return"
+    },
+    {
+      "id": "dispatch",
+      "from": "appSession",
+      "to": "handler",
+      "y": 482,
+      "label": "동기 호출",
+      "variant": "emphasis"
+    },
+    {
+      "id": "respond",
+      "from": "handler",
+      "to": "appSession",
+      "y": 514,
+      "label": "응답 Send",
+      "variant": "dashed"
+    },
+    {
+      "id": "advanceTo",
+      "from": "pipeTask",
+      "to": "pipe",
+      "y": 548,
+      "label": "AdvanceTo — 나머지는 남긴다",
+      "variant": "default"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "session",
+      "from": 175,
+      "to": 314,
+      "type": "backend"
+    },
+    {
+      "participant": "pipe",
+      "from": 175,
+      "to": 220,
+      "type": "messagebus"
+    },
+    {
+      "participant": "pipeTask",
+      "from": 341,
+      "to": 556,
+      "type": "backend"
+    },
+    {
+      "participant": "appSession",
+      "from": 373,
+      "to": 522,
+      "type": "backend"
+    },
+    {
+      "participant": "filter",
+      "from": 405,
+      "to": 448,
+      "type": "backend"
+    },
+    {
+      "participant": "handler",
+      "from": 477,
+      "to": 520,
+      "type": "frontend"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "왜 복사가 없나",
+      "items": [
+        "Pipe가 내준 메모리를 소켓에 그대로 건넨다",
+        "필터도 같은 메모리를 ReadOnlySequence로 읽는다",
+        "소켓에서 역직렬화까지 옮겨 담는 단계가 없다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "스레드가 나뉜다",
+      "items": [
+        "IOCP 스레드는 파이프를 전진시키는 데까지만 쓴다",
+        "요청 처리는 세션마다 하나인 ProcessPipeAsync 태스크가 한다",
+        "ReceiveInlineOnIocpThread=false로 두면 전진도 스레드 풀로 넘어간다"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "핸들러가 리턴한 뒤에",
+      "items": [
+        "AdvanceTo는 핸들러가 끝난 뒤에 불린다",
+        "그래서 핸들러가 도는 동안에는 본문 메모리가 살아 있다",
+        "리턴 뒤에는 무효다 — 남기려면 핸들러 안에서 복사한다"
+      ]
+    }
+  ]
+}

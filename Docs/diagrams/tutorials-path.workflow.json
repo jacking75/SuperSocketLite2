@@ -1,0 +1,273 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Tutorials 예제를 읽는 순서",
+    "output": "../Tutorials_Path.html",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1520,
+      772
+    ],
+    "views": [
+      {
+        "id": "start",
+        "label": "여기서 시작한다",
+        "focus": [
+          "echo",
+          "echoEx",
+          "genericHost"
+        ],
+        "note": "에코 서버 하나를 세 번 고쳐 쓰면서 설정·로깅·호스팅을 붙인다. 프로토콜은 아직 그대로다."
+      },
+      {
+        "id": "protocol",
+        "label": "프로토콜을 정한다",
+        "focus": [
+          "binary",
+          "multiPort",
+          "udp"
+        ],
+        "note": "패킷 경계를 직접 정하고, 포트를 늘리고, 연결이 없는 UDP까지 다뤄 본다."
+      },
+      {
+        "id": "game",
+        "label": "게임 서버 모양",
+        "focus": [
+          "chat",
+          "chatEx",
+          "pvp"
+        ],
+        "note": "여기부터는 패킷을 로직 스레드로 넘긴다. 수신 스레드에서 게임 로직을 돌리지 않는다."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "basic",
+      "label": "기초 — 에코 서버"
+    },
+    {
+      "id": "protocol",
+      "label": "프로토콜과 포트"
+    },
+    {
+      "id": "game",
+      "label": "게임 서버 구조"
+    }
+  ],
+  "phases": [
+    {
+      "id": "p1",
+      "label": "일단 띄운다",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "p2",
+      "label": "패킷을 정의한다",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "p3",
+      "label": "구조를 나눈다",
+      "fromCol": 4,
+      "toCol": 5
+    }
+  ],
+  "mainPath": [
+    "echo",
+    "binary",
+    "chat",
+    "chatEx",
+    "pvp"
+  ],
+  "nodes": [
+    {
+      "id": "echo",
+      "lane": "basic",
+      "col": 0,
+      "type": "frontend",
+      "label": "EchoServer",
+      "sublabel": "가장 작은 서버",
+      "tag": "여기서 시작",
+      "width": 96
+    },
+    {
+      "id": "echoEx",
+      "lane": "basic",
+      "col": 2,
+      "type": "frontend",
+      "label": "EchoServerEx",
+      "sublabel": "옵션 · 로그",
+      "width": 96
+    },
+    {
+      "id": "genericHost",
+      "lane": "basic",
+      "col": 4,
+      "type": "frontend",
+      "label": "GenericHost",
+      "sublabel": "서비스로 띄움",
+      "width": 96
+    },
+    {
+      "id": "binary",
+      "lane": "protocol",
+      "col": 1,
+      "type": "backend",
+      "label": "이진 패킷",
+      "sublabel": "경계를 직접 정의",
+      "width": 96
+    },
+    {
+      "id": "multiPort",
+      "lane": "protocol",
+      "col": 3,
+      "type": "backend",
+      "label": "멀티 포트",
+      "sublabel": "포트 여러 개",
+      "width": 96
+    },
+    {
+      "id": "udp",
+      "lane": "protocol",
+      "col": 5,
+      "type": "backend",
+      "label": "UDP 서버",
+      "sublabel": "연결이 없다",
+      "width": 96
+    },
+    {
+      "id": "chat",
+      "lane": "game",
+      "col": 1,
+      "type": "messagebus",
+      "label": "ChatServer",
+      "sublabel": "로직 스레드 1",
+      "width": 96
+    },
+    {
+      "id": "chatEx",
+      "lane": "game",
+      "col": 3,
+      "type": "messagebus",
+      "label": "ChatServerEx",
+      "sublabel": "스레드 N · DB",
+      "width": 96
+    },
+    {
+      "id": "pvp",
+      "lane": "game",
+      "col": 5,
+      "type": "database",
+      "label": "PvP 게임",
+      "sublabel": "MemoryPack · 룸",
+      "width": 96
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "echo",
+      "to": "echoEx",
+      "label": "설정과 로그를 붙인다",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "e2",
+      "from": "echoEx",
+      "to": "genericHost",
+      "label": "서비스로 띄운다",
+      "role": "branch",
+      "labelDy": -26
+    },
+    {
+      "id": "e3",
+      "from": "echo",
+      "to": "binary",
+      "label": "패킷 경계를 직접 정한다",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop",
+      "labelDy": 16
+    },
+    {
+      "id": "e4",
+      "from": "binary",
+      "to": "multiPort",
+      "label": "포트를 늘린다",
+      "role": "branch",
+      "labelDy": -26
+    },
+    {
+      "id": "e5",
+      "from": "multiPort",
+      "to": "udp",
+      "label": "UDP로 바꾼다",
+      "role": "branch",
+      "labelDy": -26
+    },
+    {
+      "id": "e6",
+      "from": "binary",
+      "to": "chat",
+      "label": "로직 스레드로 넘긴다",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "route": "drop"
+    },
+    {
+      "id": "e7",
+      "from": "chat",
+      "to": "chatEx",
+      "label": "스레드를 나눈다",
+      "variant": "emphasis",
+      "labelDy": -26
+    },
+    {
+      "id": "e8",
+      "from": "chatEx",
+      "to": "pvp",
+      "label": "룸과 직렬화를 더한다",
+      "variant": "emphasis",
+      "labelDy": -26
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "읽는 순서",
+      "items": [
+        "EchoServer로 최소 구성을 본다",
+        "EchoServerEx에서 설정·로깅을 붙인다",
+        "BinaryPacketServer에서 패킷 경계를 직접 정해 본다",
+        "ChatServer부터 로직 스레드로 넘기는 구조를 본다"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "갈림길은 하나다",
+      "items": [
+        "핸들러에서 다 처리하면 요청 인스턴스를 재사용할 수 있다 — 에코 계열",
+        "로직 스레드로 넘기면 본문을 복사해야 한다 — 채팅·게임 계열",
+        "이 선택 하나가 성능과 안전성을 함께 가른다"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "그림 속 이름의 원래 프로젝트",
+      "items": [
+        "이진 패킷 = BinaryPacketServer · 멀티 포트 = MultiPortServer · UDP 서버 = SimpleUDPServer",
+        "PvP 게임 = PvPGameServer · GenericHost = EchoServer_GenericHost",
+        "그림에 없는 것: sendFailTestServer, GateServer_GameServer, GameServer_MoDedicated(2)"
+      ]
+    }
+  ]
+}

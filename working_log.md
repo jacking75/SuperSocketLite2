@@ -5,6 +5,13 @@
 > 저장소에서 삭제했다. 내용은 git 이력에 남아 있고, 계속 쓸모 있는 부분(기각한 최적화 후보와
 > 그 이유)은 `.claude/architecture.md`로 옮겼다.
 
+## 2026-08-14 12:04 KST - 마이그레이션 가이드 삭제
+
+- 사용자 판단으로 `Docs/Migration_0.90_to_0.91.md`를 지웠다. 0.91은 사실상 재작성이라 0.90에서 옮겨 올 사람이 없다는 것.
+- 다만 §5의 **제거된 기능 표**는 성격이 다르다. "옛 SuperSocket에 있던 X는 어디 갔나"에 답하는 목록이고 저장소에서 유일한 기록이었다. `.claude/architecture.md`에 "제거된 기능" 절로 옮겼다.
+- README 두 종이 "무엇을 왜 제거했는지는 마이그레이션 가이드 참고"라고 링크하고 있어 그 문장도 새 위치로 돌렸다. `Docs/index.html`의 카드도 정리.
+- `Docs/`에 남은 것은 `GC_Copy_Minimization.md`, `VSCode_Repository_Analysis.html`, `index.html` 셋이다.
+
 ## 2026-08-14 11:47 KST - 문서 전수 점검: 낡은 문서 6종 삭제, 사실 오류 다수 수정
 
 - 저장소의 문서 24종을 코드와 하나씩 대조했다. **가장 심각한 문제는 `Docs/`의 다이어그램 HTML 4종**이었다. 문자열 프로토콜 계열 제거와 `byte[]` 필터 경로 제거를 거치는 동안 갱신되지 않아, `ISequenceReceiveFilter`·`FixedHeaderSequenceReceiveFilter`·`CollectSend`·`RawDataReceived`·`LeftBufferSize`·`m_SendQueue`처럼 **지금 없는 것들을 주력으로 설명**하고 있었다. 수신 파이프라인 문서는 11개 절 중 7개가 무효였다.

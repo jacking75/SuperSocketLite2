@@ -271,6 +271,25 @@ public class MainServer : AppServer<NetworkSession, EFBinaryRequestInfo>
 }
 ```
 
+## 제거된 기능
+
+옛 SuperSocket을 알고 오면 찾게 되는 것들이다. 전부 의도적으로 뺐고 대체 API가 따로 없다.
+
+| 제거된 것 | 대신 할 일 |
+|---|---|
+| `CollectSend` / `GetCollectSendData` / `CommitCollectSend`, `CollectSendIntervalMillSec` | 앱에서 모아 두었다가 `SendCopied`를 한 번 부른다 |
+| `RawDataReceived` / `IRawDataProcessor<T>` | 수신 필터에서 처리한다 |
+| `IConnectionFilter` | `NewSessionConnected`에서 검사하고 거부할 세션은 `Close`한다 |
+| `ISocketServerFactory` 주입 | 라이브러리가 `SocketMode`를 보고 구현을 고른다 |
+| `AppSession.Items` / `PrevCommand` / `CurrentCommand`, `LogCommand` | 자기 세션 서브클래스에 필드를 둔다 |
+| 문자열 명령 프로토콜 일습(`StringRequestInfo`, `TerminatorReceiveFilter`, `CountSpliterReceiveFilter`, `BeginEndMarkReceiveFilter`, 비제네릭 `AppServer`/`AppSession`) | `AppServer<TSession, TRequestInfo>`에 바이너리 필터를 쓴다 |
+| `byte[]` 기반 수신 필터 경로(`LeftBufferSize`, `toBeCopied`, `offset`/`length` 인자) | `ReadOnlySequence<byte>` 하나로 통일됐다. `MaxRequestLength`는 라이브러리가 미소비 길이로 검사한다 |
+| `FixedHeaderSequenceReceiveFilter<T>` | 이름만 바뀌었다. `FixedHeaderReceiveFilter<T>`를 쓴다 |
+
+`Setup`에서도 아무도 쓰지 않던 인자 둘(`socketServerFactory`, `connectionFilters`)이 빠졌고,
+파생 클래스가 재정의하던 훅은 `OnSetup`으로 이름이 바뀌었다.
+
+
 ## 검토했지만 하지 않기로 한 최적화
 
 성능 재점검(2026-08-14)에서 후보로 올랐다가 기각한 것들이다.

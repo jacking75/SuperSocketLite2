@@ -51,8 +51,8 @@
   있다.
 - **최신 .NET, nullable 주석 완비, 레거시 부담 없음.** .NET 10을 타겟으로 하고
   `System.IO.Pipelines`와 `System.Threading.Channels`를 전면에 쓴다. 아무도 쓰지 않던 API
-  표면은 그대로 끌고 오지 않았다(무엇을 왜 제거했는지는
-  [마이그레이션 가이드](Docs/Migration_0.90_to_0.91.md) *(영문)* 참고).
+  표면은 그대로 끌고 오지 않았다(무엇을 뺐고 대신 무엇을 하면 되는지는
+  `.claude/architecture.md`의 "제거된 기능"에 있다).
 
 ## 빠른 시작
 
@@ -291,7 +291,6 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 - [아키텍처 및 데이터 흐름](.claude/architecture.md)
 - [코딩 컨벤션](.claude/conventions.md)
 - [알려진 주의 사항](.claude/cautions.md) — 스레드 안전성, zero-copy 버퍼 수명, UDP 특이사항
-- [0.90 → 0.91 마이그레이션 가이드](Docs/Migration_0.90_to_0.91.md) *(영문)*
 - [GC·데이터 복사 최소화 가이드](Docs/GC_Copy_Minimization.md) — 수신 필터·패킷 핸들러·송신
   호출부에서 패킷당 할당을 0으로 만드는 방법
 - [다이어그램](Docs/index.html) — 아키텍처, TCP 연결 흐름, 수신/송신 파이프라인 상세

@@ -51,8 +51,8 @@ path, the send queue, the object pools — with a design built around `Pipelines
   either keyed by remote endpoint or by a session ID you embed in the datagram yourself.
 - **Modern .NET, nullable-annotated, no legacy baggage.** Targets .NET 10, uses
   `System.IO.Pipelines` and `System.Threading.Channels` throughout, and doesn't carry forward
-  API surface nobody used (see the [migration guide](Docs/Migration_0.90_to_0.91.md) for what was
-  cut and why).
+  API surface nobody used (`.claude/architecture.md` lists what was dropped and what to do
+  instead).
 
 ## Quick Start
 
@@ -295,7 +295,6 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 - [Architecture & data flow](.claude/architecture.md) *(Korean)*
 - [Coding conventions](.claude/conventions.md) *(Korean)*
 - [Known caveats](.claude/cautions.md) *(Korean)* — thread-safety notes, zero-copy buffer lifetime, UDP quirks
-- [Migrating from 0.90 to 0.91](Docs/Migration_0.90_to_0.91.md)
 - [Minimising GC and copies](Docs/GC_Copy_Minimization.md) *(Korean)* — how to get to zero
   per-packet allocations in your receive filter, packet handlers, and send calls
 - [Diagrams](Docs/index.html) *(Korean)* — architecture, TCP connection flow, receive/send pipeline detail

@@ -63,7 +63,7 @@ path, the send queue, the object pools — with a design built around `Pipelines
 
 ### Get the library
 
-SuperSocketLite2 (0.91+, targeting .NET 10, the `Pipelines`-based engine described in this
+SuperSocketLite2 (targeting .NET 10, the `Pipelines`-based engine described in this
 document) ships as its own NuGet package, **`SuperSocketLite2`** — a separate package ID from the
 older, pre-rewrite `SuperSocketLite` package on NuGet.org (still the .NET 9 line, unaffected by
 this repository).

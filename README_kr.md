@@ -63,7 +63,7 @@
 
 ### 라이브러리 가져오기
 
-SuperSocketLite2(이 문서가 설명하는 0.91 이상, .NET 10 대상, `Pipelines` 기반 엔진)는 별도의
+SuperSocketLite2(.NET 10 대상, `Pipelines` 기반 엔진 — 이 문서가 설명하는 그대로)는 별도의
 NuGet 패키지 **`SuperSocketLite2`**로 배포된다 — NuGet.org의 기존 `SuperSocketLite` 패키지(여전히
 재작성 이전의 .NET 9 라인)와는 다른, 독립된 패키지 ID다. 이 저장소의 변경은 기존 패키지에 영향을
 주지 않는다.

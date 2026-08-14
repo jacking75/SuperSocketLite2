@@ -19,6 +19,11 @@ catch (Exception ex) when (ex is ArgumentException or FormatException)
     return 2;
 }
 
+// 종료 신호는 서버를 띄우기 전에 준비한다. 남아 있던 stop 파일을 먼저 지워야 새 서버가
+// 뜨자마자 끝나는 일이 없고, 기동 도중에 들어온 종료 요청도 놓치지 않는다.
+var stopped = new ManualResetEventSlim();
+using var stopFileSignal = StopFileSignal.Start(options.StopFile, stopped.Set);
+
 using var server = new LoadTestServer(options.Allocation);
 
 if (!server.Configure(options))
@@ -40,6 +45,9 @@ if (options.Metrics != ServerMetricsMode.Full)
 
 if (options.Allocation != AllocationMode.Pooled)
     Console.WriteLine($"  alloc-mode: {options.Allocation.ToString().ToLowerInvariant()}");
+
+if (options.StopFile is not null)
+    Console.WriteLine($"  stop-file: {options.StopFile}");
 
 // 부가 리스너는 바이너리 서버의 계측기를 함께 쓴다. 프로세스 자원은 하나이기 때문이다.
 using var textServer = new TextLineServer();
@@ -68,7 +76,6 @@ if (options.UdpPort > 0)
 
 Console.WriteLine(options.Duration is null ? "Press Ctrl+C to stop." : $"Stopping after {options.Duration}.");
 
-var stopped = new ManualResetEventSlim();
 Console.CancelKeyPress += (_, e) =>
 {
     e.Cancel = true;

@@ -52,6 +52,7 @@ public sealed class LoadTestServerOptions
         "  --server-event-request-sampling <0.0-1.0>",
         "  --metrics <full|no-gauges|off>",
         "  --alloc-mode <pooled|legacy>",
+        "  --stop-file <path>      (이 경로에 파일이 생기면 정상 종료한다)",
         "  --duration <hh:mm:ss>",
         "  --run-id <id>",
         "  --help"
@@ -77,6 +78,16 @@ public sealed class LoadTestServerOptions
 
     /// <summary>패킷당 버퍼 처리 방식입니다. 기본은 할당이 없는 풀 경로입니다.</summary>
     public AllocationMode Allocation { get; set; } = AllocationMode.Pooled;
+
+    /// <summary>
+    /// 이 경로에 파일이 생기면 정상 종료합니다. null이면 감시하지 않습니다.
+    /// </summary>
+    /// <remarks>
+    /// 부하 스크립트가 서버를 강제로 죽이면 세션 정리와 마지막 표본 기록을 건너뛰어,
+    /// 멀쩡한 실행이 세션 누수로 기록됩니다. 스크립트는 이 파일로 종료를 요청합니다.
+    /// 자세한 내용은 <see cref="StopFileSignal"/>.
+    /// </remarks>
+    public string? StopFile { get; set; }
 
     public static bool IsHelpRequest(string[] args)
     {
@@ -126,6 +137,9 @@ public sealed class LoadTestServerOptions
                     break;
                 case "--alloc-mode":
                     options.Allocation = ParseAllocationMode(value);
+                    break;
+                case "--stop-file":
+                    options.StopFile = value;
                     break;
                 default:
                     throw new ArgumentException($"Unknown option '{arg}'.");

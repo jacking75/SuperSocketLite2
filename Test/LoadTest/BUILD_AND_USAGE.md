@@ -77,8 +77,38 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Server -- `
 | `--server-metrics-interval-ms` | `1000` | `--sample-interval-ms`와 같은 옵션입니다. |
 | `--server-event-request-sampling` | `0` | 요청 이벤트 CSV 샘플링 비율입니다. `1.0`은 전체 기록, `0.001`은 0.1% 기록입니다. |
 | `--metrics` | `full` | 서버 계측 수준입니다. `full`·`no-gauges`·`off`를 씁니다. 아래 표를 참고합니다. |
+| `--alloc-mode` | `pooled` | 패킷당 버퍼 처리 방식입니다. `legacy`는 개선 전 동작(패킷마다 배열 할당)을 재현합니다. 아래 표를 참고합니다. |
+| `--stop-file` | 없음 | 이 경로에 파일이 생기면 정상 종료합니다. 아래 설명을 참고합니다. |
 | `--duration` | 없음 | 서버 자동 종료까지의 실행 시간입니다. 예: `00:06:00`. |
 | `--run-id` | UTC 타임스탬프 | CSV에 기록할 실행 식별자입니다. |
+
+### 정상 종료 요청 (`--stop-file`)
+
+서버를 강제로 죽이면 세션 정리와 **마지막 CSV 표본 기록**이 일어나지 않습니다.
+마지막 표본은 종료 경로에서만 쓰이므로, 클라이언트가 이미 다 빠져나갔는데도 CSV의 끝 행이
+"활성 세션 N개"로 남습니다. 리포트는 그 끝 행으로 세션 누수를 판정하므로 멀쩡한 실행이
+불합격으로 나옵니다.
+
+`--stop-file`을 주면 그 경로에 파일이 생기는지 지켜보다가, 나타나면 스스로 정리하고 끝냅니다.
+`run-loadtest.ps1`은 이 방식을 기본으로 쓰므로 따로 지정할 필요가 없습니다.
+
+```powershell
+# 다른 창에서 서버를 정상 종료시키기
+New-Item -ItemType File -Path logs\loadtest\my-run.stop -Force
+```
+
+서버는 기동할 때 남아 있던 파일을 지우고, 종료할 때도 지웁니다.
+그래서 이전 실행이 남긴 파일 때문에 새 서버가 뜨자마자 끝나는 일은 없습니다.
+
+### 패킷당 버퍼 처리 방식 (`--alloc-mode`)
+
+| 값 | 동작 | 쓰임 |
+| --- | --- | --- |
+| `pooled` | 수신은 파이프 메모리를 그대로 넘기고(요청 인스턴스도 재사용), 송신은 스택·풀 버퍼에 직렬화합니다. 패킷당 할당이 없습니다. | 기본값입니다. |
+| `legacy` | 패킷마다 본문 배열·요청 인스턴스·응답 배열을 새로 만듭니다. | 개선 전 수치를 재는 용도입니다. |
+
+이진 TCP 경로에만 적용됩니다. 부가 리스너(text-line·UDP)는 언제나 풀 경로로 돕니다.
+배경과 측정 결과는 [`Docs/GC_Copy_Minimization.md`](../../Docs/GC_Copy_Minimization.md)에 있습니다.
 
 ### 서버 계측 수준 (`--metrics`)
 
@@ -617,9 +647,15 @@ Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
 | `-Port` | `2012` | 서버 포트입니다. |
 | `-ExtraClientArgs` | 없음 | 클라이언트에 그대로 넘길 추가 인자입니다. |
 | `-Metrics` | `full` | 서버 계측 수준입니다. `full`·`no-gauges`·`off`. |
+| `-AllocMode` | `pooled` | 서버의 패킷당 버퍼 처리 방식입니다. `pooled`·`legacy`. |
 | `-KillServerAt` | 없음 | 이 시각에 서버를 강제 종료했다가 다시 띄웁니다. 예: `00:00:30`. |
 | `-ServerDowntime` | `00:00:05` | 서버를 내려 둘 시간입니다. |
 | `-SkipReport` | 꺼짐 | 리포트를 만들지 않습니다. |
+
+실행이 끝나면 스크립트는 서버에 **정상 종료를 요청**합니다(`--stop-file`).
+30초 안에 끝나지 않을 때만 강제로 내리고, 그때는 경고를 찍습니다.
+정상 종료해야 마지막 표본에 "활성 세션 0"이 남아 세션 누수 판정이 제대로 나옵니다.
+`-KillServerAt`의 장애 주입은 갑작스러운 서버 손실을 재현하는 것이 목적이므로 그대로 강제 종료합니다.
 
 ### 시나리오 매트릭스 (`run-matrix.ps1`)
 

@@ -104,7 +104,7 @@ function Wait-ForListener {
 }
 
 function Start-LoadTestServer {
-    param([string] $Id, [string] $OutputDir)
+    param([string] $Id, [string] $OutputDir, [string] $StopFile)
 
     # 서버는 클라이언트보다 넉넉히 오래 살아야 한다. 클라이언트가 끝나면 이 스크립트가 정리한다.
     $connections = if ($MaxConnections -gt 0) { $MaxConnections } else { [Math]::Max(100, $Clients * 2) }
@@ -120,11 +120,51 @@ function Start-LoadTestServer {
     if ($UdpPort  -gt 0)      { $serverArgs += @('--udp-port',  "$UdpPort") }
     if ($Metrics -ne 'full')     { $serverArgs += @('--metrics',    $Metrics) }
     if ($AllocMode -ne 'pooled') { $serverArgs += @('--alloc-mode', $AllocMode) }
+    if ($StopFile)               { $serverArgs += @('--stop-file',  $StopFile) }
 
-    return Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden -ArgumentList $serverArgs
+    $process = Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden -ArgumentList $serverArgs
+
+    # Start-Process 가 돌려준 객체는 핸들을 미리 잡아 두지 않으면 프로세스가 끝난 뒤
+    # HasExited·ExitCode 를 제대로 읽지 못한다. 종료 판정이 여기에 달려 있으므로 여기서 잡아 둔다.
+    $null = $process.Handle
+
+    return $process
 }
 
+<#
+.SYNOPSIS
+    서버에 정상 종료를 요청하고, 응하지 않을 때만 강제로 내린다.
+.DESCRIPTION
+    강제 종료만 하면 서버가 세션 정리와 마지막 CSV 표본 기록을 하지 못한다.
+    마지막 표본은 종료 경로에서만 쓰이므로, 클라이언트가 이미 다 빠져나갔는데도
+    CSV의 끝 행이 "활성 세션 N개"로 남고 리포트가 그것으로 세션 누수를 판정한다.
+    실제로 멀쩡한 실행이 그 때문에 불합격으로 나온 적이 있다.
+
+    그래서 stop 파일로 먼저 종료를 요청한다. 서버가 제한 시간 안에 끝나지 않으면
+    (멈췄거나 옛 빌드라서 --stop-file 을 모르는 경우) 그때 강제 종료한다.
+#>
 function Stop-LoadTestServer {
+    param($Server, [string] $StopFile, [int] $TimeoutSeconds = 30)
+
+    if ($null -eq $Server) { return }
+
+    if (-not $Server.HasExited -and $StopFile) {
+        New-Item -ItemType File -Path $StopFile -Force | Out-Null
+        $Server | Wait-Process -Timeout $TimeoutSeconds -ErrorAction SilentlyContinue
+
+        if (-not $Server.HasExited) {
+            Write-Warning "서버가 ${TimeoutSeconds}초 안에 정상 종료하지 않아 강제로 내린다. 이 실행의 서버 CSV는 끝이 잘렸을 수 있다."
+        }
+    }
+
+    Stop-LoadTestServerForce -Server $Server
+}
+
+<#
+.SYNOPSIS
+    서버를 즉시 죽인다. 장애 주입처럼 갑작스러운 서버 손실을 재현할 때만 쓴다.
+#>
+function Stop-LoadTestServerForce {
     param($Server)
 
     if ($null -eq $Server) { return }
@@ -142,18 +182,19 @@ function Stop-LoadTestServer {
     리포트는 run_id 로 묶으므로 디렉토리가 나뉘어도 한 실행으로 합쳐진다.
 #>
 function Invoke-ServerFaultInjection {
-    param([string] $Id, [string] $ServerOutput, [int] $ListenPort, $Server)
+    param([string] $Id, [string] $ServerOutput, [int] $ListenPort, $Server, [string] $StopFile)
 
     $killAt = [TimeSpan]::Parse($KillServerAt)
     $downtime = [TimeSpan]::Parse($ServerDowntime)
 
     Start-Sleep -Seconds $killAt.TotalSeconds
     Write-Host "[$Id] 서버 강제 종료 ($KillServerAt 경과)"
-    Stop-LoadTestServer -Server $Server
+    # 여기서는 일부러 강제로 죽인다. 갑작스러운 서버 손실을 재현하는 것이 이 함수의 목적이다.
+    Stop-LoadTestServerForce -Server $Server
 
     Start-Sleep -Seconds $downtime.TotalSeconds
     Write-Host "[$Id] 서버 재기동"
-    $restarted = Start-LoadTestServer -Id $Id -OutputDir "$ServerOutput-restart"
+    $restarted = Start-LoadTestServer -Id $Id -OutputDir "$ServerOutput-restart" -StopFile $StopFile
 
     if ($Transport -eq 'udp') {
         Start-Sleep -Seconds 3
@@ -171,8 +212,12 @@ function Invoke-SingleRun {
     $serverOutput = Join-Path $LogRoot "$Id-server"
     $clientOutput = Join-Path $LogRoot "$Id-client"
 
+    # 종료 요청 통로. 서버가 이 파일을 보면 세션을 정리하고 마지막 표본을 남긴 뒤 끝낸다.
+    New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
+    $stopFile = Join-Path $LogRoot "$Id-server.stop"
+
     Write-Host "[$Id] 서버 기동 (port $Port)"
-    $server = Start-LoadTestServer -Id $Id -OutputDir $serverOutput
+    $server = Start-LoadTestServer -Id $Id -OutputDir $serverOutput -StopFile $stopFile
 
     try {
         $listenPort = if ($Transport -eq 'udp' -and $UdpPort -gt 0) { $UdpPort }
@@ -220,12 +265,15 @@ function Invoke-SingleRun {
             # 장애를 주입하려면 클라이언트가 도는 동안 이 스크립트가 서버를 조작해야 하므로
             # 클라이언트를 비동기로 띄운다.
             $clientLog = Join-Path $LogRoot "$Id-client.log"
-            New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
             $client = Start-Process -FilePath 'dotnet' -PassThru -WindowStyle Hidden `
                 -ArgumentList $clientArgs -RedirectStandardOutput $clientLog
 
+            # 핸들을 미리 잡지 않으면 종료 뒤 ExitCode 가 비어 나오고,
+            # $null -ne 0 이 참이라 성공한 실행도 실패로 처리된다.
+            $null = $client.Handle
+
             $server = Invoke-ServerFaultInjection -Id $Id -ServerOutput $serverOutput `
-                -ListenPort $listenPort -Server $server
+                -ListenPort $listenPort -Server $server -StopFile $stopFile
 
             $client.WaitForExit()
             if ($client.ExitCode -ne 0) { throw "[$Id] 클라이언트가 코드 $($client.ExitCode) 로 끝났다. 로그: $clientLog" }
@@ -233,7 +281,13 @@ function Invoke-SingleRun {
     }
     finally {
         # 서버는 --duration 없이 띄웠으므로 여기서 확실히 내린다.
-        Stop-LoadTestServer -Server $server
+        # 강제 종료가 아니라 정상 종료를 요청해야 마지막 표본(활성 세션 0)이 남는다.
+        Stop-LoadTestServer -Server $server -StopFile $stopFile
+
+        # 서버가 정상 종료했다면 스스로 지운다. 강제 종료된 경우에만 남는다.
+        if (Test-Path $stopFile) {
+            Remove-Item -LiteralPath $stopFile -Force -ErrorAction SilentlyContinue
+        }
     }
 
     Write-Host "[$Id] 완료"

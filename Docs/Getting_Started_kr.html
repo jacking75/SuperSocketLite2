@@ -172,7 +172,13 @@ dotnet build -c Release</code></pre>
 이 저장소의 변경은 기존 패키지에 영향을 주지 않습니다.
 </p>
 <pre><code>dotnet add package SuperSocketLite2</code></pre>
-<p>첫 릴리스가 올라가기 전까지는 소스를 내려받아 프로젝트 참조로 씁니다.</p>
+<p>
+이게 전부입니다 — 저장소를 로컬에 받을 필요가 없습니다.
+<a href="../Tutorials/EchoServer_NuGet"><code>Tutorials/EchoServer_NuGet</code></a>이 이 패키지만으로
+완성한 실행 가능한 서버입니다(<a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a>와
+완전히 같고, <code>ProjectReference</code> 대신 <code>PackageReference</code>를 쓴 것뿐입니다).
+</p>
+<p>배포된 버전이 아니라 최신 소스로 빌드하고 싶다면(아직 릴리스 안 된 수정 사항, 라이브러리 자체 수정) 소스를 내려받아 프로젝트 참조로 씁니다.</p>
 <pre><code>git clone https://github.com/jacking75/SuperSocketLite2.git</code></pre>
 <pre><code>&lt;ItemGroup&gt;
   &lt;ProjectReference Include="..\SuperSocketLite2\SuperSocketLite\SuperSocketLite.csproj" /&gt;

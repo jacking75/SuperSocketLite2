@@ -72,7 +72,12 @@ NuGet 패키지 **`SuperSocketLite2`**로 배포된다 — NuGet.org의 기존 `
 dotnet add package SuperSocketLite2
 ```
 
-첫 릴리스가 올라가기 전까지는 프로젝트를 직접 참조한다.
+이게 전부다 — 저장소를 로컬에 받을 필요가 없다. [`Tutorials/EchoServer_NuGet`](Tutorials/EchoServer_NuGet)이
+NuGet 패키지만으로 완성한 실행 가능한 서버다([`Tutorials/EchoServer`](Tutorials/EchoServer)와 완전히
+같고, `ProjectReference` 대신 `PackageReference`를 쓴 것뿐이다).
+
+배포된 버전이 아니라 최신 소스로 빌드하고 싶다면(아직 릴리스 안 된 수정 사항을 쓰거나, 라이브러리
+자체를 고칠 때) 프로젝트를 직접 참조한다.
 
 ```bash
 git clone https://github.com/jacking75/SuperSocketLite2.git
@@ -180,7 +185,9 @@ server.Stop();
 ```
 
 이것으로 완결된, 바로 실행 가능한 TCP 서버다. [`Tutorials/EchoServer`](Tutorials/EchoServer)가
-같은 것을 실행 가능한 프로젝트로 담고 있고, [`EchoServerEx`](Tutorials/EchoServerEx)는 옵션 파싱과
+같은 것을 실행 가능한 프로젝트로 담고 있다(라이브러리를 `ProjectReference`로 참조).
+[`EchoServer_NuGet`](Tutorials/EchoServer_NuGet)은 똑같은 서버를 `SuperSocketLite2` NuGet
+패키지로 참조한 버전이다. [`EchoServerEx`](Tutorials/EchoServerEx)는 옵션 파싱과
 NLog를, [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost)는 `Generic Host` 서비스로
 띄우는 방법을 보여 준다.
 
@@ -271,6 +278,7 @@ NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 �
 | 프로젝트 | 보여주는 것 |
 |---|---|
 | [`EchoServer`](Tutorials/EchoServer) | 최소한의 엔드투엔드 구성 |
+| [`EchoServer_NuGet`](Tutorials/EchoServer_NuGet) | 같은 서버를 프로젝트 참조 대신 `SuperSocketLite2` NuGet 패키지로 빌드 |
 | [`EchoServerEx`](Tutorials/EchoServerEx) | 커맨드라인 옵션, NLog 연동 |
 | [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) | `Generic Host` 서비스로 실행하기 |
 | [`ChatServer`](Tutorials/ChatServer) / [`ChatServerEx`](Tutorials/ChatServerEx) | 여러 세션에 브로드캐스트하기 |

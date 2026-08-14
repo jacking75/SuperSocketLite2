@@ -606,6 +606,18 @@ The full map is in the <a href="Tutorials_Path.html">reading-order diagram</a>.
 </div>
 
 <div class="proj">
+  <h3>EchoServer_NuGet <span class="tag sync">synchronous</span></h3>
+  <p class="meta">The exact same server as EchoServer · references the published package instead of the repo</p>
+  <p>
+    Identical code and protocol to <code>EchoServer</code> — the only difference is one line in the
+    <code>.csproj</code>: a <code>PackageReference</code> to the <code>SuperSocketLite2</code> NuGet
+    package instead of a <code>ProjectReference</code> to the local library project. Copy this folder
+    out of the repository and it still builds, because it doesn't need the repository at all.
+  </p>
+  <p class="meta">Run it: build, then <code>Tutorials/00_server_bins/run_EchoServer_NuGet.bat</code> (port 32453) · client is <code>EchoClient</code></p>
+</div>
+
+<div class="proj">
   <h3>EchoServerEx <span class="tag sync">synchronous</span></h3>
   <p class="meta">EchoServer + command-line arguments + logging</p>
   <p>

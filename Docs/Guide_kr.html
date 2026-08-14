@@ -599,6 +599,18 @@ TCP는 스트림입니다. 클라이언트가 패킷 하나를 보내도 서버�
 </div>
 
 <div class="proj">
+  <h3>EchoServer_NuGet <span class="tag sync">동기 처리</span></h3>
+  <p class="meta">EchoServer와 완전히 같은 서버 · 저장소 대신 nuget.org에 올라간 패키지를 참조</p>
+  <p>
+    코드와 프로토콜이 <code>EchoServer</code>와 똑같습니다 — 다른 건 <code>.csproj</code> 한 줄뿐입니다.
+    로컬 라이브러리 프로젝트를 향한 <code>ProjectReference</code> 대신 <code>SuperSocketLite2</code>
+    NuGet 패키지를 향한 <code>PackageReference</code>를 씁니다. 이 폴더만 따로 복사해도 빌드가 됩니다 —
+    저장소 자체가 필요 없기 때문입니다.
+  </p>
+  <p class="meta">실행: 빌드 후 <code>Tutorials/00_server_bins/run_EchoServer_NuGet.bat</code>(32453 포트) · 클라이언트는 <code>EchoClient</code></p>
+</div>
+
+<div class="proj">
   <h3>EchoServerEx <span class="tag sync">동기 처리</span></h3>
   <p class="meta">EchoServer + 실행 인자 + 로깅</p>
   <p>

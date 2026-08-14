@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "EchoServer_NuGet": {
+      "commandName": "Project",
+      "commandLineArgs": "--port 32453 --maxConnectionNumber 32 --name EchoServer_NuGet"
+    }
+  }
+}

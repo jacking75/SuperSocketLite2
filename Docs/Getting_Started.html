@@ -176,7 +176,13 @@ a different package ID from the older <code>SuperSocketLite</code> package on Nu
 pre-rewrite, .NET 9 line, unaffected by this repository).
 </p>
 <pre><code>dotnet add package SuperSocketLite2</code></pre>
-<p>Until the first release is published, pull the source and reference the project directly instead.</p>
+<p>
+That's it — no local checkout needed. <a href="../Tutorials/EchoServer_NuGet"><code>Tutorials/EchoServer_NuGet</code></a>
+is a complete, runnable server built entirely against the package (identical to
+<a href="../Tutorials/EchoServer"><code>Tutorials/EchoServer</code></a>, just with a <code>PackageReference</code>
+instead of a <code>ProjectReference</code>).
+</p>
+<p>If you want the latest source instead of a released version — unreleased fixes, or modifying the library itself — reference the project directly instead.</p>
 <pre><code>git clone https://github.com/jacking75/SuperSocketLite2.git</code></pre>
 <pre><code>&lt;ItemGroup&gt;
   &lt;ProjectReference Include="..\SuperSocketLite2\SuperSocketLite\SuperSocketLite.csproj" /&gt;

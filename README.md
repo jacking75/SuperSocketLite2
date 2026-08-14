@@ -72,7 +72,13 @@ this repository).
 dotnet add package SuperSocketLite2
 ```
 
-Until the first release is published, reference the project directly instead:
+That's it — no local checkout needed. [`Tutorials/EchoServer_NuGet`](Tutorials/EchoServer_NuGet) is a
+complete, runnable server built entirely against the NuGet package (identical to
+[`Tutorials/EchoServer`](Tutorials/EchoServer), just with a `PackageReference` instead of a
+`ProjectReference`).
+
+If you want to build against the latest source instead of a released version — to pick up unreleased
+fixes, or to modify the library itself — reference the project directly:
 
 ```bash
 git clone https://github.com/jacking75/SuperSocketLite2.git
@@ -180,9 +186,11 @@ server.Stop();
 ```
 
 That's a complete, runnable TCP server. [`Tutorials/EchoServer`](Tutorials/EchoServer) is the same
-thing as a project you can run; [`EchoServerEx`](Tutorials/EchoServerEx) adds options parsing and
-NLog, and [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) runs it as a `Generic Host`
-service.
+thing as a project you can run (referencing the library via `ProjectReference`);
+[`EchoServer_NuGet`](Tutorials/EchoServer_NuGet) is the identical server referencing the
+`SuperSocketLite2` NuGet package instead. [`EchoServerEx`](Tutorials/EchoServerEx) adds options
+parsing and NLog, and [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) runs it as a
+`Generic Host` service.
 
 ## How It Works
 
@@ -275,6 +283,7 @@ patterns:
 | Project | What it shows |
 |---|---|
 | [`EchoServer`](Tutorials/EchoServer) | The minimal end-to-end setup |
+| [`EchoServer_NuGet`](Tutorials/EchoServer_NuGet) | The same server, built against the `SuperSocketLite2` NuGet package instead of a project reference |
 | [`EchoServerEx`](Tutorials/EchoServerEx) | Command-line options, NLog integration |
 | [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) | Running as a `Generic Host` service |
 | [`ChatServer`](Tutorials/ChatServer) / [`ChatServerEx`](Tutorials/ChatServerEx) | Broadcasting to multiple sessions |

@@ -1,0 +1,52 @@
+using System;
+
+namespace EchoServer_NuGet;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Hello SuperSocketLite2 (via NuGet)");
+
+        var serverOption = new ServerOption
+        {
+            Port = 32453,
+            MaxConnectionNumber = 32,
+            Name = "EchoServer_NuGet"
+        };
+
+        // 서버를 생성하고 초기화한다.
+        var server = new MainServer();
+        server.InitConfig(serverOption);
+        server.CreateServer();
+
+        // 서버를 시작한다.
+        var IsResult = server.Start();
+
+        if (IsResult)
+        {
+            MainServer.s_MainLogger.Info("서버 네트워크 시작");
+        }
+        else
+        {
+            Console.WriteLine("서버 네트워크 시작 실패");
+            return;
+        }
+
+
+        Console.WriteLine("key를 누르면 종료한다....");
+        Console.ReadKey();
+
+        server.Destory();
+    }
+
+}
+
+public class ServerOption
+{
+    public int Port { get; set; }
+
+    public int MaxConnectionNumber { get; set; } = 0;
+
+    public string Name { get; set; }
+}

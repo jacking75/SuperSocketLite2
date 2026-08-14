@@ -1,0 +1,1 @@
+dotnet net10.0\EchoServer_NuGet.dll

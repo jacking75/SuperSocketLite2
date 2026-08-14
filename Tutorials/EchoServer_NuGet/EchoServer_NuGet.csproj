@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <OutputPath>..\00_server_bins</OutputPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <OutputPath>..\00_server_bins</OutputPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- EchoServer와 다른 점은 이 한 줄뿐이다 - 저장소 프로젝트가 아니라 nuget.org의
+         SuperSocketLite2 패키지를 그대로 참조한다. -->
+    <PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+  </ItemGroup>
+
+  <!-- Docs/GC_Copy_Minimization.md 개선 4: 서버는 Server GC로 돌린다.
+       DATAS(동적 힙 조정)는 .NET 10 Server GC에서 기본 켬이다. 상시 부하 서버에서 지연이 튀면
+       빌드를 고치지 말고 DOTNET_GCDynamicAdaptationMode=0 으로 실행해 비교한다. -->
+  <PropertyGroup>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+</Project>

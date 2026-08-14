@@ -31,6 +31,7 @@
     <Project Path="Tutorials/EchoServer/EchoServer.csproj" />
     <Project Path="Tutorials/EchoServerEx/EchoServerEx.csproj" />
     <Project Path="Tutorials/EchoServer_GenericHost/EchoServer_GenericHost.csproj" />
+    <Project Path="Tutorials/EchoServer_NuGet/EchoServer_NuGet.csproj" />
     <Project Path="Tutorials/MultiPortServer/MultiPortServer.csproj" />
     <Project Path="Tutorials/PvPGameServer/PvPGameServer.csproj" />
     <Project Path="Tutorials/sendFailTestServer/sendFailTestServer.csproj" />

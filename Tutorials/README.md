@@ -115,6 +115,24 @@ namespace EchoServer_GenericHost
     
       
   
+## EchoServer_NuGet
+
+- `EchoServer`와 완전히 같은 서버다(같은 프로토콜, 같은 코드). 다른 점은 딱 하나, 참조 방식이다.
+- `EchoServer`는 저장소 안의 `SuperSocketLite` 프로젝트를 `<ProjectReference>`로 참조하지만,
+  이 예제는 nuget.org에 올라간 **`SuperSocketLite2`** 패키지를 `<PackageReference>`로 참조한다.
+- 그래서 이 프로젝트를 통째로 복사해서 새 프로젝트를 시작해도 이 저장소가 로컬에 없어도 된다 —
+  `dotnet add package SuperSocketLite2` 한 줄이면 끝이다.
+
+```xml
+<ItemGroup>
+  <PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+</ItemGroup>
+```
+
+- 32453 포트를 쓴다(`EchoServer`의 32452와 겹치지 않도록).
+- 빌드 후 `run_EchoServer_NuGet.bat` 배치 파일로 실행한다.
+- 클라이언트는 `EchoServer`와 마찬가지로 `EchoClient` 프로젝트를 사용한다.
+
 ## MultiPortServer  
 ![MultiPortServer](./01_images/004.png)          
   

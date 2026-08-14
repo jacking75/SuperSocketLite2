@@ -1,6 +1,9 @@
 # Tutorial
 여기에는 있는 서버를 순서대로 만들어 보면서 SuperSocketLite 사용 방법을 배운다.  
-각 서버 프로젝트를 빌드하면 00_server_bins 디렉토리에 출력한다.  
+대부분의 서버 프로젝트는 빌드하면 `Tutorials/00_server_bins` 디렉토리에 출력한다. 다만 예외가 있다.  
+- `BinaryPacketServer`, `SimpleUDPServer`, `sendFailTestServer`는 `<OutputPath>`를 지정하지 않아서 기본 경로(`<프로젝트>/bin/<Configuration>/net10.0/`)로 나간다.  
+- `GateServer_GameServer/GateServer`는 자기 상위인 `Tutorials/GateServer_GameServer/00_server_bins`로 나간다.  
+- 클라이언트는 따로다. `ChatClient`는 `Tutorials/00_client_bin`, `EchoClient`와 `PvPGameServer_Client`는 `Tutorials/bin`으로 나간다.  
     
   
 ## 중요
@@ -250,9 +253,9 @@ void RequestReceived(NetworkSession session, EFBinaryRequestInfo reqInfo)
     var value1 = reqInfo.Value1;
     var value2 = reqInfo.Value2;
 
-    if (HandlerMap.ContainsKey(PacketID))
+    if (_handlerMap.ContainsKey(PacketID))
     {
-        HandlerMap[PacketID](session, reqInfo);
+        _handlerMap[PacketID](session, reqInfo);
     }
     else
     {
@@ -348,7 +351,7 @@ void OnConnected(ClientSession session)
     //옵션의 최대 연결 수를 넘으면 SuperSocket이 바로 접속을 짤라버린다. 즉 이 OnConneted 함수가 호출되지 않는다
 
     session.AllocSessionIndex();
-    MainLogger.Info(string.Format("세션 번호 {0} 접속", session.SessionID));
+    s_MainLogger.Info(string.Format("세션 번호 {0} 접속", session.SessionID));
                 
     var packet = ServerPacketData.MakeNTFInConnectOrDisConnectClientPacket(true, session.SessionID, session.SessionIndex);            
     Distributor.DistributeCommon(false, packet);
@@ -356,7 +359,7 @@ void OnConnected(ClientSession session)
 
 void OnClosed(ClientSession session, CloseReason reason)
 {
-    MainLogger.Info(string.Format("세션 번호 {0} 접속해제: {1}", session.SessionID, reason.ToString()));
+    s_MainLogger.Info(string.Format("세션 번호 {0} 접속해제: {1}", session.SessionID, reason.ToString()));
 
 
     var packet = ServerPacketData.MakeNTFInConnectOrDisConnectClientPacket(false, session.SessionID, session.SessionIndex);
@@ -367,7 +370,7 @@ void OnClosed(ClientSession session, CloseReason reason)
 
 void OnPacketReceived(ClientSession session, EFBinaryRequestInfo reqInfo)
 {
-    MainLogger.Debug(string.Format("세션 번호 {0} 받은 데이터 크기: {1}, ThreadId: {2}", session.SessionID, reqInfo.Body.Length, System.Threading.Thread.CurrentThread.ManagedThreadId));
+    s_MainLogger.Debug(string.Format("세션 번호 {0} 받은 데이터 크기: {1}, ThreadId: {2}", session.SessionID, reqInfo.Body.Length, System.Threading.Thread.CurrentThread.ManagedThreadId));
 
     var packet = new ServerPacketData();
     packet.SessionID = session.SessionID;
@@ -393,13 +396,13 @@ public class PacketDistributor
     RoomManager RoomMgr = new RoomManager();
 
 
-    public ERROR_CODE Create(MainServer mainServer)
+    public ErrorCode Create(MainServer mainServer)
     {
-        var roomThreadCount = MainServer.ServerOption.RoomThreadCount;
+        var roomThreadCount = MainServer.s_ServerOption.RoomThreadCount;
         
         Room.NetSendFunc = mainServer.SendData;
 
-        SessionManager.CreateSession(ClientSession.MaxSessionCount);
+        SessionManager.CreateSession(ClientSession.s_MaxSessionCount);
 
         RoomMgr.CreateRooms();
 
@@ -413,14 +416,14 @@ public class PacketDistributor
             PacketProcessorList.Add(packetProcess);
         }
 
-        DBWorker.MainLogger = MainServer.MainLogger;
-        var error = DBWorker.CreateAndStart(MainServer.ServerOption.DBWorkerThreadCount, DistributeDBJobResult, MainServer.ServerOption.RedisAddres);
-        if (error != ERROR_CODE.NONE)
+        DBWorker.MainLogger = MainServer.s_MainLogger;
+        var error = DBWorker.CreateAndStart(MainServer.s_ServerOption.DBWorkerThreadCount, DistributeDBJobResult, MainServer.s_ServerOption.RedisAddres);
+        if (error != ErrorCode.None)
         {
             return error;
         }
 
-        return ERROR_CODE.NONE;
+        return ErrorCode.None;
     }
 
     public void Destory()
@@ -435,12 +438,12 @@ public class PacketDistributor
 
     public void Distribute(ServerPacketData requestPacket)
     {
-        var packetId = (PACKETID)requestPacket.PacketID;
+        var packetId = (PacketId)requestPacket.PacketID;
         var sessionIndex = requestPacket.SessionIndex;
                     
         if(IsClientRequestPacket(packetId) == false)
         {
-            MainServer.MainLogger.Debug("[Distribute] - 클라리언트의 요청 패킷이 아니다.");
+            MainServer.s_MainLogger.Debug("[Distribute] - 클라리언트의 요청 패킷이 아니다.");
             return; 
         }
 
@@ -471,7 +474,7 @@ public class PacketDistributor
         {
             if (isPreRoomEnter == false && SessionManager.IsStateRoom(sessionIndex) == false)
             {
-                MainServer.MainLogger.Debug("[DistributeRoomProcessor] - 방에 입장하지 않은 유저 - 1");
+                MainServer.s_MainLogger.Debug("[DistributeRoomProcessor] - 방에 입장하지 않은 유저 - 1");
                 return false;
             }
 
@@ -479,7 +482,7 @@ public class PacketDistributor
             return true;
         }
 
-        MainServer.MainLogger.Debug("[DistributeRoomProcessor] - 방에 입장하지 않은 유저 - 2");
+        MainServer.s_MainLogger.Debug("[DistributeRoomProcessor] - 방에 입장하지 않은 유저 - 2");
         return false;
     }
 
@@ -499,9 +502,9 @@ public class PacketDistributor
         DistributeCommon(false, requestPacket);            
     }
 
-    bool IsClientRequestCommonPacket(PACKETID packetId )
+    bool IsClientRequestCommonPacket(PacketId packetId )
     {
-        if ( packetId == PACKETID.REQ_LOGIN || packetId == PACKETID.REQ_ROOM_ENTER)
+        if ( packetId == PacketId.ReqLogin || packetId == PacketId.ReqRoomEnter)
         {
             return true;
         }
@@ -509,9 +512,9 @@ public class PacketDistributor
         return false;
     }
 
-    bool IsClientRequestPacket(PACKETID packetId)
+    bool IsClientRequestPacket(PacketId packetId)
     {
-        return (PACKETID.CS_BEGIN < packetId && packetId < PACKETID.CS_END);
+        return (PacketId.CsBegin < packetId && packetId < PacketId.CsEnd);
      }
 }
 ```   

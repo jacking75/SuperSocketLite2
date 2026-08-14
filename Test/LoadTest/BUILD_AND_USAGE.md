@@ -9,11 +9,17 @@
 Test\LoadTest\
 ├── SuperSocketLite.LoadTest.sln
 ├── SuperSocketLite.LoadTest.Client\       부하 테스트 클라이언트
-├── SuperSocketLite.LoadTest.Server\       계측용 TCP 바이너리 에코 서버
+├── SuperSocketLite.LoadTest.Server\       계측용 에코 서버 (TCP 바이너리 · text-line · UDP 리스너)
 ├── SuperSocketLite.LoadTest.ServerProbe\  서버 메트릭/CSV 계측 모듈
 ├── SuperSocketLite.LoadTest.Shared\       공용 패킷, CSV, 메트릭 유틸리티
+├── SuperSocketLite.LoadTest.Report\       CSV → HTML 리포트, 기준 실행 대비 회귀 판정
 ├── SuperSocketLite.LoadTest.Tests\        테스트 실행 프로젝트
-└── analysis\                              DuckDB 분석 SQL
+├── analysis\                              DuckDB 분석 SQL
+├── scenarios\                             선언적 시나리오 JSON (game-mix.json)
+├── thresholds.json                        회귀 판정 임계값. --thresholds 로 명시해야 쓰인다
+├── run-loadtest.ps1                       서버 기동 → 부하 → 정리 → 리포트를 한 번에
+├── run-matrix.ps1                         시나리오 조합을 차례로 실행
+└── measure-metrics-overhead.ps1           계측 수준 3단계를 같은 부하로 비교
 ```
 
 ## 사전 준비
@@ -177,7 +183,7 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
 | `--burst-every` | `00:00:10` | 순간 폭주 간격입니다. `--scenario burst`에서만 씁니다. |
 | `--burst-size` | `20` | 폭주 한 번에 몰아서 보낼 요청 수입니다. |
 | `--output` | `logs\loadtest\client` | 클라이언트 CSV 출력 디렉토리입니다. |
-| `--scenario` | `echo` | 실행 시나리오입니다. 예: `echo`, `game-like`, `idle-heartbeat`, `reconnect-storm`, `burst`. |
+| `--scenario` | `echo` | 실행 시나리오입니다. `echo`, `game-like`, `reconnect-storm`, `burst`를 씁니다. 모르는 이름을 주면 조용히 `echo`로 동작합니다. |
 | `--scenario-file` | 없음 | 요청 조합을 기술한 JSON 파일입니다. 지정하면 `--scenario` 대신 이 파일이 요청을 정합니다. |
 | `--reconnect-on-drop` | 꺼짐 | 연결이 예기치 않게 끊기면 실행이 끝날 때까지 다시 붙습니다. 서버 장애 주입에서 씁니다. |
 | `--reconnect-delay-ms` | `1000` | 재접속을 시도하기 전에 기다리는 시간입니다. |
@@ -525,7 +531,7 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Client -- `
   --transport text `
   --protocol text-line `
   --host 127.0.0.1 `
-  --port 2012 `
+  --port 2013 `
   --clients 100 `
   --duration 00:05:00 `
   --output logs\loadtest\text-line-client
@@ -642,15 +648,26 @@ Test\LoadTest\run-loadtest.ps1 -RunId smoke -Clients 100 -Duration 00:00:30
 | `-Repeat` | `1` | 같은 조건을 몇 번 반복할지입니다. 비교용 실행은 3회 이상을 권장합니다. |
 | `-Clients` | `100` | 동시 클라이언트 수입니다. |
 | `-Duration` | `00:00:30` | 실행 시간입니다. |
+| `-RampUp` | `00:00:05` | 클라이언트 수를 점진적으로 늘리는 시간입니다. |
+| `-SendRate` | `5.0` | 클라이언트 1개당 초당 송신 횟수입니다. 클라이언트의 `--send-rate-per-client`로 넘어갑니다. |
 | `-Scenario` | `echo` | 시나리오입니다. |
+| `-Payload` | `small` | 페이로드 크기 패턴입니다. `small`·`medium`·`large`·`huge`·`mixed`·`mixed-huge`. |
 | `-Pacing` | `open` | 송신 페이싱입니다. |
 | `-Port` | `2012` | 서버 포트입니다. |
+| `-MaxConnections` | `0` | 서버의 최대 연결 수입니다. `0`이면 `max(100, Clients × 2)`로 자동 계산합니다. |
+| `-LogRoot` | `logs\loadtest` | CSV·리포트·stop 파일이 놓이는 최상위 디렉토리입니다. |
 | `-ExtraClientArgs` | 없음 | 클라이언트에 그대로 넘길 추가 인자입니다. |
 | `-Metrics` | `full` | 서버 계측 수준입니다. `full`·`no-gauges`·`off`. |
 | `-AllocMode` | `pooled` | 서버의 패킷당 버퍼 처리 방식입니다. `pooled`·`legacy`. |
 | `-KillServerAt` | 없음 | 이 시각에 서버를 강제 종료했다가 다시 띄웁니다. 예: `00:00:30`. |
 | `-ServerDowntime` | `00:00:05` | 서버를 내려 둘 시간입니다. |
 | `-SkipReport` | 꺼짐 | 리포트를 만들지 않습니다. |
+| `-ReportOnly` | 꺼짐 | 부하 실행을 건너뛰고 이미 남아 있는 CSV로 리포트만 다시 만듭니다. |
+| `-Baseline` | 없음 | 비교 기준으로 삼을 실행의 **접두사**입니다. 주지 않으면 비교 없이 대상 실행만 판정합니다. |
+| `-Candidate` | `-RunId` 값 | 비교 대상 실행의 접두사입니다. `-ReportOnly`로 예전 실행을 견줄 때 씁니다. |
+| `-Thresholds` | 없음 | 임계값 JSON 경로입니다. 주지 않으면 코드 기본값을 씁니다. |
+| `-ReportOutput` | `<LogRoot>\<대상>-report.html` | 리포트 HTML 경로입니다. |
+| `-FailOnRegression` | 꺼짐 | 판정이 불합격이면 종료 코드 1로 끝냅니다. CI에서 씁니다. |
 
 실행이 끝나면 스크립트는 서버에 **정상 종료를 요청**합니다(`--stop-file`).
 30초 안에 끝나지 않을 때만 강제로 내리고, 그때는 경고를 찍습니다.
@@ -725,7 +742,19 @@ dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Report -c Release --
 
 #### 임계값
 
-`Test\LoadTest\thresholds.json`이 기본값입니다. `--thresholds`로 다른 파일을 줄 수 있습니다.
+기본값은 **코드에 박혀 있습니다**. 아래 표의 값이 그것이며, `Test\LoadTest\thresholds.json`은 같은 값을 담은 파일일 뿐입니다.
+
+**이 파일은 자동으로 읽히지 않습니다.** `--thresholds`로 경로를 주지 않으면 도구는 코드 기본값을 씁니다.
+`run-loadtest.ps1`도 `-Thresholds`를 준 경우에만 `--thresholds`를 넘깁니다.
+그래서 `thresholds.json`만 고쳐 두면 판정은 하나도 달라지지 않습니다. 반드시 경로를 명시합니다.
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Report -c Release -- `
+  --baseline base --run cand --thresholds Test\LoadTest\thresholds.json
+
+Test\LoadTest\run-loadtest.ps1 -ReportOnly -Baseline base -Candidate cand `
+  -Thresholds Test\LoadTest\thresholds.json
+```
 
 | 키 | 기본값 | 의미 |
 | --- | --- | --- |

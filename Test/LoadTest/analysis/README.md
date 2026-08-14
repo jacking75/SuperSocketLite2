@@ -4,20 +4,28 @@ This directory contains DuckDB SQL for analyzing CSV files produced by the Super
 
 ## Expected CSV Location
 
-Run the load test tools from the repository root and write output under:
+Run the load test tools from the repository root and write output under `logs/loadtest/`, one
+directory per process. A run is not one directory: `run-loadtest.ps1` gives the server and the
+client each their own, and a fault-injection run adds a third for the restarted server.
 
 ```text
-logs/loadtest/<run-id>/
+logs/loadtest/<run-id>-server/
+logs/loadtest/<run-id>-client/
+logs/loadtest/<run-id>-server-restart/   (-KillServerAt runs only)
 ```
+
+The split costs nothing here. The views glob `logs/loadtest/*/<file>.csv`, each CSV name appears
+in only one kind of directory, and every row carries `run_id`, so the pieces join back into one
+run. Output written by hand into a single `logs/loadtest/<run-id>/` directory works the same way.
 
 The analysis SQL expects these files when available:
 
 ```text
-logs/loadtest/<run-id>/server_samples.csv
-logs/loadtest/<run-id>/server_events.csv
-logs/loadtest/<run-id>/client_samples.csv
-logs/loadtest/<run-id>/client_operations.csv
-logs/loadtest/<run-id>/client_summary.csv
+<run directory>/server_samples.csv
+<run directory>/server_events.csv
+<run directory>/client_samples.csv
+<run directory>/client_operations.csv
+<run directory>/client_summary.csv
 ```
 
 The `read_csv_auto` views use `union_by_name = true`, so runs with schema additions can still be analyzed together when column names match.

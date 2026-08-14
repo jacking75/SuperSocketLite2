@@ -89,15 +89,26 @@ using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
-// 요청 정보: 본문 바이트만 담는다.
-public sealed class MyRequestInfo : BinaryRequestInfo
+// 요청 정보. Body가 수신 파이프를 그대로 가리키고 필터가 같은 인스턴스를 돌려주므로,
+// 패킷을 받는 데 드는 할당이 하나도 없다.
+// 대신 둘 다 핸들러가 리턴하면 무효다. 패킷을 다른 스레드로 넘겨야 한다면
+// Docs/GC_Copy_Minimization.md를 보라.
+public sealed class MyRequestInfo : IRequestInfo
 {
-    public MyRequestInfo(byte[] body) : base(string.Empty, body) { }
+    public string Key => string.Empty;
+
+    public ReadOnlySequence<byte> Body { get; private set; }
+
+    public void Set(ReadOnlySequence<byte> body) => Body = body;
 }
 
 // 수신 필터: 4바이트 길이 프리픽스를 읽고 본문을 파싱한다.
 public sealed class MyReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
 {
+    // 돌려 써도 되는 이유: 필터는 세션마다 하나이고, 다음 패킷은 이전 핸들러가
+    // 리턴한 뒤에야 파싱된다.
+    private readonly MyRequestInfo _reusable = new();
+
     public MyReceiveFilter() : base(4) { }
 
     protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
@@ -109,7 +120,8 @@ public sealed class MyReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
 
     protected override MyRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        return new MyRequestInfo(body.ToArray());
+        _reusable.Set(body);
+        return _reusable;
     }
 }
 
@@ -137,7 +149,16 @@ var config = new ServerConfig
 };
 
 var server = new MyServer();
-server.NewRequestReceived += (session, request) => session.Send(request.Body, 0, request.Body.Length);
+
+// 받은 본문을 그대로 돌려보낸다. SendCopied는 라이브러리 자신의 풀 버퍼로 복사하므로,
+// 이 핸들러 안에서만 유효한 메모리를 넘겨도 안전하다.
+server.NewRequestReceived += (session, request) =>
+{
+    if (request.Body.IsSingleSegment)
+        session.SendCopied(request.Body.FirstSpan);
+    else
+        session.SendCopied(request.Body.ToArray());   // 드묾: 패킷이 파이프 조각에 걸친 경우
+};
 
 if (!server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory()))
 {
@@ -151,8 +172,10 @@ Console.ReadKey();
 server.Stop();
 ```
 
-이것으로 완결된, 바로 실행 가능한 TCP 서버다. 옵션 파싱, 구조적 로깅, `Generic Host` 버전까지
-단계별로 확장해 보는 튜토리얼은 [`Tutorials/EchoServer`](Tutorials/EchoServer)에 있다.
+이것으로 완결된, 바로 실행 가능한 TCP 서버다. [`Tutorials/EchoServer`](Tutorials/EchoServer)가
+같은 것을 실행 가능한 프로젝트로 담고 있고, [`EchoServerEx`](Tutorials/EchoServerEx)는 옵션 파싱과
+NLog를, [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost)는 `Generic Host` 서비스로
+띄우는 방법을 보여 준다.
 
 ## 동작 방식
 
@@ -210,12 +233,13 @@ IOCP 완료 스레드는 파이프 라이터를 전진시키고 다음 수신을
 | `SyncSessionConnectedEvent` | `false` | `NewSessionConnected`를 accept 중에 동기 호출해, 빠른 클라이언트의 첫 요청보다 반드시 먼저 실행되도록 구조적으로 보장한다. |
 | `AcceptLoopCount` | `1` | 같은 리슨 소켓에서 accept 루프를 여러 개 동시에 돌린다 — 재접속 폭주를 흡수해야 하는 서버에 도움이 된다. |
 | `UseZeroByteReceive` | `false` | 유휴 세션이 실제 수신 버퍼를 붙잡는 대신 zero-byte 수신으로 대기한다 — 대부분의 세션이 조용한 서버에서 유휴 연결의 메모리를 줄인다. |
+| `KeepAliveRetryCount` | `5` | 연결을 죽은 것으로 판단하기까지 응답 없는 keep-alive 프로브를 몇 번 보낼지. `0` 이하면 OS 기본값을 그대로 쓴다. `ServerConfig`에만 있으므로 `IServerConfig`를 직접 구현하면 기본값이 쓰인다. |
 
 ## UDP 지원
 
 UDP 세션도 TCP와 같은 `AppSession`/`IReceiveFilter` 파이프라인을 거친다. 두 가지 모드를
 지원한다: 원격 엔드포인트 기준으로 세션 하나씩 두는 기본 모드, 그리고 요청 타입이
-`UdpRequestInfo`를 구현하면 페이로드에 직접 담은 세션 ID로 구분하는 모드 — 후자는 클라이언트가
+`UdpRequestInfo`를 상속하면 페이로드에 직접 담은 세션 ID로 구분하는 모드 — 후자는 클라이언트가
 NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 해 준다.
 [`Tutorials/SimpleUDPServer`](Tutorials/SimpleUDPServer)를 참고한다.
 
@@ -224,14 +248,14 @@ NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 �
 전부 `Meter("SuperSocketLite")` 하나를 통해 노출된다.
 
 - **카운터**: `total-requests`, `total-bytes-received`, `total-bytes-sent`, `sessions-rejected`,
-  `send-queue-full`, `send-errors`
+  `send-queue-full`, `send-errors`, 그리고 `active-connections`(`UpDownCounter`)
 - **히스토그램**: `request-duration` (요청 핸들러에서 소요된 시간)
-- **게이지**: `active-connections`, `session-count`, 그리고 내부 송신 큐 깊이와
-  `SocketAsyncEventArgs` 풀 사용량 게이지(공개 C# 프로퍼티로는 노출되지 않지만, 이 Meter를
-  구독하는 어떤 계측 수집기에도 보인다)
+- **게이지**: `session-count`, 그리고 내부 송신 큐 깊이와 `SocketAsyncEventArgs` 풀 사용량
+  게이지(공개 C# 프로퍼티로는 노출되지 않지만, 이 Meter를 구독하는 어떤 계측 수집기에도 보인다)
 
-게이지는 전부 `ObservableGauge`라서, 실제로 수집기가 듣고 있을 때만 계산이 일어난다 —
-계측을 연결해 두어도 쓰기 전까지는 비용이 전혀 들지 않는다.
+게이지는 `ObservableGauge`라서 실제로 수집기가 듣고 있을 때만 계산이 일어난다 — 송신 큐 깊이도
+누가 물어보는 순간에만 세션을 훑는다. 카운터는 다르다. 구독자가 있든 없든 일이 일어날 때마다
+갱신되며, 그 비용은 이벤트당 `Add` 한 번이다.
 
 ## 예제
 
@@ -246,7 +270,6 @@ NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 �
 | [`BinaryPacketServer`](Tutorials/BinaryPacketServer) | 구조화된 바이너리 프로토콜 |
 | [`MultiPortServer`](Tutorials/MultiPortServer) | 여러 포트를 동시에 리슨하기 |
 | [`SimpleUDPServer`](Tutorials/SimpleUDPServer) | UDP 세션 |
-| [`SwitchReceiveFilter`](Tutorials/SwitchReceiveFilter) | 세션 도중에 수신 필터 교체하기 |
 | [`GateServer_GameServer`](Tutorials/GateServer_GameServer), [`PvPGameServer`](Tutorials/PvPGameServer), [`GameServer_MoDedicated`](Tutorials/GameServer_MoDedicated) | 실제 서비스에 가까운 게임 서버 형태 |
 
 ## 테스트 및 품질
@@ -255,7 +278,7 @@ NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 �
 종료 경로의 경합, 로깅 어댑터를 다루는 **회귀 테스트 40건**
 (`Test/SuperSocketLiteRegressionTests`)에 더해, 실제 TCP/UDP 트래픽을 실서버에 걸어
 HTML 리포트를 만들고 기준 실행 대비 처리량·지연 회귀를 판정할 수 있는
-**부하 테스트 툴킷**(자체 테스트 94건, `Test/LoadTest`)까지 함께 관리한다. 핵심 라이브러리를
+**부하 테스트 툴킷**(자체 테스트 110건, `Test/LoadTest`)까지 함께 관리한다. 핵심 라이브러리를
 바꿀 때마다 두 스위트를 모두 돌린다.
 
 ```bash

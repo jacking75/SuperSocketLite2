@@ -1,10 +1,15 @@
 # SuperSocketLite Load Test
 
-This directory contains the planned load test solution for SuperSocketLite. The load test tools are intended to run a local instrumented server, drive TCP or UDP dummy clients, write CSV metrics, and analyze those CSVs with DuckDB.
+This directory contains the load test solution for SuperSocketLite. The tools run a local instrumented server, drive TCP, text-line, or UDP dummy clients, write CSV metrics, and analyze those CSVs with DuckDB.
 
 For build commands and Korean usage instructions, see [BUILD_AND_USAGE.md](BUILD_AND_USAGE.md).
 
-The current commands below document the intended workflow from the stability test plan. They require the load test server and client implementations to support the listed options.
+Every command and option below is implemented and working. The suite's own tests — 110 of them —
+cover the option parsing, the metric writers, the scenario schedules, and the report verdict:
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Tests -c Release
+```
 
 ## Running a Test
 
@@ -38,7 +43,17 @@ sessions keep the worst value instead: a fault that happened once must not be av
 A failing verdict returns exit code 1 with `--fail-on-regression`, and the run writes a
 self-contained HTML report with the verdict, metrics, and time series.
 
-Thresholds live in `thresholds.json`; `--print-thresholds` prints the defaults.
+Thresholds live in `thresholds.json`, but nothing reads that file on its own. `Thresholds.Load`
+falls back to the hard-coded defaults when no path is given, and `run-loadtest.ps1` forwards
+`--thresholds` only when you pass `-Thresholds`. Editing `thresholds.json` alone changes no
+verdict — name the file explicitly:
+
+```powershell
+dotnet run --project Test\LoadTest\SuperSocketLite.LoadTest.Report -c Release -- `
+  --baseline base --run cand --thresholds Test\LoadTest\thresholds.json
+```
+
+`--print-thresholds` prints the built-in defaults, which is where the shipped file came from.
 
 Two runs are only comparable when their `pacing` matches — closed-loop applies less load and
 therefore reports lower latency. The verdict marks that case inconclusive rather than guessing.
@@ -338,6 +353,11 @@ Burst rides on the base rate rather than replacing it, and open-loop pacing is w
 burst actually go out instead of stalling behind pending responses. If the in-flight limit is
 too low the burst is trimmed and the shortfall lands in `send_skipped_in_flight`.
 
+Burst lives in the open-loop sender only. Under `--pacing closed` — and therefore on
+`--transport udp` and `--protocol text-line`, which stay closed-loop whatever the flag says —
+`--burst-every` and `--burst-size` are ignored without a warning and the run applies the base
+rate alone.
+
 For abort runs, the values that matter are on the server side: `exception_total` should stay 0
 and `active_sessions` should return to 0.
 
@@ -380,6 +400,30 @@ That runs the same load at all three levels and produces two comparisons: `off �
 cost of all server instrumentation, and `no-gauges → full` for the cost of the runtime gauges
 alone. When a run has no server samples the verdict compares throughput from the client side and
 leaves the server-side checks inconclusive rather than passing them on absent data.
+
+### Allocation Mode
+
+`--alloc-mode <pooled|legacy>` sets how the server handles per-packet buffers. `pooled`, the
+default, hands the pipe memory straight to the handler and serializes the response into a stack
+or pooled buffer, so a packet costs no allocation; `legacy` reproduces the older behaviour of
+allocating a body array, a request instance, and a response array for every packet. It applies
+to the TCP binary path only. The runner exposes it as `-AllocMode`:
+
+```powershell
+Test\LoadTest\run-loadtest.ps1 -RunId a-legacy -Repeat 3 -AllocMode legacy -SkipReport
+Test\LoadTest\run-loadtest.ps1 -RunId a-pooled -Repeat 3 -AllocMode pooled -SkipReport
+Test\LoadTest\run-loadtest.ps1 -ReportOnly -Baseline a-legacy -Candidate a-pooled
+```
+
+### Graceful Server Shutdown
+
+`--stop-file <path>` makes the server watch a path and shut down cleanly once a file appears
+there. Killing the server instead skips session cleanup and the final CSV sample, which is
+written only on the shutdown path — the last row then still reads "N active sessions" and the
+report fails the run for a session leak that never happened. `run-loadtest.ps1` uses a stop file
+by default and force-kills only when the server does not exit within 30 seconds.
+
+`BUILD_AND_USAGE.md` carries the full server and client option tables.
 
 ### `client_operations.csv`
 

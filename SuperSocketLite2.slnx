@@ -15,6 +15,7 @@
   </Folder>
   <Folder Name="/Test/LoadTest/">
     <Project Path="Test/LoadTest/SuperSocketLite.LoadTest.Client/SuperSocketLite.LoadTest.Client.csproj" />
+    <Project Path="Test/LoadTest/SuperSocketLite.LoadTest.Report/SuperSocketLite.LoadTest.Report.csproj" />
     <Project Path="Test/LoadTest/SuperSocketLite.LoadTest.Server/SuperSocketLite.LoadTest.Server.csproj" />
     <Project Path="Test/LoadTest/SuperSocketLite.LoadTest.ServerProbe/SuperSocketLite.LoadTest.ServerProbe.csproj" />
     <Project Path="Test/LoadTest/SuperSocketLite.LoadTest.Shared/SuperSocketLite.LoadTest.Shared.csproj" />

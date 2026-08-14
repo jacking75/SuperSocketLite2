@@ -3,8 +3,9 @@ namespace SuperSocketLite.SocketBase.Logging;
 /// <summary>Log interface.</summary>
 /// <remarks>
 /// <para>
-/// Only the six level flags and the eight plain methods are required; everything else has a default
-/// implementation that degrades to them, so a minimal adapter stays short.
+/// Only five level flags (<c>IsDebug/Info/Warn/Error/FatalEnabled</c>) and seven methods (the five
+/// plain ones plus <c>Error</c>/<c>Fatal</c> with an exception) are required; everything else has a
+/// default implementation that degrades to them, so a minimal adapter stays short.
 /// </para>
 /// <para>
 /// An adapter over a library that supports structured logging (Serilog, NLog, ZLogger, anything

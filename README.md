@@ -89,15 +89,26 @@ using SuperSocketLite.SocketBase;
 using SuperSocketLite.SocketBase.Protocol;
 using SuperSocketLite.SocketEngine.Protocol;
 
-// The request info: just the body bytes.
-public sealed class MyRequestInfo : BinaryRequestInfo
+// The request info. Body points straight at the receive pipe and the filter hands back the
+// same instance every time, so receiving a packet allocates nothing at all.
+// The catch: both are only valid until your handler returns. See
+// Docs/GC_Copy_Minimization.md if you need to pass a packet to another thread.
+public sealed class MyRequestInfo : IRequestInfo
 {
-    public MyRequestInfo(byte[] body) : base(string.Empty, body) { }
+    public string Key => string.Empty;
+
+    public ReadOnlySequence<byte> Body { get; private set; }
+
+    public void Set(ReadOnlySequence<byte> body) => Body = body;
 }
 
 // The receive filter: parse a 4-byte length prefix, then the body.
 public sealed class MyReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
 {
+    // Safe to reuse: there is one filter per session, and the next packet is only parsed
+    // after your handler for the previous one has returned.
+    private readonly MyRequestInfo _reusable = new();
+
     public MyReceiveFilter() : base(4) { }
 
     protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
@@ -109,7 +120,8 @@ public sealed class MyReceiveFilter : FixedHeaderReceiveFilter<MyRequestInfo>
 
     protected override MyRequestInfo ResolveRequestInfo(ReadOnlySequence<byte> header, ReadOnlySequence<byte> body)
     {
-        return new MyRequestInfo(body.ToArray());
+        _reusable.Set(body);
+        return _reusable;
     }
 }
 
@@ -137,7 +149,16 @@ var config = new ServerConfig
 };
 
 var server = new MyServer();
-server.NewRequestReceived += (session, request) => session.Send(request.Body, 0, request.Body.Length);
+
+// Echo the body back. SendCopied copies into the library's own pooled send buffer, so it is
+// safe to hand it memory that is only valid for the duration of this handler.
+server.NewRequestReceived += (session, request) =>
+{
+    if (request.Body.IsSingleSegment)
+        session.SendCopied(request.Body.FirstSpan);
+    else
+        session.SendCopied(request.Body.ToArray());   // rare: the packet spans pipe segments
+};
 
 if (!server.Setup(new RootConfig(), config, logFactory: new ConsoleLogFactory()))
 {
@@ -151,9 +172,10 @@ Console.ReadKey();
 server.Stop();
 ```
 
-That's a complete, runnable TCP server. For a walkthrough that builds this up step by step —
-including options parsing, structured logging, and a `Generic Host` version — see
-[`Tutorials/EchoServer`](Tutorials/EchoServer).
+That's a complete, runnable TCP server. [`Tutorials/EchoServer`](Tutorials/EchoServer) is the same
+thing as a project you can run; [`EchoServerEx`](Tutorials/EchoServerEx) adds options parsing and
+NLog, and [`EchoServer_GenericHost`](Tutorials/EchoServer_GenericHost) runs it as a `Generic Host`
+service.
 
 ## How It Works
 
@@ -213,11 +235,12 @@ buffer-lifetime rules around the zero-copy overloads.
 | `SyncSessionConnectedEvent` | `false` | Raises `NewSessionConnected` synchronously during accept, so it's structurally guaranteed to run before a fast client's first request. |
 | `AcceptLoopCount` | `1` | Runs several concurrent accept loops on the same listening socket — helps a server that has to absorb a reconnect storm. |
 | `UseZeroByteReceive` | `false` | An idle session waits on a zero-byte receive instead of holding a real receive buffer — cuts idle-connection memory on servers where most sessions are quiet. |
+| `KeepAliveRetryCount` | `5` | How many unacknowledged keep-alive probes go out before the connection is treated as dead. `0` or less leaves the OS default alone. Lives on `ServerConfig` only, so a hand-written `IServerConfig` gets the default. |
 
 ## UDP Support
 
 UDP sessions go through the same `AppSession`/`IReceiveFilter` pipeline as TCP. Two modes are
-supported: one session per remote endpoint (the default), or — when your request type implements
+supported: one session per remote endpoint (the default), or — when your request type inherits from
 `UdpRequestInfo` — a session ID you embed in the payload yourself, so a client can keep the same
 logical session across a NAT rebind. See [`Tutorials/SimpleUDPServer`](Tutorials/SimpleUDPServer).
 
@@ -226,14 +249,16 @@ logical session across a NAT rebind. See [`Tutorials/SimpleUDPServer`](Tutorials
 Everything is published through a single `Meter("SuperSocketLite")`:
 
 - **Counters**: `total-requests`, `total-bytes-received`, `total-bytes-sent`, `sessions-rejected`,
-  `send-queue-full`, `send-errors`
+  `send-queue-full`, `send-errors`, plus `active-connections` (an `UpDownCounter`)
 - **Histogram**: `request-duration` (time spent in your request handler)
-- **Gauges**: `active-connections`, `session-count`, plus internal send-queue-depth and
-  `SocketAsyncEventArgs` pool-usage gauges (not exposed as public C# properties, but visible to
-  any metrics collector subscribed to the meter)
+- **Gauges**: `session-count`, plus internal send-queue-depth and `SocketAsyncEventArgs`
+  pool-usage gauges (not exposed as public C# properties, but visible to any metrics collector
+  subscribed to the meter)
 
-Gauges are `ObservableGauge`s, so nothing is computed unless a collector is actually listening —
-wiring up metrics costs you nothing until you use them.
+The gauges are `ObservableGauge`s, so nothing is computed unless a collector is actually
+listening — a send-queue-depth reading walks the sessions only at the moment someone asks for it.
+The counters are different: they are updated as the work happens whether or not anyone is
+subscribed, which costs a single `Add` per event.
 
 ## Examples
 
@@ -249,7 +274,6 @@ patterns:
 | [`BinaryPacketServer`](Tutorials/BinaryPacketServer) | A structured binary protocol |
 | [`MultiPortServer`](Tutorials/MultiPortServer) | Listening on several ports at once |
 | [`SimpleUDPServer`](Tutorials/SimpleUDPServer) | UDP sessions |
-| [`SwitchReceiveFilter`](Tutorials/SwitchReceiveFilter) | Switching the receive filter mid-session |
 | [`GateServer_GameServer`](Tutorials/GateServer_GameServer), [`PvPGameServer`](Tutorials/PvPGameServer), [`GameServer_MoDedicated`](Tutorials/GameServer_MoDedicated) | Closer-to-production game server shapes |
 
 ## Testing & Quality
@@ -257,7 +281,7 @@ patterns:
 The library ships with a substantial safety net of its own: a **40-case regression suite**
 covering the receive/send pipelines, the session state machine, close-path races, and logging
 adapters (`Test/SuperSocketLiteRegressionTests`), plus a **load-testing toolkit** with its own
-94-test self-suite (`Test/LoadTest`) that drives real TCP/UDP traffic against a live server,
+110-test self-suite (`Test/LoadTest`) that drives real TCP/UDP traffic against a live server,
 produces an HTML report, and can gate a change on throughput/latency regressions against a
 baseline run. Both suites are run before any change to the core library lands.
 

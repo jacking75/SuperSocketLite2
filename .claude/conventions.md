@@ -12,26 +12,31 @@
 
 ## 필수 네이밍 규칙
 
+빌드가 강제하는 것은 **⚙** 로 표시했다. 나머지는 합의일 뿐이라 어겨도 빌드는 통과한다.
+
 | 대상 | 규칙 | 예시 |
 |---|---|---|
 | 클래스/구조체 | PascalCase | `AsyncSocketServer` |
-| Private 필드 | `_camelCase` | `private int _count;` |
-| Static 필드 | `s_` 접두사 | `static int s_total;` |
-| ThreadStatic 필드 | `t_` 접두사 | `[ThreadStatic] static int t_id;` |
+| Private/internal 인스턴스 필드 ⚙ | `_camelCase` | `private int _count;` |
+| Private/internal static 필드 ⚙ | `s_` 접두사 | `static int s_total;` |
+| Private/internal const ⚙ | PascalCase | `const int DefaultSize = 5;` |
 | 지역 변수/매개변수 | camelCase | `int bufferSize` |
-| 정수 타입 | 비트 크기 명시 | `Int32`, `Int16`, `Int64` |
+| 정수 타입 | C# 키워드를 쓴다 | `int`, `short`, `long` |
 | 인터페이스 | `I-` 접두사 | `IReceiveFilter` |
 | 비동기 메서드 | `-Async` 접미사 | `SendAsync` |
 | 추상 클래스 | `-Base` 접미사 | `AppServerBase` |
 | 논리값 변수 | `is-`, `has-`, `can-` | `bool isConnected` |
 | 컬렉션 변수 | 복수형 | `List<Session> sessions` |
+
+`[ThreadStatic]` 필드에 따로 두는 접두사는 없다. static 규칙을 그대로 따른다
+(`UdpSocketServer`의 `s_SessionIdFilter`).
   
 
 ## 필수 스타일 규칙
 
 - **중괄호**: Allman 스타일 — 항상 새 줄에서 시작, 한 줄 조건문도 중괄호 필수
 - **인덴트**: 스페이스 4칸
-- **`private` 키워드**: 기본값이므로 생략
+- **`private` 키워드**: 생략하지 않고 적는다. 기본값이라 없어도 되지만 라이브러리는 전부 명시한다
 - **매직 넘버**: 사용 금지 → 상수/열거형으로 대체
 - **`nameof(...)`**: 하드코딩 문자열 대신 사용
   

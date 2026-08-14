@@ -16,7 +16,7 @@ public sealed class LoadTestOptions
         "  --ramp-up <hh:mm:ss>",
         "  --duration <hh:mm:ss>",
         "  --send-rate-per-client <rate>",
-        "  --scenario <echo|game-like|idle-heartbeat|reconnect-storm|burst>",
+        "  --scenario <echo|game-like|reconnect-storm|burst>",
         "  --scenario-file <path.json>   (--scenario 대신 요청 조합을 파일로 기술한다)",
         "  --payload <small|medium|large|huge|mixed|mixed-huge>",
         "  --pacing <open|closed>",

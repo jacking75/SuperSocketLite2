@@ -1,8 +1,46 @@
 ﻿# 작업 로그
 
 > 아래 기록이 참조하는 계획 문서(`TODO.md`, `SIMPLIFY.md`, `.claude/tasks.md`,
-> `Docs/LoadTest_Improvement_Plan.html`)는 해당 작업이 모두 끝난 뒤 저장소에서 삭제했다.
-> 내용은 git 이력에 남아 있다.
+> `Docs/LoadTest_Improvement_Plan.html`, `PERFORMANCE_PLAN.md`)는 해당 작업이 모두 끝난 뒤
+> 저장소에서 삭제했다. 내용은 git 이력에 남아 있고, 계속 쓸모 있는 부분(기각한 최적화 후보와
+> 그 이유)은 `.claude/architecture.md`로 옮겼다.
+
+## 2026-08-14 11:47 KST - 문서 전수 점검: 낡은 문서 6종 삭제, 사실 오류 다수 수정
+
+- 저장소의 문서 24종을 코드와 하나씩 대조했다. **가장 심각한 문제는 `Docs/`의 다이어그램 HTML 4종**이었다. 문자열 프로토콜 계열 제거와 `byte[]` 필터 경로 제거를 거치는 동안 갱신되지 않아, `ISequenceReceiveFilter`·`FixedHeaderSequenceReceiveFilter`·`CollectSend`·`RawDataReceived`·`LeftBufferSize`·`m_SendQueue`처럼 **지금 없는 것들을 주력으로 설명**하고 있었다. 수신 파이프라인 문서는 11개 절 중 7개가 무효였다.
+- 삭제한 것: `SuperSocketLite_Architecture.html`, `SuperSocketLite_ReceivePipeline_ReceiveFilter.html`, `SuperSocketLite_SendPipeline_Detail.html`, `SuperSocketLite_TCP_Connection_Flow.html`, `LoadTest_Toolkit_Pipeline.html`(완료된 작업의 계획도), `PERFORMANCE_PLAN.md`(완료된 계획서).
+- **버리기 전에 고유한 내용은 옮겼다.** 송신 경로 상세와 연결·수신 기동 순서(`pauseWriterThreshold` 계산 포함), UDP 경로를 `.claude/architecture.md`에 글로 새로 썼고, `PERFORMANCE_PLAN.md`의 "기각한 최적화 후보" 표도 같은 문서로 옮겼다. 세션/Pipe 풀링이나 `PipeScheduler.Inline`처럼 다시 제안되기 쉬운 항목이라 이유를 남겨야 했다. 계획서에만 있던 `KeepAliveRetryCount`는 README 두 종의 설정 표로 옮겼다.
+- 다이어그램이 다시 필요하면 `CLAUDE.md` 규칙대로 `archify`로 새로 만든다. 손으로 고치면 SVG 안의 그림까지는 못 고치고, 생성기가 다시 만들 결과와도 어긋난다.
+- **빌드 명령이 틀려 있었다.** `CLAUDE.md`와 `AGENTS.md` 둘 다 `cd SuperSocketLite/SuperSocketLite`인데 그런 경로가 없다(csproj는 한 단계 깊이). 출력도 `SuperSocketLite/bin/`이 아니라 저장소 루트 `bin/net10.0/`다. 실제로 빌드해서 확인하고 고쳤다.
+- README 두 종: 없어진 `Tutorials/SwitchReceiveFilter` 링크 제거, `active-connections`는 `ObservableGauge`가 아니라 `UpDownCounter`(수집기가 없어도 갱신된다), `UdpRequestInfo`는 인터페이스가 아니라 클래스라 "구현"이 아니라 "상속", LoadTest 테스트 개수 94→110. **가장 큰 것은 첫 예제**가 방금 저장소가 버린 `body.ToArray()` 패턴을 가르치고 있던 것 — 인스턴스 재사용 + `ReadOnlySequence` 형태로 바꿨다. 두 파일은 완전 대응이므로 항상 같이 고쳐야 한다.
+- `.claude/conventions.md`의 규칙 3개가 코드와 정반대였다. `t_` 접두사(실제 `[ThreadStatic]` 필드는 `s_SessionIdFilter` 하나뿐이고 `.editorconfig`에 `t_` 규칙이 없다), "`private` 생략"(실제로는 212번 명시), "정수는 `Int32`"(라이브러리에 `Int32` 계열 0건). 코드 쪽이 옳으므로 규칙을 실제에 맞췄고, `.editorconfig`가 강제하는 항목을 표에 표시했다. `Tutorials/coding_rule.md`의 같은 규칙도 고쳤다.
+- `ILog`의 "필수 구현은 플래그 6개 + 메서드 8개"는 실제로 5개 + 7개다(`IsTraceEnabled`와 `Trace(string)`은 default가 있다). 문서와 `ILog.cs`의 XML 주석 양쪽을 고쳤다.
+- **문서가 아니라 저장소 버그도 하나 나왔다.** `SuperSocketLite2.slnx`에 `SuperSocketLite.LoadTest.Report`가 빠져 있어 그 프로젝트만 IntelliSense·F12 대상이 아니었다. 추가하니 32→33개가 되어 `VSCode_Repository_Analysis.html`의 "33개" 서술도 저절로 맞게 됐다.
+- 클라이언트가 `--scenario idle-heartbeat`를 도움말에 광고하는데 **분기가 없어 조용히 `echo`로 동작**하고 있었다. 광고를 지웠다(`IdleHeartbeatScenario` 클래스는 단위 테스트가 쓰므로 남겼다). 구현할지는 별도 판단.
+- `Test/README.md`는 없어진 `BufferManager`를 없는 디렉토리 이름으로 설명하고 40건·110건짜리 테스트 스위트 둘이 통째로 빠져 있어 재작성했다. `Template/README.md`는 4개 항목 중 3개가 틀렸다(bat 파일명, 없는 `GameServer_02`, 서버와 테스트 클라이언트가 뒤바뀜).
+- 검증: 라이브러리 회귀 **40건**, LoadTest **110건** 전부 통과. 빌드 경고 0. 문서 상대 링크 전수 검사에서 깨진 링크 0(`coding_rule.md`의 `[Flags](비트 필드)` 하나를 찾아 고쳤다).
+
+## 2026-08-14 11:18 KST - LoadTest 서버를 강제 종료 대신 정상 종료시키도록 수정
+
+- `run-loadtest.ps1`이 실행 끝에 서버를 `Stop-Process -Force`로 죽이고 있었다. 그러면 세션 정리도, **마지막 CSV 표본 기록**도 일어나지 않는다. 마지막 표본은 `ServerMetricsHostedLoop.Dispose()`에서만 쓰이므로, 클라이언트가 이미 다 빠져나갔는데도 서버 CSV의 끝 행이 "활성 세션 N개"로 남았다. 리포트는 정확히 그 끝 행으로 세션 누수를 판정하므로 **멀쩡한 실행이 불합격**으로 나왔다. 30초 실행인데 CSV가 14초에서 끊기기도 했다.
+- 서버에 `--stop-file <path>`를 넣었다(`StopFileSignal.cs`). 그 경로에 파일이 생기면 정상 종료한다. 스크립트는 이 파일로 종료를 요청하고 30초 기다린 뒤, 그래도 안 끝날 때만 강제로 내리고 경고를 찍는다. 서버가 기동할 때와 끝날 때 파일을 지우므로 이전 실행이 남긴 파일로 새 서버가 뜨자마자 끝나는 일은 없다.
+- **파일을 고른 이유**: 콘솔 없이 띄운 자식 프로세스에 Ctrl+C를 보내는 것은 Windows에서 까다롭고, 이름 있는 동기화 객체는 유닉스에서 지원되지 않는다.
+- `-KillServerAt`의 장애 주입은 **그대로 강제 종료**다(`Stop-LoadTestServerForce`). 갑작스러운 서버 손실을 재현하는 것이 목적이기 때문이다. 재기동한 서버는 실행 끝에 정상 종료된다.
+- 검증하다 **기존 버그 1건**을 찾아 함께 고쳤다. `Start-Process -PassThru`가 돌려준 Process 객체는 핸들을 미리 잡아 두지 않으면(`$null = $proc.Handle`) 종료 뒤 `ExitCode`가 빈 값이 된다. `$null -ne 0`이 참이라 `-KillServerAt` 실행은 성공해도 항상 "클라이언트가 코드 로 끝났다"로 죽고 있었다.
+- 확인: 일반 실행은 세션 정리 PASS(활성 0), 표본이 전 구간 23.7초를 덮고 stop 파일도 남지 않는다. 장애 주입은 중간 강제 종료·재기동이 그대로 동작하고 끝에서 세션 정리 PASS. LoadTest 자체 테스트 **104 → 110건**(`StopFileSignalTests` 신규 6건).
+- 장애 주입 실행에서 "목표 레이트 달성" 미달이 뜨는 것은 서버를 5초 내린 시나리오라 **정상**이다. 기본 임계값을 낮추면 일반 실행의 진짜 회귀를 놓치므로 그대로 뒀다.
+
+## 2026-08-14 10:57 KST - GC·데이터 복사 최소화: 가이드 작성 후 예제·부하 테스트에 적용
+
+- 핫패스를 다시 훑은 결론은 **라이브러리 코어에는 이미 정상 경로 패킷당 할당이 0**이라는 것이었다. 남은 할당은 전부 앱 경계(ReceiveFilter, 패킷 핸들러, 송신 호출부)에서 나온다. 그래서 `SuperSocketLite/`는 **한 줄도 고치지 않았고** 공개 API도 그대로다. 근거·방법·측정 절차는 `Docs/GC_Copy_Minimization.md`에 정리했다.
+- **개선 1(수신 무할당)**: 핸들러에서 바로 응답하는 서버 6개와 LoadTest 서버. 요청 정보의 `Body`가 `byte[]` → `ReadOnlySequence<byte>`로 바뀌어 수신 파이프를 그대로 가리키고, 요청 인스턴스도 필터가 세션마다 하나만 두고 돌려 쓴다. 안전한 근거는 라이브러리가 핸들러를 **동기로** 부르고 그 뒤에 `AdvanceTo`를 부른다는 것. 대신 **핸들러가 리턴하면 요청과 본문이 무효**라는 계약이 생겼고, 이걸 `.claude/cautions.md`에 적었다.
+- **개선 2(ArrayPool)**: 패킷을 로직 스레드로 넘기는 `PvPGameServer`. 필터가 빌리고 `PacketProcessor.Process`의 `finally` **한 곳**에서 반납한다. 풀 배열은 요청보다 클 수 있으므로 길이는 `DataSize`, 역직렬화는 `DataSpan`을 쓴다.
+- **개선 3(송신 무할당)**: `List<byte>` + `BitConverter.GetBytes` + `ToArray()`로 응답당 배열을 4~5개 만들던 것을 stackalloc/ArrayPool 버퍼 + `SendCopied`로 바꿨다. `Send`와 실패 동작이 같도록 `TrySendCopied`가 아니라 `SendCopied`를 골랐다.
+- **개선 4**: 서버 실행 프로젝트 14개에 Server GC. DATAS는 서버마다 답이 달라 csproj에 박지 않고 `DOTNET_GCDynamicAdaptationMode`로 비교하도록 문서에 적었다.
+- **핸드오프 서버 5개(ChatServer, ChatServerEx, MoDedicated, MoDedicated2, GateServer)는 일부러 그대로 뒀다.** `PvPGameServer`와 같은 구조라 적용할 개선이 하나뿐이고, 반납 규율을 다섯 곳에 복제하면 배우는 것 없이 use-after-return 위험만 는다. 이 서버들의 송신 경로는 이미 권장 형태(브로드캐스트가 배열 하나를 공유)였다.
+- **측정(각 3회, 300클라 × 40req/s × 4KB × 45초, 모드당 약 88만 요청)**: 클라이언트 p99 4.799 → 3.967ms(-17.3%), p99.9 10.623 → 7.359ms(-30.7%), 서버 메모리 증가 67.4 → 25.2MB, Gen0/Gen1/Gen2 318/263/6 → **6/3/0**. 처리량과 오류율은 동일.
+- **1회 실행 수치를 믿으면 안 된다는 사례를 얻었다.** 각 1회만 돌렸을 때는 처리량 -4.3%, 핸들러 p99 +42%처럼 반대 방향 수치가 나왔는데 3회 반복에서 전부 사라졌다(핸들러 p99는 오히려 -10.8%). 재현용으로 `--alloc-mode pooled|legacy` 스위치를 넣어 같은 빌드로 개선 전 동작을 재현할 수 있게 했다.
+- 테스트: LoadTest 자체 **94 → 104건**(`ZeroAllocationTests` 신규 — 인스턴스 재사용, 본문 무복사, 조각난 시퀀스 파싱, 버퍼 경계 검사), 라이브러리 회귀 **40건**. 계측 레코더도 요청당 할당이 없도록 구조체로 바꿨다.
 
 ## 2026-08-14 01:20 KST - 성능 개선안 구현: 4건 채택, 1건 철회, 버그 1건 발견·수정
 

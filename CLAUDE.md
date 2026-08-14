@@ -23,9 +23,9 @@ Test/                     ← 테스트 프로젝트
 ## 빌드
 
 ```bash
-cd SuperSocketLite/SuperSocketLite
+cd SuperSocketLite
 dotnet build -c Release
-# 출력: SuperSocketLite/bin/
+# 출력: 저장소 루트의 bin/net10.0/ (csproj의 OutputPath가 ..\bin)
 ```
   
   

@@ -15,7 +15,7 @@
 | 2. 수신 ArrayPool (스레드 핸드오프 서버) | 적용 | `Tutorials/PvPGameServer/ReceiveFilter.cs` + `PacketProcessor.cs` |
 | 3. 송신 무할당 | 적용 | `Tutorials/EchoServer/MainServer.cs`의 `EchoPacket`<br>`Test/LoadTest/.../PacketHandlers.cs` |
 | 4. Server GC 설정 | 적용 | 서버 실행 프로젝트 csproj 14개 |
-| 5. pinned 슬랩 풀 | **미적용(의도적)** | 측정에서 문제가 보이기 전에는 하지 않는다. [7장](#7-조건부--pipe에-pinned-슬랩-풀-주입) 참고 |
+| 5. pinned 슬랩 풀 | **미적용(의도적)** | 측정에서 문제가 보이기 전에는 하지 않는다. [7장](#7-조건부-pipe에-pinned-슬랩-풀-주입) 참고 |
 
 적용 범위와 남겨 둔 곳은 [10장](#10-저장소-적용-범위)에 정리했다.
 개선 1·3의 동작(인스턴스 재사용·본문 무복사·버퍼 인코딩)은
@@ -38,7 +38,7 @@ Gen0 GC 318회 → 6회(각 3회 실행 합계). 자세한 수치와 재현 방�
 | 2 | [수신: 스레드 넘길 때 ArrayPool 복사](#4-개선-2--패킷을-다른-스레드로-넘기는-구조라면-arraypool-복사) | 패킷당 `byte[]` 1개 (복사는 유지) | 불필요 |
 | 3 | [송신: `new byte[]` 대신 stackalloc/풀 + `TrySendCopied`](#5-개선-3--송신-패킷당-new-byte-제거) | 송신당 `byte[]` 1개 + Gen0 pinning | 불필요 |
 | 4 | [런타임: Server GC / DATAS 설정](#6-개선-4--런타임-gc-설정-코드-변경-없음) | GC 일시정지 시간·빈도 | 불필요 |
-| 5 | [(조건부) Pipe에 고정(pinned) 메모리 풀 주입](#7-조건부--pipe에-pinned-슬랩-풀-주입) | 수신 버퍼 pinning 단편화 | 필요 |
+| 5 | [(조건부) Pipe에 고정(pinned) 메모리 풀 주입](#7-조건부-pipe에-pinned-슬랩-풀-주입) | 수신 버퍼 pinning 단편화 | 필요 |
 
 1~4는 전부 실용적이라 이 저장소에 적용해 두었다. 5는 측정에서 문제가 보일 때만 한다.
 검토했지만 게임 서버에 실용적이지 않아 **제외한 방법**은 [8장](#8-검토했지만-제외한-방법)에 있다.
@@ -67,11 +67,15 @@ Gen0 GC 318회 → 6회(각 3회 실행 합계). 자세한 수치와 재현 방�
 
 **패킷당 (가장 중요 — 초당 수만~수십만 회)**
 
-1. 앱 ReceiveFilter의 `body.ToArray()` — 패킷당 `byte[]` 1개 + 복사 1회.
-   현재 튜토리얼 전부가 이 패턴이다 (`EchoServer/ReceiveFilter.cs:57` 등).
-2. 앱 ReceiveFilter의 `new EFBinaryRequestInfo(...)` — 패킷당 클래스 인스턴스 1개.
-3. 앱 송신부의 `var packet = new byte[n]` — 응답당 `byte[]` 1개. 이 배열은 전송이 끝날
+자기 서버 코드에서 아래 세 가지를 찾으면 된다. 이 저장소의 예제들도 전부 이 상태였고,
+지금은 개선 1~3을 적용해 셋 다 없앤 상태다(핸드오프 서버 5개 제외, [10장](#10-저장소-적용-범위)).
+
+1. ReceiveFilter의 `body.ToArray()` — 패킷당 `byte[]` 1개 + 복사 1회.
+2. ReceiveFilter의 `new XxxRequestInfo(...)` — 패킷당 클래스 인스턴스 1개.
+3. 송신부의 `var packet = new byte[n]` — 응답당 `byte[]` 1개. 이 배열은 전송이 끝날
    때까지 pinning되는데, 갓 할당된 Gen0 배열의 pinning은 힙 단편화도 유발한다.
+   `List<byte>`에 `BitConverter.GetBytes(...)`를 여러 번 담고 `ToArray()`로 마무리하는
+   흔한 패턴은 응답 하나에 배열을 4~5개 만든다.
 
 **접속당 (게임 서버에선 무시 가능)**
 
@@ -130,7 +134,7 @@ using SuperSocketLite.SocketEngine.Protocol;
 /// </summary>
 public sealed class ZeroAllocRequestInfo : IRequestInfo
 {
-    public string Key => null!;
+    public string Key => string.Empty;
 
     public short TotalSize { get; private set; }
     public short PacketID { get; private set; }

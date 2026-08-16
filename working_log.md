@@ -3,7 +3,10 @@
 > 아래 기록이 참조하는 계획 문서(`TODO.md`, `SIMPLIFY.md`, `.claude/tasks.md`,
 > `Docs/LoadTest_Improvement_Plan.html`, `PERFORMANCE_PLAN.md`)는 해당 작업이 모두 끝난 뒤
 > 저장소에서 삭제했다. 내용은 git 이력에 남아 있고, 계속 쓸모 있는 부분(기각한 최적화 후보와
-> 그 이유)은 `.claude/architecture.md`로 옮겼다.
+> 그 이유)은 `Docs/Architecture.html`(한글판 `Docs/Architecture_kr.html`)로 옮겼다.
+>
+> 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
+> 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
 
 ## 2026-08-14 12:25 KST - 라이브러리·예제 설명 문서 신규 작성 (그림 6종)
 

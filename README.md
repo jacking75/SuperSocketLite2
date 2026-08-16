@@ -310,10 +310,8 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 
 - [Architecture & data flow](Docs/Architecture.html) — layers, the receive/send/UDP paths, logging,
   removed features, and the optimizations that were rejected
-  (source text: [`.claude/architecture.md`](.claude/architecture.md) *(Korean)*)
 - [Coding conventions](.claude/conventions.md) *(Korean)*
 - [Known caveats](Docs/Cautions.html) — thread-safety notes, zero-copy buffer lifetime, UDP quirks
-  (source text: [`.claude/cautions.md`](.claude/cautions.md) *(Korean)*)
 - [Minimising GC and copies](Docs/GC_Copy_Minimization.md) *(Korean)* — how to get to zero
   per-packet allocations in your receive filter, packet handlers, and send calls
 - [Getting Started](Docs/Getting_Started.html) — build, usage, and the same caveats as one page

@@ -440,8 +440,8 @@ Everything is published through a single <code>Meter("SuperSocketLite")</code> �
 
 <p>
 The 8 items below compile fine and mostly work at light load — the kind of problem that only shows up
-under real traffic. The same material stands on its own at <a href="Cautions.html">Known Caveats</a>;
-the source text is <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a> <em>(Korean)</em>.
+under real traffic. The same 8 items stand on their own at <a href="Cautions.html">Known Caveats</a> —
+if you change one, change the other.
 </p>
 
 <h3 id="caution-thread">7.1 Thread safety</h3>
@@ -576,26 +576,24 @@ touching UDP-related code.
     <p><a href="GC_Copy_Minimization.md">GC and Copy Minimization guide</a> <em>(Korean)</em> — how to get per-packet allocations to zero, with measured numbers</p>
   </div>
   <div class="card">
-    <h4>Source documents</h4>
+    <h4>Related documents</h4>
     <p>
       <a href="../README.md"><code>README.md</code></a> (usage) ·
-      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a> (internals — rendered as
-      <a href="Architecture.html">Architecture</a>) <em>(Korean)</em> ·
-      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a> (coding conventions) <em>(Korean)</em> ·
-      <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a> (source text for chapter 7 — rendered as
-      <a href="Cautions.html">Known Caveats</a>) <em>(Korean)</em>
+      <a href="Architecture.html">Architecture</a> (internals) ·
+      <a href="Cautions.html">Known Caveats</a> (chapter 7 on its own) ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a> (coding conventions) <em>(Korean)</em>
     </p>
   </div>
 </div>
 
 <div class="panel">
-  <h4 style="margin-top:0">If this page and README.md/.claude/cautions.md disagree</h4>
+  <h4 style="margin-top:0">If this page and the documents it overlaps disagree</h4>
   <p style="margin:0">
     This page carries over the Quick Start, Configuration, and Observability sections of the repository
-    root's <code>README.md</code> and all of <code>.claude/cautions.md</code>, arranged for a single skim
-    inside this repo's HTML documentation set. If the code changes and something here no longer matches,
-    the source text (<code>README.md</code>, <code>.claude/cautions.md</code>) is correct — fix this page
-    to match it. A Korean translation of this page is at
+    root's <code>README.md</code>, and chapter 7 repeats <a href="Cautions.html">Known Caveats</a> in full,
+    arranged for a single skim. If the code changes, fix <code>README.md</code> and
+    <a href="Cautions.html">Cautions.html</a> as well — they are the primary documents for that material and
+    this page must follow them. A Korean translation of this page is at
     <a href="Getting_Started_kr.html">Getting_Started_kr.html</a>; keep the two in sync.
   </p>
 </div>

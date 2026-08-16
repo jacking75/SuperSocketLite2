@@ -304,10 +304,9 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 ## 문서
 
 - [아키텍처 및 데이터 흐름](Docs/Architecture_kr.html) — 계층 구조, 수신·송신·UDP 경로, 로깅,
-  제거된 기능, 기각한 최적화 (원문 [`.claude/architecture.md`](.claude/architecture.md))
+  제거된 기능, 기각한 최적화
 - [코딩 컨벤션](.claude/conventions.md)
 - [알려진 주의 사항](Docs/Cautions_kr.html) — 스레드 안전성, zero-copy 버퍼 수명, UDP 특이사항
-  (원문 [`.claude/cautions.md`](.claude/cautions.md))
 - [GC·데이터 복사 최소화 가이드](Docs/GC_Copy_Minimization.md) — 수신 필터·패킷 핸들러·송신
   호출부에서 패킷당 할당을 0으로 만드는 방법
 - [시작하기](Docs/Getting_Started_kr.html) — 빌드, 사용법, 위 주의 사항을 한 문서에서

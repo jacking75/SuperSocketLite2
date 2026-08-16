@@ -430,9 +430,8 @@ OpenTelemetry 호환 수집기라면 무엇이든 붙일 수 있습니다.
 <h2 id="cautions">7. 꼭 알아야 할 것</h2>
 
 <p>
-아래 8가지는 컴파일은 되지만 부하가 걸려야 드러나는 종류의 문제들입니다. 같은 내용을 따로 보려면
-<a href="Cautions_kr.html">알려진 주의 사항</a>에 있고, 원문은
-<a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>입니다.
+아래 8가지는 컴파일은 되지만 부하가 걸려야 드러나는 종류의 문제들입니다. 같은 8가지를 따로 보려면
+<a href="Cautions_kr.html">알려진 주의 사항</a>에 있습니다 — 한쪽을 고치면 다른 쪽도 고칩니다.
 </p>
 
 <h3 id="caution-thread">7.1 스레드 안전성</h3>
@@ -557,25 +556,24 @@ UDP 세션은 내부 소켓 인스턴스가 세션 간에 공유되는 구조라
     <p><a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a> — 패킷당 할당을 0으로 만드는 방법과 실제 측정치</p>
   </div>
   <div class="card">
-    <h4>저장소 문서 (원문)</h4>
+    <h4>관련 문서</h4>
     <p>
       <a href="../README_kr.md"><code>README_kr.md</code></a>(한글 사용법) ·
-      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a>(내부 구조 — HTML판
-      <a href="Architecture_kr.html">아키텍처</a>) ·
-      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a>(코딩 컨벤션) ·
-      <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>(이 문서 7장의 원문 — HTML판
-      <a href="Cautions_kr.html">알려진 주의 사항</a>)
+      <a href="Architecture_kr.html">아키텍처</a>(내부 구조) ·
+      <a href="Cautions_kr.html">알려진 주의 사항</a>(이 문서 7장을 따로) ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a>(코딩 컨벤션)
     </p>
   </div>
 </div>
 
 <div class="panel">
-  <h4 style="margin-top:0">이 문서와 README_kr.md/.claude/cautions.md가 어긋나면</h4>
+  <h4 style="margin-top:0">이 문서와 겹치는 문서가 어긋나면</h4>
   <p style="margin:0">
-    이 문서는 저장소 루트 <code>README_kr.md</code>의 빠른 시작·설정·관측성 절과
-    <code>.claude/cautions.md</code>를 이 저장소의 HTML 문서 모음 안에서 한 번에 훑어보기 좋게 옮긴 것입니다.
-    코드가 바뀌어 내용이 어긋나면 원문(<code>README.md</code>/<code>README_kr.md</code>, <code>.claude/cautions.md</code>)이 맞는 것이니
-    그쪽을 기준으로 이 문서를 고치세요. 영어판은 <a href="Getting_Started.html">Getting_Started.html</a>에 있습니다 —
+    이 문서는 저장소 루트 <code>README_kr.md</code>의 빠른 시작·설정·관측성 절을 옮겨 왔고,
+    7장은 <a href="Cautions_kr.html">알려진 주의 사항</a>을 그대로 반복합니다 — 한 번에 훑어보기 좋게 모은 것입니다.
+    코드가 바뀌면 <code>README_kr.md</code>와 <a href="Cautions_kr.html">Cautions_kr.html</a>도 함께 고치세요.
+    그쪽이 해당 내용의 본문이고 이 문서가 따라가는 쪽입니다.
+    영어판은 <a href="Getting_Started.html">Getting_Started.html</a>에 있습니다 —
     두 판은 내용이 같아야 하니 한쪽을 고치면 다른 쪽도 확인하세요.
   </p>
 </div>

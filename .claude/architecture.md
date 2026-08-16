@@ -1,5 +1,8 @@
 # 아키텍처
 
+> 이 문서가 원문이다. 사람이 읽는 HTML판이 [`Docs/Architecture.html`](../Docs/Architecture.html)(영)과
+> [`Docs/Architecture_kr.html`](../Docs/Architecture_kr.html)(한)에 있으니, 여기를 고치면 그 둘도 같이 고친다.
+
 ## 계층 구조
 
 ```

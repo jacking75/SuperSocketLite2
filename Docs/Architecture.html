@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite Architecture — internals and code flow</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); margin-left: 6px; vertical-align: middle;
+  }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+  ol.steps { margin: 8px 0 14px; padding-left: 22px; }
+  ol.steps li { margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SuperSocketLite Architecture</h1>
+  <p class="lead">What <strong>each part does</strong> from the listener down to your handler, what <strong>order the receive, send and UDP paths run in</strong>, and what was <strong>deliberately left out</strong>.</p>
+  <p class="lead">For the same material as diagrams see the <a href="Library_Architecture.html">full architecture diagram</a>; for the contracts you must honour before using the library see <a href="Cautions.html">Known Caveats</a>.</p>
+  <div class="linkrow">
+    <a href="#layers">Layers</a>
+    <a href="#components">Core components</a>
+    <a href="#accept">Accept &amp; receive startup</a>
+    <a href="#send">Send path</a>
+    <a href="#udp">UDP path</a>
+    <a href="#logging">Logging</a>
+    <a href="#filter">Receive filters</a>
+    <a href="#pattern">Baseline pattern</a>
+    <a href="#removed">Removed features</a>
+    <a href="#rejected">Rejected optimizations</a>
+  </div>
+</header>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#layers">Layer structure</a></li>
+    <li><a href="#components">Core components</a></li>
+    <li><a href="#accept">Accept and receive startup</a></li>
+    <li><a href="#send">Send path</a></li>
+    <li><a href="#udp">UDP path</a></li>
+    <li><a href="#threads">Event threading model</a></li>
+    <li><a href="#logging">Logging</a></li>
+    <li><a href="#filter">Receive filters</a></li>
+    <li><a href="#pattern">Baseline implementation pattern</a></li>
+    <li><a href="#removed">Removed features</a></li>
+    <li><a href="#rejected">Optimizations considered and rejected</a></li>
+  </ol>
+</div>
+
+
+<h2 id="layers">1. Layer structure</h2>
+
+<pre><code>[client TCP connection]
+        ↓
+[TcpAsyncSocketListener]       accept loop
+        ↓
+[AsyncSocketServer]            SocketAsyncEventArgs pool management, session creation
+        ↓
+[SocketSession]                state machine (InSending / InReceiving / Closed)
+        ↓                      receive side uses System.IO.Pipelines
+[AppSession&lt;TSession, TReq&gt;]   application-level session
+        ↓
+[IReceiveFilter&lt;TRequestInfo&gt;] byte stream → packet parsing
+        ↓
+[AppServerBase.ExecuteCommand] raises NewRequestReceived</code></pre>
+
+
+<h2 id="components">2. Core components</h2>
+
+<h3>Receive pipe <span class="badge">SocketSession.cs</span></h3>
+<p>
+  Each session owns one <code>System.IO.Pipelines.Pipe</code>.
+  The IOCP completion thread only advances the <code>PipeWriter</code>; a <code>ProcessPipeAsync()</code> task
+  reads from the <code>PipeReader</code> and hands the data to
+  <code>AppSession.ProcessRequest(ReadOnlySequence&lt;byte&gt;)</code>.
+  The back-pressure threshold is tuned with <code>ServerConfig.MaxReceivePipeBufferSize</code>.
+</p>
+
+<h3>SmartPool&lt;T&gt; <span class="badge">Common/SmartPool.cs</span></h3>
+<p>
+  A <code>ConcurrentStack</code>-based object pool. <code>AsyncSocketServer</code> creates two of them:
+  one of <code>SocketAsyncEventArgsProxy</code> for receiving and one of <code>SocketAsyncEventArgs</code> for sending.
+  With <code>PreAllocateSAEA</code> (default true) all <code>MaxConnectionNumber</code> instances are created at startup;
+  with false the pool starts at <code>MinPoolSize</code> and doubles as needed.
+</p>
+
+<h3>ChannelSendingQueue <span class="badge">Common/ChannelSendingQueue.cs</span></h3>
+<p>
+  The per-session send queue. It is built on a bounded <code>Channel&lt;SendItem&gt;</code>, so there is no separate lock.
+  Capacity counts <strong>send calls</strong>, not segments — a multi-segment send still takes one slot.
+</p>
+
+<h3>SocketState bit flags <span class="badge">SocketSession.cs</span></h3>
+<pre><code>Normal      = 0x00
+InSending   = 0x01
+InReceiving = 0x02
+InClosing   = 0x10
+Closed      = 0x01000000</code></pre>
+<p>State transitions are made atomically with <code>Interlocked.CompareExchange</code>.</p>
+
+
+<h2 id="accept">3. Accept and receive startup</h2>
+
+<ol class="steps">
+  <li>
+    The accept loop in <code>TcpAsyncSocketListener</code> takes the socket.
+    <code>ServerConfig.AcceptLoopCount</code> (default 1, range 1–64) lets you run several loops;
+    only the last loop raises <code>OnStopped</code>.
+  </li>
+  <li>
+    <code>AsyncSocketServer.ProcessNewClient()</code> <strong>takes a receive proxy and a send SAEA from their
+    respective pools.</strong> If either is unavailable the connection is rejected and
+    <code>NewSessionConnected</code> is not raised. In other words, exceeding
+    <code>MaxConnectionNumber</code> drops the connection silently, with no event.
+  </li>
+  <li>
+    <code>SocketSession.Initialize()</code> creates the per-session send queue and receive <code>Pipe</code>.
+    The pipe's back-pressure thresholds are adjusted as below — this prevents the case where a large
+    <code>MaxRequestLength</code> is configured and the pipe stalls first, so the request can never complete.
+
+    <pre><code>pauseThreshold  = max(MaxReceivePipeBufferSize (default 65536), ReceiveBufferSize * 2)
+if MaxRequestLength &gt; 0
+pauseThreshold  = max(pauseThreshold, MaxRequestLength + ReceiveBufferSize * 2)
+resumeThreshold = pauseThreshold / 2</code></pre>
+  </li>
+  <li>
+    <code>AsyncSocketSession.Start()</code> launches <code>StartReceive()</code> and the <code>ProcessPipeAsync()</code> task.
+  </li>
+  <li>
+    <code>StartReceive()</code> is a <strong>while loop</strong>. It takes a buffer from <code>_pipeWriter.GetMemory()</code>,
+    binds it with <code>SetBuffer(Memory&lt;byte&gt;)</code> and issues <code>ReceiveAsync()</code>. On synchronous completion
+    it does not recurse — it goes around the loop once more, which keeps the stack from growing without bound on a
+    socket that always has data ready (loopback, for instance).
+    With <code>UseZeroByteReceive=true</code> an idle session waits on a zero-length buffer and only borrows a real
+    buffer once there is something to read. Whether a completion is a probe is decided from the
+    <strong>length of the posted buffer</strong>, so there is no state shared between threads.
+  </li>
+  <li>
+    IOCP completion → <code>ProcessReceiveCore()</code> does <code>Advance</code> → <code>FlushAsync</code> →
+    <code>StartReceive()</code> again. With <code>ReceiveInlineOnIocpThread=true</code> (the default) this advance runs
+    on the IOCP thread itself. <strong>The app handler is not called inline</strong> — that belongs to the
+    <code>ProcessPipeAsync</code> task.
+  </li>
+</ol>
+
+
+<h2 id="send">4. Send path</h2>
+
+<pre><code>AppSession.TrySend/Send → SocketSession.TrySend → ChannelSendingQueue.TryEnqueue
+   → StartSend(true) → [only the caller that won the InSending flag proceeds]
+   → DrainAvailable(_sendBatch, _pooledInFlight) → SendAsync/SendSync
+   → completion → OnSendingCompleted → OnSendEnd if the queue is empty, else StartSend(false)</code></pre>
+
+<ul class="tight">
+  <li>
+    <strong>Queue</strong>: <code>ChannelSendingQueue</code> is a single bounded <code>Channel&lt;SendItem&gt;</code>.
+    There is no lock; completion and capacity decisions are left to the channel's atomic write.
+    <code>SendItem</code> is a readonly struct, so an enqueue causes no heap allocation. Capacity counts
+    <strong>send requests</strong>, not segments — one multi-segment <code>Send</code> is one slot.
+  </li>
+  <li>
+    <strong>Single-flight</strong>: only one send is in progress per session at a time. Only the caller that
+    acquired the <code>InSending</code> flag actually sends; the rest enqueue and return.
+  </li>
+  <li>
+    <strong>Batching</strong>: the drain target lists (<code>_sendBatch</code>, <code>_pooledInFlight</code>) are reused
+    per session. Because sending is single-flight, the next drain only fills them after the previous batch has left the socket.
+  </li>
+  <li>
+    <strong>Scatter-gather</strong>: with two or more segments they go out in one call via
+    <code>SocketAsyncEventArgs.BufferList</code>. They are not copied into a single buffer.
+  </li>
+  <li>
+    <strong>Partial sends</strong>: if fewer bytes went out than requested, <code>TrimSegments()</code> trims to the
+    remaining range and re-sends.
+  </li>
+  <li>
+    <strong>Returning pooled buffers</strong>: ArrayPool arrays borrowed by <code>TrySendCopied</code>/<code>SendCopied</code>
+    are returned by <code>ReturnPooledSendBuffers()</code> where the batch ends
+    (<code>OnSendingCompleted</code> / <code>OnSendError</code>). If the session dies while a send is still in flight
+    they are not returned and are left to the GC — better than handing the same buffer out twice.
+  </li>
+</ul>
+
+
+<h2 id="udp">5. UDP path</h2>
+
+<p>Unlike TCP there is no pipe and no connection. One datagram is one request.</p>
+
+<ol class="steps">
+  <li>
+    <code>UdpSocketListener</code> issues <code>ReceiveFromAsync</code> with a buffer borrowed from <code>ArrayPool</code>.
+    What arrives is wrapped in a <code>UdpReceivePacket</code> and passed to <code>OnNewClientAccepted</code>.
+  </li>
+  <li>
+    <code>UdpSocketServer</code> invokes the filter. If the request type derives from <code>UdpRequestInfo</code>,
+    the session is looked up by the session ID inside it; otherwise the remote endpoint string is used as the key.
+    If no session exists, one is created on the spot.
+  </li>
+  <li>
+    <code>_requestHandler.ExecuteCommand(...)</code> is called <strong>synchronously</strong>, and then
+    <code>UdpReceivePacket.Dispose()</code> in the <code>finally</code> returns the buffer to the pool.
+    So the receive buffer's lifetime matches TCP — it is invalid once the handler returns.
+  </li>
+</ol>
+
+<div class="warn">
+  <strong>Two things to watch</strong>
+  <ul class="tight">
+    <li>
+      The filter used to parse the session ID is <strong>reused, one per receive thread</strong>
+      (<code>[ThreadStatic]</code>, reused after <code>Reset()</code>). It must not carry state between datagrams,
+      and must not capture the remote endpoint passed to <code>CreateFilter</code>.
+    </li>
+    <li>
+      <code>UdpSocketSession</code> shares the listening socket, so its <code>Client</code> is null.
+      That is also why <code>TryValidateClosedBySocket</code> always returns false.
+    </li>
+  </ul>
+</div>
+
+
+<h2 id="threads">6. Event threading model</h2>
+
+<table>
+  <thead>
+    <tr><th>Event</th><th>How it is invoked</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>NewSessionConnected</code></td><td><code>Task.Run()</code> — asynchronous (synchronous if <code>SyncSessionConnectedEvent=true</code>)</td></tr>
+    <tr><td><code>NewRequestReceived</code></td><td>called synchronously from the pipe reader task</td></tr>
+    <tr><td><code>SessionClosed</code></td><td><code>Task.Run()</code> — asynchronous</td></tr>
+  </tbody>
+</table>
+
+
+<h2 id="logging">7. Logging</h2>
+
+<p>
+  The library does not depend on any particular logging library; it only uses its own
+  <code>ILog</code> / <code>ILogFactory</code> abstraction.
+</p>
+
+<h3>How to wire it up (recommended) — <code>MicrosoftLoggingLogFactory</code></h3>
+<p>
+  Serilog, NLog, ZLogger and log4net all ship a <code>Microsoft.Extensions.Logging</code> provider, so the one
+  built-in bridge covers all of them. You do not need to write a per-library adapter.
+</p>
+
+<pre><code>// plain setup
+Setup(new RootConfig(), config, logFactory: new MicrosoftLoggingLogFactory(loggerFactory));
+
+// GenericHost
+services.AddSingleton&lt;ILogFactory&gt;(
+    sp =&gt; new MicrosoftLoggingLogFactory(sp.GetRequiredService&lt;ILoggerFactory&gt;()));</code></pre>
+
+<h3>Writing your own adapter</h3>
+<p>
+  Only 5 level flags (<code>IsDebug/Info/Warn/Error/FatalEnabled</code>) and 7 methods
+  (5 plain-text ones plus <code>Error</code>/<code>Fatal</code> taking an exception) are required.
+  Everything else has a default implementation.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Member</th><th>Required</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>IsDebug/Info/Warn/Error/FatalEnabled</code></td><td>Yes</td><td></td></tr>
+    <tr><td><code>IsTraceEnabled</code></td><td>No</td><td>Defaults to false — no Trace is emitted unless you opt in</td></tr>
+    <tr><td><code>Debug/Info/Warn/Error/Fatal(string)</code></td><td>Yes</td><td></td></tr>
+    <tr><td><code>Trace(string)</code></td><td>No</td><td>Folds into Debug by default</td></tr>
+    <tr><td><code>Error/Fatal(string, Exception)</code></td><td>Yes</td><td></td></tr>
+    <tr><td><code>Trace/Debug/Info/Warn(string, Exception)</code></td><td>No</td><td>Merged into text by default</td></tr>
+    <tr><td><code>Log(LogEventLevel, in LogSessionContext, string, Exception?)</code></td><td>No</td><td><strong>Override this if you want structured logging</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>Structured logging — <code>LogSessionContext</code></h3>
+<p>
+  Session information is passed separately instead of being concatenated into the message string.
+  It is a <code>readonly struct</code> (two references), so there is no heap allocation and no boxing at the call site.
+</p>
+
+<pre><code>Logger.Log(LogEventLevel.Error, session.SessionLogContext, "Max request length exceeded");</code></pre>
+
+<p>
+  For an adapter that does not override <code>Log</code>, the default implementation merges it into
+  <code>[sessionId/endpoint] message</code> and forwards it to the plain-text methods. Either way
+  <strong>no newline is inserted</strong> — so a line-based collector never splits one event in two.
+</p>
+
+<div class="note">
+  Default interface members are only visible <strong>when calling through the interface type</strong>.
+  The library always holds an <code>ILog</code>, so it is fine, but a test calling directly through the
+  concrete class type will not compile.
+</div>
+
+<h3>Avoiding name collisions</h3>
+<p>
+  <code>ILogProvider</code> (distinct from MEL's <code>ILoggerProvider</code>) and
+  <code>LogEventLevel</code> (distinct from MEL's <code>LogLevel</code>).
+</p>
+
+
+<h2 id="filter">8. Receive filters</h2>
+
+<p>
+  There is exactly one path. The filter receives a <code>ReadOnlySequence&lt;byte&gt;</code> straight from the pipe and
+  parses it, and data that is not yet a complete request is <strong>left in the pipe</strong>
+  (<code>consumed</code> is not advanced). There is no per-session carry buffer and no offset arithmetic.
+</p>
+
+<pre><code>public interface IReceiveFilter&lt;TRequestInfo&gt;
+    where TRequestInfo : IRequestInfo
+{
+    TRequestInfo? Filter(ReadOnlySequence&lt;byte&gt; buffer, out SequencePosition consumed, out SequencePosition examined);
+    IReceiveFilter&lt;TRequestInfo&gt;? NextReceiveFilter { get; }
+    void Reset();
+    FilterState State { get; }
+}</code></pre>
+
+<table>
+  <thead>
+    <tr><th>Return</th><th>consumed</th><th>examined</th><th>Meaning</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>RequestInfo</td><td>end of the request</td><td>same as consumed</td><td>One request completed. The loop continues with the remaining bytes</td></tr>
+    <tr><td>null</td><td><code>buffer.Start</code></td><td><code>buffer.End</code></td><td>Not enough data. Leave it until the pipe receives more</td></tr>
+  </tbody>
+</table>
+
+<p>Setting <code>State</code> to <code>FilterState.Error</code> closes the session with <code>CloseReason.ProtocolError</code>.</p>
+
+<div class="warn">
+  The <code>MaxRequestLength</code> check uses the <strong>unconsumed length</strong>
+  (<code>sequence.Slice(consumed).Length</code>). The pipe may hold several complete pipelined requests, so
+  measuring the whole buffer length would be wrong.
+</div>
+
+
+<h2 id="pattern">9. Baseline implementation pattern</h2>
+
+<p>
+  <strong>Decide this first</strong>: do you handle the packet entirely inside <code>NewRequestReceived</code>, or hand
+  it off to a logic thread? The answer determines the shape of your request info.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Structure</th><th>Request info</th><th>Reference implementation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Handled immediately in the handler</td>
+      <td>Reused instance + <code>Body</code> as <code>ReadOnlySequence&lt;byte&gt;</code> (zero allocation)</td>
+      <td><code>Tutorials/EchoServer</code></td>
+    </tr>
+    <tr>
+      <td>Passed to a logic thread</td>
+      <td>Copied into an <code>ArrayPool</code> array, returned in one place after processing</td>
+      <td><code>Tutorials/PvPGameServer</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  The code below is the first one (handled immediately). The full rationale and the second pattern are in
+  <a href="GC_Copy_Minimization.md"><code>Docs/GC_Copy_Minimization.md</code></a> <em>(Korean)</em>.
+</p>
+
+<pre><code>// 1. ReceiveFilter (example with a fixed 12-byte header)
+public class ReceiveFilter : FixedHeaderReceiveFilter&lt;EFBinaryRequestInfo&gt;
+{
+    // There is one filter per session and the next packet is only parsed after the previous
+    // handler returned, so the request instance can be reused. But it must not escape the handler.
+    private readonly EFBinaryRequestInfo _reusable = new();
+
+    public ReceiveFilter() : base(12) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence&lt;byte&gt; header)
+    {
+        Span&lt;byte&gt; buf = stackalloc byte[12];
+        header.CopyTo(buf);                       // safe even across a segment boundary
+        return BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(8, 4));
+    }
+
+    protected override EFBinaryRequestInfo ResolveRequestInfo(
+        ReadOnlySequence&lt;byte&gt; header, ReadOnlySequence&lt;byte&gt; body)
+    {
+        Span&lt;byte&gt; buf = stackalloc byte[12];
+        header.CopyTo(buf);
+
+        _reusable.Set(
+            BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(0, 4)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(4, 2)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(6, 2)),
+            body);                                // points straight into the pipe, no copy
+
+        return _reusable;
+    }
+}
+
+// 2. AppServer
+public class MainServer : AppServer&lt;NetworkSession, EFBinaryRequestInfo&gt;
+{
+    public MainServer()
+        : base(new DefaultReceiveFilterFactory&lt;ReceiveFilter, EFBinaryRequestInfo&gt;()) { }
+
+    protected override void OnStarted()
+    {
+        NewSessionConnected += OnConnected;
+        SessionClosed += OnClosed;
+        NewRequestReceived += OnPacketReceived;
+    }
+}</code></pre>
+
+
+<h2 id="removed">10. Removed features</h2>
+
+<p>
+  These are the things you go looking for if you know the old SuperSocket. All of them were dropped on purpose,
+  and there is no replacement API.
+</p>
+
+<table>
+  <thead>
+    <tr><th>What was removed</th><th>What to do instead</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>CollectSend</code> / <code>GetCollectSendData</code> / <code>CommitCollectSend</code>, <code>CollectSendIntervalMillSec</code></td>
+      <td>Accumulate in your app and call <code>SendCopied</code> once</td>
+    </tr>
+    <tr>
+      <td><code>RawDataReceived</code> / <code>IRawDataProcessor&lt;T&gt;</code></td>
+      <td>Handle it in the receive filter</td>
+    </tr>
+    <tr>
+      <td><code>IConnectionFilter</code></td>
+      <td>Check in <code>NewSessionConnected</code> and <code>Close</code> the sessions you want to reject</td>
+    </tr>
+    <tr>
+      <td>Injecting <code>ISocketServerFactory</code></td>
+      <td>The library picks the implementation from <code>SocketMode</code></td>
+    </tr>
+    <tr>
+      <td><code>AppSession.Items</code> / <code>PrevCommand</code> / <code>CurrentCommand</code>, <code>LogCommand</code></td>
+      <td>Put fields on your own session subclass</td>
+    </tr>
+    <tr>
+      <td>The whole string-command protocol set (<code>StringRequestInfo</code>, <code>TerminatorReceiveFilter</code>, <code>CountSpliterReceiveFilter</code>, <code>BeginEndMarkReceiveFilter</code>, the non-generic <code>AppServer</code>/<code>AppSession</code>)</td>
+      <td>Use a binary filter with <code>AppServer&lt;TSession, TRequestInfo&gt;</code></td>
+    </tr>
+    <tr>
+      <td>The <code>byte[]</code>-based receive filter path (<code>LeftBufferSize</code>, <code>toBeCopied</code>, the <code>offset</code>/<code>length</code> arguments)</td>
+      <td>Unified on <code>ReadOnlySequence&lt;byte&gt;</code>. <code>MaxRequestLength</code> is checked by the library against the unconsumed length</td>
+    </tr>
+    <tr>
+      <td><code>FixedHeaderSequenceReceiveFilter&lt;T&gt;</code></td>
+      <td>Only the name changed. Use <code>FixedHeaderReceiveFilter&lt;T&gt;</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  <code>Setup</code> also lost two arguments nobody used (<code>socketServerFactory</code>, <code>connectionFilters</code>),
+  and the hook derived classes used to override was renamed to <code>OnSetup</code>.
+</p>
+
+
+<h2 id="rejected">11. Optimizations considered and rejected</h2>
+
+<p>
+  These came up as candidates during the performance review (2026-08-14) and were rejected.
+  They are easy to propose again, so the reasons are recorded here.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Candidate</th><th>Why it was rejected</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Pooling (reusing) Session / AppSession / Pipe</strong></td>
+      <td>The biggest potential win, but the stability cost is exactly the counterweight. Fields on the app's derived <code>AppSession</code> subclass, filter instance state, and event subscriptions could leak between sessions — and that breaks a contract in app code the library cannot control.</td>
+    </tr>
+    <tr>
+      <td><strong>PipeScheduler.Inline (running the reader inline)</strong></td>
+      <td><code>FlushAsync</code> would end up running the app's request handler on the IOCP thread → risk of receive stalls and deadlocks. It conflicts with the design intent behind <code>ReceiveInlineOnIocpThread</code>, which draws the line at "inline only as far as advancing the pipe".</td>
+    </tr>
+    <tr>
+      <td><strong>Replacing <code>ChannelSendingQueue</code> with a hand-rolled lock-free queue</strong></td>
+      <td>The queue is per session, so contention is nearly absent, and this is tens of nanoseconds against the microseconds of a send syscall. No gain to justify the risk of reimplementing <code>EnqueueAsync</code> (waiting, cancellation, completion semantics).</td>
+    </tr>
+    <tr>
+      <td><strong>Making <code>SessionID</code> a value rather than a GUID string</strong></td>
+      <td>Two allocations per connection is a shame, but <code>SessionID: string</code> is a public contract and apps may depend on its format.</td>
+    </tr>
+    <tr>
+      <td><strong>Changing the <code>_sessionDict</code> comparer from <code>OrdinalIgnoreCase</code> to <code>Ordinal</code></strong></td>
+      <td>The gain is too small to justify the compatibility risk.</td>
+    </tr>
+    <tr>
+      <td><strong>Coalescing send batches</strong></td>
+      <td>Scatter-gather (<code>BufferList</code>) already sends N segments in one syscall. Adding a copy would be a net loss.</td>
+    </tr>
+    <tr>
+      <td><strong>Striping the shared hot-path counters</strong></td>
+      <td>It was actually implemented and measured: throughput dropped <strong>consistently by 1.2%</strong>, so it was withdrawn. At this load there is almost no cache-line contention, leaving only the cost of <code>GetCurrentProcessorId</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Optimizing the UDP path</strong></td>
+      <td>The primary use is TCP and UDP has no LoadTest coverage. Held off, following the rule of not optimizing without measurement.</td>
+    </tr>
+    <tr>
+      <td><strong>Kernel-level rewrites such as RIO / io_uring</strong></td>
+      <td>A large, platform-specific rewrite. It does not fit the character of a general-purpose .NET socket server.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  How to remove the allocations that remain at the app boundary (receive filter, handler, send call site) is
+  covered separately in <a href="GC_Copy_Minimization.md"><code>Docs/GC_Copy_Minimization.md</code></a> <em>(Korean)</em>.
+</p>
+
+
+<h2>Where to look next</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>Caveats</h4>
+    <p><a href="Cautions.html">Known Caveats</a> — thread safety, send buffer lifetime, the RequestInfo lifetime contract</p>
+  </div>
+  <div class="card">
+    <h4>Diagrams</h4>
+    <p>
+      <a href="Library_Architecture.html">Full Architecture</a> ·
+      <a href="Library_Receive_Flow.html">Receive Flow</a> ·
+      <a href="Library_Send_Flow.html">Send Flow</a> ·
+      <a href="Library_Session_Lifecycle.html">Session Lifecycle</a>
+    </p>
+  </div>
+  <div class="card">
+    <h4>Performance</h4>
+    <p><a href="GC_Copy_Minimization.md">GC and Copy Minimization guide</a> <em>(Korean)</em> — how to get per-packet allocations to zero, with measured numbers</p>
+  </div>
+  <div class="card">
+    <h4>Source documents</h4>
+    <p>
+      <a href="../README.md"><code>README.md</code></a> (usage) ·
+      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a> (source text for this page) <em>(Korean)</em> ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a> (coding conventions) <em>(Korean)</em>
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">If this page and .claude/architecture.md disagree</h4>
+  <p style="margin:0">
+    This page carries over <code>.claude/architecture.md</code>, arranged for reading inside this repo's HTML
+    documentation set. If the code changes and something here no longer matches, the source text
+    (<code>.claude/architecture.md</code>) is correct — fix this page to match it. A Korean translation of this
+    page is at <a href="Architecture_kr.html">Architecture_kr.html</a>; keep the two in sync.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

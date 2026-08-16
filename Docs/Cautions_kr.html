@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite 알려진 주의 사항</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); margin-left: 6px; vertical-align: middle;
+  }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>알려진 주의 사항</h1>
+  <p class="lead">컴파일은 되지만 <strong>부하가 걸려야 드러나는</strong> 것들을 모았습니다. 라이브러리를 쓰기 전에 한 번 훑어 두면 좋습니다.</p>
+  <p class="lead">내부가 왜 그렇게 동작하는지는 <a href="Architecture_kr.html">아키텍처 문서</a>에, 빌드·사용법과 함께 보려면 <a href="Getting_Started_kr.html">시작하기</a>에 있습니다.</p>
+  <div class="linkrow">
+    <a href="#thread">스레드 안전성</a>
+    <a href="#sendbuf">송신 버퍼 수명</a>
+    <a href="#filter">수신 필터</a>
+    <a href="#lifetime">RequestInfo 수명</a>
+    <a href="#utc">시간 값은 UTC</a>
+    <a href="#timeout">타임아웃 처리 순서</a>
+    <a href="#maxconn">최대 연결 수 초과</a>
+    <a href="#udp">UDP 모드</a>
+  </div>
+</header>
+
+<div class="toc">
+  <strong>목차</strong>
+  <ol>
+    <li><a href="#thread">스레드 안전성</a></li>
+    <li><a href="#sendbuf">송신 버퍼 수명 (zero-copy)</a></li>
+    <li><a href="#filter">수신 필터</a></li>
+    <li><a href="#lifetime">RequestInfo와 본문의 수명</a></li>
+    <li><a href="#utc">시간 값은 UTC</a></li>
+    <li><a href="#timeout">타임아웃 처리 순서</a></li>
+    <li><a href="#maxconn">최대 연결 수 초과</a></li>
+    <li><a href="#udp">UDP 모드</a></li>
+  </ol>
+</div>
+
+
+<h2 id="thread">1. 스레드 안전성</h2>
+
+<p>
+  <code>NewSessionConnected</code>와 <code>NewRequestReceived</code>는 서로 다른 스레드에서 <strong>동시에</strong> 호출될 수 있다.
+  클라이언트가 접속 직후 바로 패킷을 보내는 경우 레이스 컨디션에 주의한다.
+</p>
+
+<p>
+  <code>ServerConfig.SyncSessionConnectedEvent = true</code>로 두면 <code>NewSessionConnected</code>가 accept 경로에서
+  동기 호출되어 "connected → 첫 요청" 순서가 구조적으로 보장된다. 대신 핸들러가 accept를 블로킹하므로
+  반드시 가볍게 유지해야 한다. (기본값 false = 기존 동작)
+</p>
+
+
+<h2 id="sendbuf">2. 송신 버퍼 수명 (zero-copy)</h2>
+
+<div class="danger">
+  <code>Send(byte[], int, int)</code> / <code>Send(ArraySegment&lt;byte&gt;)</code> / <code>Send(IList&lt;ArraySegment&lt;byte&gt;&gt;)</code> /
+  <code>SendAsync(ReadOnlyMemory&lt;byte&gt;)</code>(배열 기반일 때)는 <strong>호출자의 배열을 참조로 큐에 넣는다.</strong>
+  전송이 완료되기 전에 그 배열을 수정하면 잘못된 데이터가 나간다.
+</div>
+
+<pre><code>// 위험: buffer를 재사용하는 코드
+session.Send(buffer, 0, len);
+buffer[0] = 0;          // 아직 전송 중일 수 있다
+
+// 안전: 세션이 풀 버퍼로 복사해 간다
+session.SendCopied(buffer.AsSpan(0, len));
+buffer[0] = 0;          // OK</code></pre>
+
+<p>
+  <code>Send(IList&lt;...&gt;)</code>의 <strong>리스트 자체</strong>는 enqueue 시 복사되므로 호출 직후 재사용해도 된다
+  (배열만 공유된다).
+</p>
+
+<div class="warn">
+  <strong>빈 데이터 처리가 다르다.</strong> <code>TrySendCopied</code> / <code>SendCopied</code>는 데이터가 비면 아무것도 큐에 넣지
+  않고 성공으로 돌아간다. 반면 <code>Send(buffer, 0, 0)</code>은 길이 0 세그먼트를 큐에 넣어 실제로 전송을
+  시도한다 — UDP에서는 빈 데이터그램이 나간다. 빈 패킷에 의미가 있는 프로토콜을 <code>Send</code>에서
+  <code>SendCopied</code>로 옮길 때만 확인하면 된다.
+</div>
+
+
+<h2 id="filter">3. 수신 필터</h2>
+
+<p>
+  필터는 파이프에서 <code>ReadOnlySequence&lt;byte&gt;</code>를 직접 받는다. 요청이 아직 완성되지 않았으면
+  <code>consumed</code>를 전진시키지 말고 그대로 두면 된다 — 데이터는 파이프에 남고 다음 수신 때 이어서 온다.
+  필터가 자체 캐리 버퍼를 두면 오히려 복사가 늘어난다.
+</p>
+
+<p>
+  <code>header</code> / <code>body</code>는 세그먼트 여러 개에 걸쳐 있을 수 있다. <code>header.First.Span</code>으로 바로 읽지 말고
+  <code>CopyTo(Span)</code>나 <code>ToArray()</code>를 쓴다.
+</p>
+
+<p>
+  UDP + <code>UdpRequestInfo</code> 조합에서 sessionID 파싱용 필터는 <strong>수신 스레드당 1개가 재사용</strong>된다
+  (<code>Reset()</code> 후 재사용). 이 필터는 데이터그램 간 상태를 갖지 않아야 하고
+  <code>CreateFilter</code>에 넘어온 remote endpoint를 캡처해서는 안 된다.
+</p>
+
+
+<h2 id="lifetime">4. RequestInfo와 본문의 수명</h2>
+
+<p>
+  라이브러리는 <code>NewRequestReceived</code> 핸들러를 <strong>동기로</strong> 부르고, 핸들러가 전부 리턴한 뒤에야
+  파이프를 전진시킨다(<code>AppServerBase.ExecuteCommand</code> → <code>ProcessPipeAsync</code>의 <code>AdvanceTo</code>).
+  UDP도 같다 — <code>UdpReceivePacket.Dispose()</code>가 핸들러 리턴 후에 수신 버퍼를 풀에 돌려준다.
+</p>
+
+<p>
+  이 보장 덕분에 앱은 <strong>패킷당 할당을 0으로</strong> 만들 수 있다. 필터가 요청 인스턴스 하나를 돌려 쓰고
+  본문을 <code>ReadOnlySequence&lt;byte&gt;</code>로 그대로 넘기면 된다. <code>Tutorials/EchoServer</code>가 그 형태다.
+</p>
+
+<p>대신 계약이 생긴다:</p>
+
+<ul class="tight">
+  <li>
+    핸들러가 리턴하면 그 <code>RequestInfo</code>와 본문은 <strong>더 이상 유효하지 않다.</strong> 필드에 저장하거나,
+    람다에 캡처하거나, 다른 스레드 큐에 넣으면 안 된다.
+  </li>
+  <li>값을 남기려면 핸들러 안에서 역직렬화하거나 복사한다.</li>
+  <li>
+    패킷을 로직 스레드로 넘기는 구조라면 이 방식을 쓸 수 없다. 그때는 <code>ArrayPool</code>에서 빌려
+    복사하고 처리 후 한 곳에서 반납한다 — <code>Tutorials/PvPGameServer</code>가 그 형태다.
+  </li>
+</ul>
+
+<div class="danger">
+  어겼을 때 컴파일은 되고 가벼운 부하에서는 대개 동작한다. 파이프 버퍼가 재사용될 만큼
+  부하가 올라야 데이터가 깨지므로 찾기 어렵다. 자세한 내용은
+  <a href="GC_Copy_Minimization.md"><code>Docs/GC_Copy_Minimization.md</code></a>.
+</div>
+
+
+<h2 id="utc">5. 시간 값은 UTC</h2>
+
+<p>
+  <code>AppSession.StartTime</code> / <code>LastActiveTime</code>, <code>AppServerBase.StartedTime</code>은 <strong>UTC</strong>다.
+  화면·로그에 로컬 시간으로 찍으려면 <code>.ToLocalTime()</code>을 붙인다.
+  <code>LastActiveTime</code>은 단조 tick에서 역산하므로 수 ms 오차가 있다.
+</p>
+
+
+<h2 id="timeout">6. 타임아웃 처리 순서</h2>
+
+<p><code>TimeoutException</code> 발생 후 세션을 종료할 때 반드시 아래 순서를 지킨다.</p>
+
+<pre><code>// 올바른 순서
+session.SendEndWhenSendingTimeOut();
+session.Close();
+
+// SendEndWhenSendingTimeOut() 없이 Close()만 호출하면 소켓이 정리되지 않는다.</code></pre>
+
+
+<h2 id="maxconn">7. 최대 연결 수 초과</h2>
+
+<p>
+  <code>MaxConnectionNumber</code> 초과 시 SuperSocketLite가 즉시 연결을 끊는다.
+  이 경우 <code>NewSessionConnected</code>가 <strong>호출되지 않는다</strong>.
+</p>
+
+
+<h2 id="udp">8. UDP 모드</h2>
+
+<p>
+  UDP 세션은 <code>_client(Socket)</code>가 null일 수 있다 (소켓 인스턴스 공유 구조).
+  <code>Close()</code> 내부에서 UDP/TCP 경로가 분기되므로 UDP 관련 코드 수정 시 주의한다.
+</p>
+
+
+<h2>더 볼 것</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>내부 구조</h4>
+    <p><a href="Architecture_kr.html">아키텍처</a> — 계층 구조, 수신·송신·UDP 경로, 제거된 기능</p>
+  </div>
+  <div class="card">
+    <h4>시작하기</h4>
+    <p><a href="Getting_Started_kr.html">시작하기</a> — 빌드, 최소 서버, Send API·설정 표</p>
+  </div>
+  <div class="card">
+    <h4>성능</h4>
+    <p><a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a> — 패킷당 할당을 0으로 만드는 방법과 실제 측정치</p>
+  </div>
+  <div class="card">
+    <h4>저장소 문서 (원문)</h4>
+    <p>
+      <a href="../README_kr.md"><code>README_kr.md</code></a>(한글 사용법) ·
+      <a href="../.claude/cautions.md"><code>.claude/cautions.md</code></a>(이 문서의 원문) ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a>(코딩 컨벤션)
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">이 문서와 .claude/cautions.md가 어긋나면</h4>
+  <p style="margin:0">
+    이 문서는 <code>.claude/cautions.md</code>를 이 저장소의 HTML 문서 모음 안에서 읽기 좋게 옮긴 것입니다.
+    코드가 바뀌어 내용이 어긋나면 원문(<code>.claude/cautions.md</code>)이 맞는 것이니 그쪽을 기준으로
+    이 문서를 고치세요. 영어판은 <a href="Cautions.html">Cautions.html</a>에 있습니다 —
+    두 판은 내용이 같아야 하니 한쪽을 고치면 다른 쪽도 확인하세요.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

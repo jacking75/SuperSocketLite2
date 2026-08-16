@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SuperSocketLite 아키텍처 — 내부 구조와 코드 흐름</title>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --ink: #17202a;
+    --muted: #5b6875;
+    --line: #dfe4ea;
+    --accent: #0f766e;
+    --accent-soft: #e6f4f1;
+    --warn: #b45309;
+    --warn-soft: #fef3c7;
+    --danger: #b91c1c;
+    --danger-soft: #fee2e2;
+    --code-bg: #0f172a;
+    --code-ink: #e2e8f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e1116;
+      --panel: #161b22;
+      --ink: #e6edf3;
+      --muted: #9aa7b4;
+      --line: #2a323c;
+      --accent: #2dd4bf;
+      --accent-soft: #10312e;
+      --warn: #fbbf24;
+      --warn-soft: #3a2c07;
+      --danger: #fca5a5;
+      --danger-soft: #3b1112;
+      --code-bg: #0b1020;
+      --code-ink: #dbe4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.75 "Pretendard", "Malgun Gothic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; }
+  header.hero { margin-bottom: 40px; }
+  h1 { font-size: 34px; line-height: 1.3; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lead { color: var(--muted); font-size: 17px; margin: 0 0 8px; }
+  h2 {
+    font-size: 25px; margin: 64px 0 16px; padding-top: 20px;
+    border-top: 2px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 19px; margin: 36px 0 10px; }
+  h4 { font-size: 16px; margin: 22px 0 8px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  a { color: var(--accent); }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.9em;
+    background: var(--accent-soft); color: inherit; padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    background: var(--code-bg); color: var(--code-ink); padding: 16px 18px;
+    border-radius: 10px; overflow-x: auto; font-size: 13.5px; line-height: 1.65;
+    font-family: "Cascadia Mono", Consolas, monospace;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 22px 24px; margin: 20px 0;
+  }
+  .note {
+    border-left: 4px solid var(--accent); background: var(--accent-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .warn {
+    border-left: 4px solid var(--warn); background: var(--warn-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  .danger {
+    border-left: 4px solid var(--danger); background: var(--danger-soft);
+    padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 18px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 15px; }
+  th, td { border: 1px solid var(--line); padding: 9px 12px; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 600; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 4px 0; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 20px 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+  .card h4 { margin-top: 0; }
+  .card p { margin: 0; font-size: 14.5px; color: var(--muted); }
+  .linkrow { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0 0; }
+  .linkrow a {
+    display: inline-block; padding: 9px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: var(--panel); text-decoration: none; font-size: 14.5px;
+  }
+  .linkrow a:hover { border-color: var(--accent); }
+  .badge {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px;
+    border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    border: 1px solid var(--line); margin-left: 6px; vertical-align: middle;
+  }
+  ul.tight { margin: 8px 0 14px; padding-left: 22px; }
+  ul.tight li { margin: 3px 0; }
+  ol.steps { margin: 8px 0 14px; padding-left: 22px; }
+  ol.steps li { margin: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>SuperSocketLite 아키텍처</h1>
+  <p class="lead">리스너에서 앱 핸들러까지 <strong>어떤 부품이 무슨 일을 하는지</strong>, 수신·송신·UDP 경로가 <strong>어떤 순서로 도는지</strong>, 그리고 <strong>무엇을 일부러 하지 않았는지</strong>를 글로 정리한 문서입니다.</p>
+  <p class="lead">같은 내용을 그림으로 보려면 <a href="Library_Architecture_kr.html">전체 구조 다이어그램</a>을, 라이브러리를 쓰기 전에 알아야 할 계약은 <a href="Cautions_kr.html">알려진 주의 사항</a>을 보세요.</p>
+  <div class="linkrow">
+    <a href="#layers">계층 구조</a>
+    <a href="#components">핵심 컴포넌트</a>
+    <a href="#accept">연결과 수신 기동</a>
+    <a href="#send">송신 경로</a>
+    <a href="#udp">UDP 경로</a>
+    <a href="#logging">로깅</a>
+    <a href="#filter">수신 필터</a>
+    <a href="#pattern">기본 구현 패턴</a>
+    <a href="#removed">제거된 기능</a>
+    <a href="#rejected">기각한 최적화</a>
+  </div>
+</header>
+
+<div class="toc">
+  <strong>목차</strong>
+  <ol>
+    <li><a href="#layers">계층 구조</a></li>
+    <li><a href="#components">핵심 컴포넌트</a></li>
+    <li><a href="#accept">연결과 수신 기동</a></li>
+    <li><a href="#send">송신 경로</a></li>
+    <li><a href="#udp">UDP 경로</a></li>
+    <li><a href="#threads">이벤트 스레드 모델</a></li>
+    <li><a href="#logging">로깅</a></li>
+    <li><a href="#filter">수신 필터</a></li>
+    <li><a href="#pattern">기본 구현 패턴</a></li>
+    <li><a href="#removed">제거된 기능</a></li>
+    <li><a href="#rejected">검토했지만 하지 않기로 한 최적화</a></li>
+  </ol>
+</div>
+
+
+<h2 id="layers">1. 계층 구조</h2>
+
+<pre><code>[클라이언트 TCP 연결]
+        ↓
+[TcpAsyncSocketListener]       Accept 루프
+        ↓
+[AsyncSocketServer]            SocketAsyncEventArgs 풀 관리, 세션 생성
+        ↓
+[SocketSession]                상태 머신 (InSending / InReceiving / Closed)
+        ↓                      수신은 System.IO.Pipelines
+[AppSession&lt;TSession, TReq&gt;]   애플리케이션 레벨 세션
+        ↓
+[IReceiveFilter&lt;TRequestInfo&gt;] 바이트 스트림 → 패킷 파싱
+        ↓
+[AppServerBase.ExecuteCommand] NewRequestReceived 이벤트 발생</code></pre>
+
+
+<h2 id="components">2. 핵심 컴포넌트</h2>
+
+<h3>수신 파이프 <span class="badge">SocketSession.cs</span></h3>
+<p>
+  세션마다 <code>System.IO.Pipelines.Pipe</code> 1개를 둔다.
+  IOCP 완료 스레드는 <code>PipeWriter</code>만 전진시키고, <code>ProcessPipeAsync()</code> 태스크가
+  <code>PipeReader</code>에서 읽어 <code>AppSession.ProcessRequest(ReadOnlySequence&lt;byte&gt;)</code>로 넘긴다.
+  back-pressure 임계값은 <code>ServerConfig.MaxReceivePipeBufferSize</code>로 조정한다.
+</p>
+
+<h3>SmartPool&lt;T&gt; <span class="badge">Common/SmartPool.cs</span></h3>
+<p>
+  <code>ConcurrentStack</code> 기반 오브젝트 풀. <code>AsyncSocketServer</code>가 수신용
+  <code>SocketAsyncEventArgsProxy</code> 풀과 송신용 <code>SocketAsyncEventArgs</code> 풀 2개를 만든다.
+  <code>PreAllocateSAEA</code>(기본 true)면 시작 시 <code>MaxConnectionNumber</code>개를 전부 만들고,
+  false면 <code>MinPoolSize</code>에서 시작해 2배씩 증설한다.
+</p>
+
+<h3>ChannelSendingQueue <span class="badge">Common/ChannelSendingQueue.cs</span></h3>
+<p>
+  세션별 송신 큐. bounded <code>Channel&lt;SendItem&gt;</code> 기반이라 별도 락이 없다.
+  용량은 <strong>송신 호출 수</strong> 기준이며 다중 세그먼트 송신도 슬롯 1개를 쓴다.
+</p>
+
+<h3>SocketState 비트 플래그 <span class="badge">SocketSession.cs</span></h3>
+<pre><code>Normal      = 0x00
+InSending   = 0x01
+InReceiving = 0x02
+InClosing   = 0x10
+Closed      = 0x01000000</code></pre>
+<p>상태 전환은 <code>Interlocked.CompareExchange</code>로 원자적으로 처리된다.</p>
+
+
+<h2 id="accept">3. 연결과 수신 기동</h2>
+
+<ol class="steps">
+  <li>
+    <code>TcpAsyncSocketListener</code>의 accept 루프가 소켓을 받는다.
+    <code>ServerConfig.AcceptLoopCount</code>(기본 1, 1~64)로 루프를 여러 개 돌릴 수 있고,
+    <code>OnStopped</code>는 마지막 루프만 발생시킨다.
+  </li>
+  <li>
+    <code>AsyncSocketServer.ProcessNewClient()</code>가 <strong>수신 proxy와 송신 SAEA를 각각 풀에서 꺼낸다.</strong>
+    둘 중 하나라도 없으면 접속을 거부하고 <code>NewSessionConnected</code>를 부르지 않는다.
+    즉 <code>MaxConnectionNumber</code> 초과는 이벤트 없이 조용히 끊긴다.
+  </li>
+  <li>
+    <code>SocketSession.Initialize()</code>가 세션당 송신 큐와 수신 <code>Pipe</code>를 만든다.
+    파이프의 백프레셔 임계값은 아래처럼 보정된다 — 큰 <code>MaxRequestLength</code>를 잡아 놓고
+    파이프가 먼저 멈춰 요청이 영영 완성되지 못하는 상황을 막기 위해서다.
+
+    <pre><code>pauseThreshold  = max(MaxReceivePipeBufferSize(기본 65536), ReceiveBufferSize * 2)
+MaxRequestLength &gt; 0 이면
+pauseThreshold  = max(pauseThreshold, MaxRequestLength + ReceiveBufferSize * 2)
+resumeThreshold = pauseThreshold / 2</code></pre>
+  </li>
+  <li>
+    <code>AsyncSocketSession.Start()</code>가 <code>StartReceive()</code>와 <code>ProcessPipeAsync()</code> 태스크를 띄운다.
+  </li>
+  <li>
+    <code>StartReceive()</code>는 <strong>while 루프</strong>다. <code>_pipeWriter.GetMemory()</code>로 얻은 버퍼를
+    <code>SetBuffer(Memory&lt;byte&gt;)</code>에 걸고 <code>ReceiveAsync()</code>를 건다. 동기 완료되면 재귀하지 않고
+    루프를 한 번 더 돈다 — 루프백처럼 항상 데이터가 준비된 소켓에서 스택이 무한히 쌓이는 것을 막는다.
+    <code>UseZeroByteReceive=true</code>면 유휴 세션은 길이 0 버퍼로 대기하다가, 읽을 것이 생긴 뒤에야
+    실제 버퍼를 빌린다. 프로브인지 여부는 <strong>게시한 버퍼 길이</strong>로 판정하므로 스레드 간 공유 상태가 없다.
+  </li>
+  <li>
+    IOCP 완료 → <code>ProcessReceiveCore()</code>가 <code>Advance</code> → <code>FlushAsync</code> → 다시 <code>StartReceive()</code>.
+    <code>ReceiveInlineOnIocpThread=true</code>(기본)면 이 전진을 IOCP 스레드에서 그대로 한다.
+    <strong>앱 핸들러까지 인라인으로 부르지는 않는다</strong> — 그것은 <code>ProcessPipeAsync</code> 태스크의 몫이다.
+  </li>
+</ol>
+
+
+<h2 id="send">4. 송신 경로</h2>
+
+<pre><code>AppSession.TrySend/Send → SocketSession.TrySend → ChannelSendingQueue.TryEnqueue
+   → StartSend(true) → [InSending 플래그를 얻은 호출자만 진행]
+   → DrainAvailable(_sendBatch, _pooledInFlight) → SendAsync/SendSync
+   → 완료 → OnSendingCompleted → 큐가 비면 OnSendEnd, 남았으면 StartSend(false)</code></pre>
+
+<ul class="tight">
+  <li>
+    <strong>큐</strong>: <code>ChannelSendingQueue</code>는 bounded <code>Channel&lt;SendItem&gt;</code> 하나다. lock이 없고,
+    <code>Channel</code>의 원자적 write에 완료·용량 판정을 맡긴다. <code>SendItem</code>은 readonly struct라
+    enqueue당 힙 할당이 없다. 용량은 세그먼트가 아니라 <strong>전송 요청 수</strong>를 센다 —
+    다중 세그먼트 <code>Send</code> 하나가 슬롯 1개다.
+  </li>
+  <li>
+    <strong>single-flight</strong>: 세션당 한 번에 하나의 송신만 진행한다. <code>InSending</code> 플래그를 얻은
+    호출자만 실제로 보내고, 나머지는 큐에 넣고 돌아간다.
+  </li>
+  <li>
+    <strong>배치</strong>: 드레인 대상 리스트(<code>_sendBatch</code>, <code>_pooledInFlight</code>)는 세션당 재사용한다.
+    single-flight이라 이전 배치가 소켓에서 떨어진 뒤에만 다음 드레인이 채운다.
+  </li>
+  <li>
+    <strong>scatter-gather</strong>: 세그먼트가 2개 이상이면 <code>SocketAsyncEventArgs.BufferList</code>로
+    한 번에 보낸다. 복사해서 합치지 않는다.
+  </li>
+  <li>
+    <strong>부분 전송</strong>: 보낸 바이트가 요청보다 적으면 <code>TrimSegments()</code>로 남은 구간만 잘라 재전송한다.
+  </li>
+  <li>
+    <strong>풀 버퍼 반납</strong>: <code>TrySendCopied</code>/<code>SendCopied</code>가 빌린 ArrayPool 배열은
+    배치가 끝나는 지점(<code>OnSendingCompleted</code> / <code>OnSendError</code>)에서 <code>ReturnPooledSendBuffers()</code>가
+    돌려준다. 전송이 진행 중인 상태로 세션이 죽으면 반납하지 않고 GC에 맡긴다 —
+    버퍼가 두 번 배포되는 것보다 낫기 때문이다.
+  </li>
+</ul>
+
+
+<h2 id="udp">5. UDP 경로</h2>
+
+<p>TCP와 달리 파이프도, 연결도 없다. 데이터그램 하나가 곧 요청 하나다.</p>
+
+<ol class="steps">
+  <li>
+    <code>UdpSocketListener</code>가 <code>ArrayPool</code>에서 빌린 버퍼로 <code>ReceiveFromAsync</code>를 건다.
+    받은 것은 <code>UdpReceivePacket</code>에 담겨 <code>OnNewClientAccepted</code>로 넘어간다.
+  </li>
+  <li>
+    <code>UdpSocketServer</code>가 필터를 부른다. 요청 타입이 <code>UdpRequestInfo</code>를 상속하면
+    그 안의 세션 ID로 세션을 찾고, 아니면 remote endpoint 문자열을 키로 쓴다.
+    세션이 없으면 그 자리에서 만든다.
+  </li>
+  <li>
+    <code>_requestHandler.ExecuteCommand(...)</code>를 <strong>동기로</strong> 부른 뒤,
+    <code>finally</code>에서 <code>UdpReceivePacket.Dispose()</code>가 버퍼를 풀에 돌려준다.
+    즉 수신 버퍼 수명은 TCP와 같다 — 핸들러가 리턴하면 무효다.
+  </li>
+</ol>
+
+<div class="warn">
+  <strong>주의할 점 둘</strong>
+  <ul class="tight">
+    <li>
+      세션 ID 파싱용 필터는 <strong>수신 스레드당 하나를 재사용</strong>한다(<code>[ThreadStatic]</code>, <code>Reset()</code> 후 재사용).
+      데이터그램 간에 상태를 갖거나 <code>CreateFilter</code>에 넘어온 remote endpoint를 캡처하면 안 된다.
+    </li>
+    <li>
+      <code>UdpSocketSession</code>은 리슨 소켓을 공유하므로 <code>Client</code>가 null이다.
+      <code>TryValidateClosedBySocket</code>이 항상 false를 돌려주는 것도 그 때문이다.
+    </li>
+  </ul>
+</div>
+
+
+<h2 id="threads">6. 이벤트 스레드 모델</h2>
+
+<table>
+  <thead>
+    <tr><th>이벤트</th><th>호출 방식</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>NewSessionConnected</code></td><td><code>Task.Run()</code> — 비동기 (<code>SyncSessionConnectedEvent=true</code>면 동기)</td></tr>
+    <tr><td><code>NewRequestReceived</code></td><td>파이프 리더 태스크에서 동기 호출</td></tr>
+    <tr><td><code>SessionClosed</code></td><td><code>Task.Run()</code> — 비동기</td></tr>
+  </tbody>
+</table>
+
+
+<h2 id="logging">7. 로깅</h2>
+
+<p>라이브러리는 특정 로그 라이브러리에 의존하지 않고 자체 <code>ILog</code> / <code>ILogFactory</code> 추상화만 쓴다.</p>
+
+<h3>연동 방법 (권장) — <code>MicrosoftLoggingLogFactory</code></h3>
+<p>
+  Serilog·NLog·ZLogger·log4net 모두 <code>Microsoft.Extensions.Logging</code> 프로바이더를 제공하므로,
+  내장 브리지 하나로 전부 커버된다. 라이브러리별 어댑터를 직접 만들 필요가 없다.
+</p>
+
+<pre><code>// 일반 설정
+Setup(new RootConfig(), config, logFactory: new MicrosoftLoggingLogFactory(loggerFactory));
+
+// GenericHost
+services.AddSingleton&lt;ILogFactory&gt;(
+    sp =&gt; new MicrosoftLoggingLogFactory(sp.GetRequiredService&lt;ILoggerFactory&gt;()));</code></pre>
+
+<h3>직접 어댑터를 만들 때</h3>
+<p>
+  필수 구현은 레벨 플래그 5개(<code>IsDebug/Info/Warn/Error/FatalEnabled</code>)와 메서드 7개
+  (평문 5개 + 예외를 받는 <code>Error</code>/<code>Fatal</code>)뿐이다. 나머지는 default 구현이 있다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>멤버</th><th>필수</th><th>비고</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>IsDebug/Info/Warn/Error/FatalEnabled</code></td><td>O</td><td></td></tr>
+    <tr><td><code>IsTraceEnabled</code></td><td>X</td><td>기본 false — 옵트인하지 않으면 Trace를 안 보낸다</td></tr>
+    <tr><td><code>Debug/Info/Warn/Error/Fatal(string)</code></td><td>O</td><td></td></tr>
+    <tr><td><code>Trace(string)</code></td><td>X</td><td>기본 Debug로 접힘</td></tr>
+    <tr><td><code>Error/Fatal(string, Exception)</code></td><td>O</td><td></td></tr>
+    <tr><td><code>Trace/Debug/Info/Warn(string, Exception)</code></td><td>X</td><td>기본 텍스트로 합침</td></tr>
+    <tr><td><code>Log(LogEventLevel, in LogSessionContext, string, Exception?)</code></td><td>X</td><td><strong>구조적 로깅을 원하면 재정의</strong></td></tr>
+  </tbody>
+</table>
+
+<h3>구조적 로깅 — <code>LogSessionContext</code></h3>
+<p>
+  세션 정보를 메시지 문자열에 이어붙이지 않고 별도로 전달한다.
+  <code>readonly struct</code>(참조 2개)라서 호출 지점에서 힙 할당이 없고 박싱도 없다.
+</p>
+
+<pre><code>Logger.Log(LogEventLevel.Error, session.SessionLogContext, "Max request length exceeded");</code></pre>
+
+<p>
+  <code>Log</code>를 재정의하지 않은 어댑터는 default 구현이 <code>[sessionId/endpoint] message</code> 형태로
+  합쳐 평문 메서드로 넘긴다. 어느 경로든 <strong>개행이 들어가지 않는다</strong> — 줄 단위 수집기에서
+  한 이벤트가 쪼개지지 않게 하기 위함이다.
+</p>
+
+<div class="note">
+  default 인터페이스 멤버는 <strong>인터페이스 타입으로 호출할 때만</strong> 보인다.
+  라이브러리는 항상 <code>ILog</code>로 들고 있어서 문제없지만, 테스트에서 구현 클래스 타입으로
+  직접 호출하면 컴파일되지 않는다.
+</div>
+
+<h3>이름 충돌 회피</h3>
+<p>
+  <code>ILogProvider</code>(MEL의 <code>ILoggerProvider</code>와 구분),
+  <code>LogEventLevel</code>(MEL의 <code>LogLevel</code>과 구분).
+</p>
+
+
+<h2 id="filter">8. 수신 필터</h2>
+
+<p>
+  경로는 하나다. 필터는 <code>ReadOnlySequence&lt;byte&gt;</code>를 파이프에서 직접 받아 파싱하고,
+  아직 요청이 되지 않은 데이터는 <strong>파이프에 그대로 둔다</strong>(<code>consumed</code>를 전진시키지 않는다).
+  세션 캐리 버퍼도, 오프셋 산술도 없다.
+</p>
+
+<pre><code>public interface IReceiveFilter&lt;TRequestInfo&gt;
+    where TRequestInfo : IRequestInfo
+{
+    TRequestInfo? Filter(ReadOnlySequence&lt;byte&gt; buffer, out SequencePosition consumed, out SequencePosition examined);
+    IReceiveFilter&lt;TRequestInfo&gt;? NextReceiveFilter { get; }
+    void Reset();
+    FilterState State { get; }
+}</code></pre>
+
+<table>
+  <thead>
+    <tr><th>반환</th><th>consumed</th><th>examined</th><th>의미</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>RequestInfo</td><td>요청 끝</td><td>consumed와 동일</td><td>요청 1개 완성. 남은 바이트로 루프가 계속 돈다</td></tr>
+    <tr><td>null</td><td><code>buffer.Start</code></td><td><code>buffer.End</code></td><td>데이터 부족. 파이프가 더 받을 때까지 그대로 둔다</td></tr>
+  </tbody>
+</table>
+
+<p><code>State</code>를 <code>FilterState.Error</code>로 두면 세션이 <code>CloseReason.ProtocolError</code>로 닫힌다.</p>
+
+<div class="warn">
+  <code>MaxRequestLength</code> 판정은 <strong>미소비 길이</strong>(<code>sequence.Slice(consumed).Length</code>)로 한다.
+  파이프에는 완결된 파이프라인 요청이 여러 개 들어 있을 수 있으므로 버퍼 전체 길이로 재면 안 된다.
+</div>
+
+
+<h2 id="pattern">9. 기본 구현 패턴</h2>
+
+<p>
+  <strong>먼저 정할 것</strong>: 패킷을 <code>NewRequestReceived</code> 안에서 다 처리하는가, 아니면 로직 스레드로
+  넘기는가. 이 답이 요청 정보의 모양을 결정한다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>구조</th><th>요청 정보</th><th>기준 구현</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>핸들러에서 즉시 처리</td>
+      <td>인스턴스 재사용 + <code>Body</code>는 <code>ReadOnlySequence&lt;byte&gt;</code> (할당 0)</td>
+      <td><code>Tutorials/EchoServer</code></td>
+    </tr>
+    <tr>
+      <td>로직 스레드로 전달</td>
+      <td><code>ArrayPool</code> 배열로 복사, 처리 후 한 곳에서 반납</td>
+      <td><code>Tutorials/PvPGameServer</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  아래는 앞쪽(즉시 처리)이다. 자세한 근거와 뒤쪽 패턴은
+  <a href="GC_Copy_Minimization.md"><code>Docs/GC_Copy_Minimization.md</code></a>.
+</p>
+
+<pre><code>// 1. ReceiveFilter (고정 헤더 12바이트 예시)
+public class ReceiveFilter : FixedHeaderReceiveFilter&lt;EFBinaryRequestInfo&gt;
+{
+    // 필터는 세션마다 하나이고 다음 패킷은 이전 핸들러가 리턴한 뒤에 파싱되므로,
+    // 요청 인스턴스를 돌려 써도 된다. 대신 핸들러 밖으로 내보내면 안 된다.
+    private readonly EFBinaryRequestInfo _reusable = new();
+
+    public ReceiveFilter() : base(12) { }
+
+    protected override int GetBodyLengthFromHeader(ReadOnlySequence&lt;byte&gt; header)
+    {
+        Span&lt;byte&gt; buf = stackalloc byte[12];
+        header.CopyTo(buf);                       // 세그먼트 경계에 걸려도 안전하다
+        return BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(8, 4));
+    }
+
+    protected override EFBinaryRequestInfo ResolveRequestInfo(
+        ReadOnlySequence&lt;byte&gt; header, ReadOnlySequence&lt;byte&gt; body)
+    {
+        Span&lt;byte&gt; buf = stackalloc byte[12];
+        header.CopyTo(buf);
+
+        _reusable.Set(
+            BinaryPrimitives.ReadInt32LittleEndian(buf.Slice(0, 4)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(4, 2)),
+            BinaryPrimitives.ReadInt16LittleEndian(buf.Slice(6, 2)),
+            body);                                // 복사하지 않고 파이프를 그대로 가리킨다
+
+        return _reusable;
+    }
+}
+
+// 2. AppServer
+public class MainServer : AppServer&lt;NetworkSession, EFBinaryRequestInfo&gt;
+{
+    public MainServer()
+        : base(new DefaultReceiveFilterFactory&lt;ReceiveFilter, EFBinaryRequestInfo&gt;()) { }
+
+    protected override void OnStarted()
+    {
+        NewSessionConnected += OnConnected;
+        SessionClosed += OnClosed;
+        NewRequestReceived += OnPacketReceived;
+    }
+}</code></pre>
+
+
+<h2 id="removed">10. 제거된 기능</h2>
+
+<p>옛 SuperSocket을 알고 오면 찾게 되는 것들이다. 전부 의도적으로 뺐고 대체 API가 따로 없다.</p>
+
+<table>
+  <thead>
+    <tr><th>제거된 것</th><th>대신 할 일</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>CollectSend</code> / <code>GetCollectSendData</code> / <code>CommitCollectSend</code>, <code>CollectSendIntervalMillSec</code></td>
+      <td>앱에서 모아 두었다가 <code>SendCopied</code>를 한 번 부른다</td>
+    </tr>
+    <tr>
+      <td><code>RawDataReceived</code> / <code>IRawDataProcessor&lt;T&gt;</code></td>
+      <td>수신 필터에서 처리한다</td>
+    </tr>
+    <tr>
+      <td><code>IConnectionFilter</code></td>
+      <td><code>NewSessionConnected</code>에서 검사하고 거부할 세션은 <code>Close</code>한다</td>
+    </tr>
+    <tr>
+      <td><code>ISocketServerFactory</code> 주입</td>
+      <td>라이브러리가 <code>SocketMode</code>를 보고 구현을 고른다</td>
+    </tr>
+    <tr>
+      <td><code>AppSession.Items</code> / <code>PrevCommand</code> / <code>CurrentCommand</code>, <code>LogCommand</code></td>
+      <td>자기 세션 서브클래스에 필드를 둔다</td>
+    </tr>
+    <tr>
+      <td>문자열 명령 프로토콜 일습(<code>StringRequestInfo</code>, <code>TerminatorReceiveFilter</code>, <code>CountSpliterReceiveFilter</code>, <code>BeginEndMarkReceiveFilter</code>, 비제네릭 <code>AppServer</code>/<code>AppSession</code>)</td>
+      <td><code>AppServer&lt;TSession, TRequestInfo&gt;</code>에 바이너리 필터를 쓴다</td>
+    </tr>
+    <tr>
+      <td><code>byte[]</code> 기반 수신 필터 경로(<code>LeftBufferSize</code>, <code>toBeCopied</code>, <code>offset</code>/<code>length</code> 인자)</td>
+      <td><code>ReadOnlySequence&lt;byte&gt;</code> 하나로 통일됐다. <code>MaxRequestLength</code>는 라이브러리가 미소비 길이로 검사한다</td>
+    </tr>
+    <tr>
+      <td><code>FixedHeaderSequenceReceiveFilter&lt;T&gt;</code></td>
+      <td>이름만 바뀌었다. <code>FixedHeaderReceiveFilter&lt;T&gt;</code>를 쓴다</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  <code>Setup</code>에서도 아무도 쓰지 않던 인자 둘(<code>socketServerFactory</code>, <code>connectionFilters</code>)이 빠졌고,
+  파생 클래스가 재정의하던 훅은 <code>OnSetup</code>으로 이름이 바뀌었다.
+</p>
+
+
+<h2 id="rejected">11. 검토했지만 하지 않기로 한 최적화</h2>
+
+<p>
+  성능 재점검(2026-08-14)에서 후보로 올랐다가 기각한 것들이다.
+  다시 제안되기 쉬운 항목이라 이유를 남긴다.
+</p>
+
+<table>
+  <thead>
+    <tr><th>후보</th><th>기각 이유</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>세션/AppSession/Pipe 풀링(재사용)</strong></td>
+      <td>최대 효과 후보지만 안정성 비용이 정확히 반대급부. 앱이 파생한 <code>AppSession</code> 서브클래스의 필드, 필터 인스턴스 상태, 이벤트 구독이 세션 간에 누출될 수 있고, 이는 라이브러리가 통제할 수 없는 앱 코드 계약 파괴다.</td>
+    </tr>
+    <tr>
+      <td><strong>PipeScheduler.Inline (reader 인라인 실행)</strong></td>
+      <td><code>FlushAsync</code>가 IOCP 스레드에서 앱 요청 핸들러까지 실행하게 된다 → 수신 정지·데드락 위험. <code>ReceiveInlineOnIocpThread</code>가 "파이프 전진까지만 인라인"으로 선을 그은 설계 의도와 충돌한다.</td>
+    </tr>
+    <tr>
+      <td><strong><code>ChannelSendingQueue</code>를 수제 lock-free 큐로 교체</strong></td>
+      <td>세션당 큐라 경합이 거의 없고, 송신 1회의 syscall(µs) 대비 수십 ns 수준. <code>EnqueueAsync</code>(대기·취소·완료 의미) 재구현 위험 대비 이득이 없다.</td>
+    </tr>
+    <tr>
+      <td><strong><code>SessionID</code>를 GUID 문자열이 아닌 값으로</strong></td>
+      <td>접속당 할당 2회가 아깝지만 <code>SessionID: string</code>은 공개 계약이고 앱이 포맷에 의존할 수 있다.</td>
+    </tr>
+    <tr>
+      <td><strong><code>_sessionDict</code> 비교자 <code>OrdinalIgnoreCase</code> → <code>Ordinal</code></strong></td>
+      <td>이득이 너무 작아 호환성 리스크를 정당화하지 못한다.</td>
+    </tr>
+    <tr>
+      <td><strong>송신 배치 코얼레싱</strong></td>
+      <td>scatter-gather(<code>BufferList</code>)가 이미 세그먼트 N개를 syscall 1회로 보낸다. 복사를 더하면 손해다.</td>
+    </tr>
+    <tr>
+      <td><strong>핫패스 공유 카운터 스트라이핑</strong></td>
+      <td>실제로 구현해 측정했더니 처리량이 <strong>일관되게 1.2% 떨어져</strong> 철회했다. 이 부하에서는 캐시라인 경합이 거의 없어 <code>GetCurrentProcessorId</code> 비용만 남는다.</td>
+    </tr>
+    <tr>
+      <td><strong>UDP 경로 최적화</strong></td>
+      <td>주 사용처가 TCP이고 UDP는 LoadTest 커버리지가 없다. 측정 없는 최적화는 하지 않는다는 원칙에 따라 보류.</td>
+    </tr>
+    <tr>
+      <td><strong>RIO / io_uring 등 커널 레벨 재작성</strong></td>
+      <td>플랫폼 종속 대규모 재작성. 범용 .NET 소켓 서버라는 성격과 맞지 않는다.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  앱 경계(ReceiveFilter·핸들러·송신 호출부)에서 남은 할당을 없애는 방법은
+  <a href="GC_Copy_Minimization.md"><code>Docs/GC_Copy_Minimization.md</code></a>에 따로 정리되어 있다.
+</p>
+
+
+<h2>더 볼 것</h2>
+
+<div class="cards">
+  <div class="card">
+    <h4>주의 사항</h4>
+    <p><a href="Cautions_kr.html">알려진 주의 사항</a> — 스레드 안전성, 송신 버퍼 수명, RequestInfo 수명 계약</p>
+  </div>
+  <div class="card">
+    <h4>그림</h4>
+    <p>
+      <a href="Library_Architecture_kr.html">전체 구조</a> ·
+      <a href="Library_Receive_Flow_kr.html">수신 흐름</a> ·
+      <a href="Library_Send_Flow_kr.html">송신 흐름</a> ·
+      <a href="Library_Session_Lifecycle_kr.html">세션 수명</a>
+    </p>
+  </div>
+  <div class="card">
+    <h4>성능</h4>
+    <p><a href="GC_Copy_Minimization.md">GC·데이터 복사 최소화 가이드</a> — 패킷당 할당을 0으로 만드는 방법과 실제 측정치</p>
+  </div>
+  <div class="card">
+    <h4>저장소 문서 (원문)</h4>
+    <p>
+      <a href="../README_kr.md"><code>README_kr.md</code></a>(한글 사용법) ·
+      <a href="../.claude/architecture.md"><code>.claude/architecture.md</code></a>(이 문서의 원문) ·
+      <a href="../.claude/conventions.md"><code>.claude/conventions.md</code></a>(코딩 컨벤션)
+    </p>
+  </div>
+</div>
+
+<div class="panel">
+  <h4 style="margin-top:0">이 문서와 .claude/architecture.md가 어긋나면</h4>
+  <p style="margin:0">
+    이 문서는 <code>.claude/architecture.md</code>를 이 저장소의 HTML 문서 모음 안에서 읽기 좋게 옮긴 것입니다.
+    코드가 바뀌어 내용이 어긋나면 원문(<code>.claude/architecture.md</code>)이 맞는 것이니 그쪽을 기준으로
+    이 문서를 고치세요. 영어판은 <a href="Architecture.html">Architecture.html</a>에 있습니다 —
+    두 판은 내용이 같아야 하니 한쪽을 고치면 다른 쪽도 확인하세요.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

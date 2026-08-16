@@ -1,4 +1,7 @@
 ﻿# 알려진 주의 사항
+
+> 이 문서가 원문이다. 사람이 읽는 HTML판이 [`Docs/Cautions.html`](../Docs/Cautions.html)(영)과
+> [`Docs/Cautions_kr.html`](../Docs/Cautions_kr.html)(한)에 있으니, 여기를 고치면 그 둘도 같이 고친다.
   
 ## 스레드 안전성
 `NewSessionConnected`와 `NewRequestReceived`는 서로 다른 스레드에서 **동시에** 호출될 수 있다.

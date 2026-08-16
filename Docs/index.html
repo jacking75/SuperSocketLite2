@@ -77,10 +77,11 @@
     <h1>SuperSocketLite 2 Documentation</h1>
     <p class="lead">
       The documentation set for SuperSocketLite 2. <strong>Building and using the library, plus what you
-      need to know before you do</strong> is document 1 below. The <strong>source text</strong> lives in
-      the repository root's <code>README.md</code> (Korean translation: <code>README_kr.md</code>) and
-      <code>.claude/cautions.md</code>. <strong>Internal architecture</strong> is covered by
-      <code>.claude/architecture.md</code>.
+      need to know before you do</strong> is document 1 below. <strong>Internal architecture</strong> is
+      document 3, and the <strong>caveats</strong> that only bite under load are document 4. The
+      <strong>source text</strong> for those lives in the repository root's <code>README.md</code>
+      (Korean translation: <code>README_kr.md</code>) and in <code>.claude/architecture.md</code> /
+      <code>.claude/cautions.md</code>.
     </p>
 
     <div class="grid">
@@ -98,50 +99,64 @@
         <div class="file">Guide.html</div>
       </a>
 
-      <a class="card" href="Library_Architecture.html">
+      <a class="card" href="Architecture.html">
         <span class="num">3</span>
+        <h2>Architecture — internals and code flow</h2>
+        <p>What each part does from the listener down to your handler, the order the receive/send/UDP paths run in, and what was deliberately left out.</p>
+        <div class="file">Architecture.html</div>
+      </a>
+
+      <a class="card" href="Cautions.html">
+        <span class="num">4</span>
+        <h2>Known Caveats</h2>
+        <p>Thread safety, send buffer lifetime, the RequestInfo lifetime contract, UDP quirks — the things that compile fine but only bite under load.</p>
+        <div class="file">Cautions.html</div>
+      </a>
+
+      <a class="card" href="Library_Architecture.html">
+        <span class="num">5</span>
         <h2>Full Architecture</h2>
         <p>How every piece connects, from the listener to your handler. Zoomable, searchable, and steppable.</p>
         <div class="file">Library_Architecture.html</div>
       </a>
 
       <a class="card" href="Library_Receive_Flow.html">
-        <span class="num">4</span>
+        <span class="num">6</span>
         <h2>Receive Flow</h2>
         <p>The path one packet takes from the socket to your handler — and exactly where no copy happens.</p>
         <div class="file">Library_Receive_Flow.html</div>
       </a>
 
       <a class="card" href="Library_Send_Flow.html">
-        <span class="num">5</span>
+        <span class="num">7</span>
         <h2>Send Flow</h2>
         <p>How a single response travels through the queue to the socket, and when its buffer returns to the pool.</p>
         <div class="file">Library_Send_Flow.html</div>
       </a>
 
       <a class="card" href="Library_Session_Lifecycle.html">
-        <span class="num">6</span>
+        <span class="num">8</span>
         <h2>Session Lifecycle</h2>
         <p>The state transitions from session creation to close — where shutdown is deferred, and the exception paths.</p>
         <div class="file">Library_Session_Lifecycle.html</div>
       </a>
 
       <a class="card" href="Tutorials_Path.html">
-        <span class="num">7</span>
+        <span class="num">9</span>
         <h2>Reading Order for the Examples</h2>
         <p>Which order to read the <code>Tutorials/</code> examples in, and where their structure branches.</p>
         <div class="file">Tutorials_Path.html</div>
       </a>
 
       <a class="card" href="GC_Copy_Minimization.md">
-        <span class="num">8</span>
+        <span class="num">10</span>
         <h2>Minimizing GC and Copies</h2>
         <p>How to get per-packet allocations to zero across the receive filter, the handler, and the send call — with measured numbers. <em>(Korean only)</em></p>
         <div class="file">GC_Copy_Minimization.md</div>
       </a>
 
       <a class="card" href="VSCode_Repository_Analysis.html">
-        <span class="num">9</span>
+        <span class="num">11</span>
         <h2>Whole-Repository Analysis in VS Code</h2>
         <p>Set <code>SuperSocketLite2.slnx</code> as the default solution so go-to-definition and code search work across the whole repository.</p>
         <div class="file">VSCode_Repository_Analysis.html</div>
@@ -159,7 +174,7 @@
       If the code changes and a diagram no longer matches, fix the spec and regenerate — hand-editing the
       HTML won't fix what's inside the diagram itself.
       The 0.90 → 0.91 migration guide has been removed; what was dropped and what to do instead is now in
-      the "Removed Features" section of <code>.claude/architecture.md</code> <em>(Korean)</em>.
+      the <a href="Architecture.html#removed">"Removed features" section of the Architecture page</a>.
     </div>
   </main>
 </body>

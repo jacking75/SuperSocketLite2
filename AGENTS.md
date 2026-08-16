@@ -34,3 +34,7 @@ dotnet build -c Release
 - 아키텍처 및 코드 흐름 → `.claude/architecture.md`
 - 코딩 컨벤션 → `.claude/conventions.md`
 - 알려진 주의 사항 → `.claude/cautions.md`
+
+위 셋 중 아키텍처와 주의 사항은 사람이 읽는 HTML판이 `Docs/`에 함께 있다
+(`Docs/Architecture.html` · `Docs/Architecture_kr.html`, `Docs/Cautions.html` · `Docs/Cautions_kr.html`).
+**원문은 `.claude/`의 Markdown 쪽이다.** 내용을 고치면 `Docs/`의 영/한 두 판도 같이 고친다.

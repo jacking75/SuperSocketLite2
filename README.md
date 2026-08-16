@@ -51,8 +51,8 @@ path, the send queue, the object pools — with a design built around `Pipelines
   either keyed by remote endpoint or by a session ID you embed in the datagram yourself.
 - **Modern .NET, nullable-annotated, no legacy baggage.** Targets .NET 10, uses
   `System.IO.Pipelines` and `System.Threading.Channels` throughout, and doesn't carry forward
-  API surface nobody used (`.claude/architecture.md` lists what was dropped and what to do
-  instead).
+  API surface nobody used ([`Docs/Architecture.html`](Docs/Architecture.html) lists what was
+  dropped and what to do instead).
 
 ## Quick Start
 
@@ -221,7 +221,7 @@ partial send (rare, but possible) is retried with the remaining bytes, not reque
 
 For the full breakdown — object pool sizing, the receive pipe's backpressure thresholds, the
 session state machine, and the logging abstraction — see
-[`.claude/architecture.md`](.claude/architecture.md) *(Korean)*.
+[`Docs/Architecture.html`](Docs/Architecture.html).
 
 ## Sending Data
 
@@ -234,7 +234,7 @@ session state machine, and the logging abstraction — see
 
 `TrySend*` returns `false` instead of blocking or throwing when the session is closed or its
 queue is full; `Send`/`SendCopied` spin-wait up to `ServerConfig.SendTimeOut` and then throw
-`TimeoutException`. See [`.claude/cautions.md`](.claude/cautions.md) *(Korean)* for the exact
+`TimeoutException`. See [`Docs/Cautions.html`](Docs/Cautions.html) for the exact
 buffer-lifetime rules around the zero-copy overloads.
 
 ## Configuration
@@ -308,9 +308,12 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 
 ## Documentation
 
-- [Architecture & data flow](.claude/architecture.md) *(Korean)*
+- [Architecture & data flow](Docs/Architecture.html) — layers, the receive/send/UDP paths, logging,
+  removed features, and the optimizations that were rejected
+  (source text: [`.claude/architecture.md`](.claude/architecture.md) *(Korean)*)
 - [Coding conventions](.claude/conventions.md) *(Korean)*
-- [Known caveats](.claude/cautions.md) *(Korean)* — thread-safety notes, zero-copy buffer lifetime, UDP quirks
+- [Known caveats](Docs/Cautions.html) — thread-safety notes, zero-copy buffer lifetime, UDP quirks
+  (source text: [`.claude/cautions.md`](.claude/cautions.md) *(Korean)*)
 - [Minimising GC and copies](Docs/GC_Copy_Minimization.md) *(Korean)* — how to get to zero
   per-packet allocations in your receive filter, packet handlers, and send calls
 - [Getting Started](Docs/Getting_Started.html) — build, usage, and the same caveats as one page

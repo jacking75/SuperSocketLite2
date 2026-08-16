@@ -52,7 +52,7 @@
 - **최신 .NET, nullable 주석 완비, 레거시 부담 없음.** .NET 10을 타겟으로 하고
   `System.IO.Pipelines`와 `System.Threading.Channels`를 전면에 쓴다. 아무도 쓰지 않던 API
   표면은 그대로 끌고 오지 않았다(무엇을 뺐고 대신 무엇을 하면 되는지는
-  `.claude/architecture.md`의 "제거된 기능"에 있다).
+  [`Docs/Architecture_kr.html`](Docs/Architecture_kr.html)의 "제거된 기능"에 있다).
 
 ## 빠른 시작
 
@@ -218,7 +218,7 @@ IOCP 완료 스레드는 파이프 라이터를 전진시키고 다음 수신을
 발생 가능)은 처음부터 다시 큐잉하지 않고 남은 바이트만으로 재시도한다.
 
 오브젝트 풀 크기 산정, 수신 파이프의 백프레셔 임계값, 세션 상태 머신, 로깅 추상화까지
-전체 내역은 [`.claude/architecture.md`](.claude/architecture.md)에 있다.
+전체 내역은 [`Docs/Architecture_kr.html`](Docs/Architecture_kr.html)에 있다.
 
 ## 데이터 보내기
 
@@ -232,7 +232,7 @@ IOCP 완료 스레드는 파이프 라이터를 전진시키고 다음 수신을
 `TrySend*`는 세션이 닫혔거나 큐가 가득 찼을 때 블로킹·예외 대신 `false`를 반환한다.
 `Send`/`SendCopied`는 `ServerConfig.SendTimeOut`까지 스핀 대기한 뒤 `TimeoutException`을
 던진다. zero-copy 오버로드의 정확한 버퍼 수명 규칙은
-[`.claude/cautions.md`](.claude/cautions.md)를 참고한다.
+[`Docs/Cautions_kr.html`](Docs/Cautions_kr.html)을 참고한다.
 
 ## 설정
 
@@ -303,9 +303,11 @@ dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 
 ## 문서
 
-- [아키텍처 및 데이터 흐름](.claude/architecture.md)
+- [아키텍처 및 데이터 흐름](Docs/Architecture_kr.html) — 계층 구조, 수신·송신·UDP 경로, 로깅,
+  제거된 기능, 기각한 최적화 (원문 [`.claude/architecture.md`](.claude/architecture.md))
 - [코딩 컨벤션](.claude/conventions.md)
-- [알려진 주의 사항](.claude/cautions.md) — 스레드 안전성, zero-copy 버퍼 수명, UDP 특이사항
+- [알려진 주의 사항](Docs/Cautions_kr.html) — 스레드 안전성, zero-copy 버퍼 수명, UDP 특이사항
+  (원문 [`.claude/cautions.md`](.claude/cautions.md))
 - [GC·데이터 복사 최소화 가이드](Docs/GC_Copy_Minimization.md) — 수신 필터·패킷 핸들러·송신
   호출부에서 패킷당 할당을 0으로 만드는 방법
 - [시작하기](Docs/Getting_Started_kr.html) — 빌드, 사용법, 위 주의 사항을 한 문서에서

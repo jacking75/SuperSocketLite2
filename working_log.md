@@ -1,4 +1,4 @@
-﻿# 작업 로그
+# 작업 로그
 
 > 아래 기록이 참조하는 계획 문서(`TODO.md`, `SIMPLIFY.md`, `.claude/tasks.md`,
 > `Docs/LoadTest_Improvement_Plan.html`, `PERFORMANCE_PLAN.md`)는 해당 작업이 모두 끝난 뒤
@@ -7,6 +7,14 @@
 >
 > 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
 > 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
+
+## 2026-08-18 10:49 KST - 빌드 산출물을 git 추적에서 제외
+
+- 저장소에 커밋돼 있던 예제·템플릿 빌드 산출물 333개(`.dll`/`.exe`/`.pdb`/`.deps.json`/네이티브 런타임 등)를 `git rm --cached`로 인덱스에서 뺐다. 작업 폴더의 실제 파일은 그대로 두었다.
+- `.gitignore`를 `Template/00_server_bins/*`, `Test/00_server_bins/*`, `Tutorials/00_server_bins/*`, `Tutorials/GateServer_GameServer/00_server_bins/*`, `Tutorials/00_client_bin/` 로 정리했다. 폴더 자체가 아니라 `/*` 로 내용만 제외해야 `!*.bat` 되살리기가 먹힌다.
+- 손으로 쓴 실행 스크립트 `run_*.bat` 14개는 그대로 추적한다. 그 폴더에 있던 `appsettings.json`·`NLog.config`는 원본이 각 프로젝트 소스에 있는 빌드 복사본이라 함께 제외했다.
+- `Docs/Getting_Started.html`(영/한)의 "예제 실행 파일이 저장소에 커밋되어 있다"는 설명이 사실과 달라져 두 판 모두 고쳤다.
+- 이력에는 바이너리가 남아 있다. 저장소 용량까지 줄이려면 히스토리 재작성이 따로 필요하다.
 
 ## 2026-08-14 12:25 KST - 라이브러리·예제 설명 문서 신규 작성 (그림 6종)
 

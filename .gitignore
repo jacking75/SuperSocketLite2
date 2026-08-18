@@ -39,8 +39,17 @@ coverage/
 *.nupkg
 *.snupkg
 
-# Tutorial/runtime output folders
-Tutorials/00_server_bins/
+# 예제/템플릿 실행 폴더. 빌드가 산출물을 여기로 내보내므로 커밋하지 않는다.
+# 손으로 쓴 실행 스크립트(.bat)만 남긴다.
+Template/00_server_bins/*
+!Template/00_server_bins/*.bat
+Test/00_server_bins/*
+!Test/00_server_bins/*.bat
+Tutorials/00_server_bins/*
+!Tutorials/00_server_bins/*.bat
+Tutorials/GateServer_GameServer/00_server_bins/*
+!Tutorials/GateServer_GameServer/00_server_bins/*.bat
+Tutorials/00_client_bin/
 
 # Local assistant/tool state
 # .claude/ 의 프로젝트 문서(architecture/cautions/conventions/tasks)는 저장소에 포함한다.

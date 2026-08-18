@@ -159,9 +159,10 @@ dotnet build -c Release</code></pre>
 
 <div class="note">
 현재 소스의 패키지 버전은 <code>SuperSocketLite.csproj</code> 기준 <strong>0.21.0</strong>입니다.
-전체 솔루션(<code>SuperSocketLite2.slnx</code>)을 빌드하면 저장소에 커밋되어 있는 예제 실행 파일(
-<code>Tutorials/*/00_server_bins</code> 등)도 함께 갱신됩니다. 라이브러리 코드만 검증할 때는
-<code>SuperSocketLite/SuperSocketLite.csproj</code>와 필요한 테스트 프로젝트만 빌드하면 이 문제가 없습니다.
+전체 솔루션(<code>SuperSocketLite2.slnx</code>)을 빌드하면 예제 실행 파일이 실행 폴더(
+<code>Tutorials/*/00_server_bins</code>, <code>Tutorials/00_client_bin</code>,
+<code>Template/00_server_bins</code> 등)로 나갑니다. 이 폴더들은 <code>.gitignore</code> 대상이라
+손으로 쓴 <code>run_*.bat</code> 실행 스크립트만 커밋되므로, 전체 빌드를 해도 바이너리 변경이 저장소에 남지 않습니다.
 </div>
 
 <h3>참조 방법 — 별도 NuGet 패키지 <code>SuperSocketLite2</code></h3>

@@ -162,10 +162,10 @@ sets <code>OutputPath</code> to <code>..\bin</code> (one level up from the cspro
 
 <div class="note">
 The package version in the current source (per <code>SuperSocketLite.csproj</code>) is
-<strong>0.21.0</strong>. Building the whole solution (<code>SuperSocketLite2.slnx</code>) also refreshes
-the example executables committed to the repo (<code>Tutorials/*/00_server_bins</code>, etc.). To verify
-just the library code, build only <code>SuperSocketLite/SuperSocketLite.csproj</code> and whichever test
-projects you need — that avoids the issue entirely.
+<strong>0.21.0</strong>. Building the whole solution (<code>SuperSocketLite2.slnx</code>) writes the example
+executables into the run folders (<code>Tutorials/*/00_server_bins</code>, <code>Tutorials/00_client_bin</code>,
+<code>Template/00_server_bins</code>, etc.). Those folders are git-ignored — only the hand-written
+<code>run_*.bat</code> launch scripts are committed — so a full build leaves no binary diffs in the repository.
 </div>
 
 <h3>Referencing it — a separate NuGet package, <code>SuperSocketLite2</code></h3>

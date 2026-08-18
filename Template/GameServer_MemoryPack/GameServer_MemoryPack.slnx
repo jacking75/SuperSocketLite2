@@ -1,4 +1,3 @@
 <Solution>
-  <Project Path="../../SuperSocketLite/SuperSocketLite.csproj" />
   <Project Path="GameServer_MemoryPack.csproj" />
 </Solution>

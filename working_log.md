@@ -8,6 +8,19 @@
 > 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
 > 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
 
+## 2026-08-18 10:58 KST - Template 서버 3종을 NuGet 참조로 전환
+
+- `Template/`의 서버 프로젝트 3개(`GameServer_01`, `GameServer_01_GenericHost`, `GameServer_MemoryPack`)가
+  `..\..\SuperSocketLite\SuperSocketLite.csproj`를 `ProjectReference`로 걸고 있던 것을
+  `<PackageReference Include="SuperSocketLite2" Version="0.21.1" />`로 바꿨다. `Tutorials/EchoServer_NuGet`과 같은 방식이다.
+- 딸린 `.slnx` 2개(`GameServer_01`, `GameServer_MemoryPack`)에서 라이브러리 프로젝트 항목을 뺐다.
+  이제 템플릿 솔루션에는 템플릿 프로젝트만 들어 있다.
+- `TestClient_MemoryPack`은 원래 SuperSocketLite를 참조하지 않아 손대지 않았다.
+- 3개 개별 빌드 + 전체 솔루션(`SuperSocketLite2.slnx`) 빌드 모두 경고 0 / 오류 0.
+  출력된 `SuperSocketLite.dll`이 nuget 캐시의 0.21.1 패키지 DLL과 md5가 같은 것까지 확인했다.
+- 이 전환의 대가: 라이브러리 소스를 고쳐도 템플릿은 더 이상 따라오지 않는다(퍼블리시된 패키지를 본다).
+  라이브러리를 고쳐 가며 시험할 때는 `ProjectReference`로 되돌려야 하며, 그 방법을 `Template/README.md`에 적어 두었다.
+
 ## 2026-08-18 10:49 KST - 빌드 산출물을 git 추적에서 제외
 
 - 저장소에 커밋돼 있던 예제·템플릿 빌드 산출물 333개(`.dll`/`.exe`/`.pdb`/`.deps.json`/네이티브 런타임 등)를 `git rm --cached`로 인덱스에서 뺐다. 작업 폴더의 실제 파일은 그대로 두었다.

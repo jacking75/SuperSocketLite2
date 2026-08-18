@@ -1,5 +1,15 @@
 # 게임 서버 템플릿
 이 디렉토리에 있는 게임 서버 프로젝트를 사용하여 빠르게 게임 서버를 개발하도록 한다. 
+
+서버 프로젝트 3개는 이 저장소의 라이브러리 소스를 직접 참조하지 않고 nuget.org의
+`SuperSocketLite2` 패키지를 참조한다. 그래서 이 디렉토리만 복사해 가도 그대로 빌드된다.
+
+```xml
+<PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+```
+
+라이브러리를 고쳐 가며 시험할 때는 패키지 대신 `..\..\SuperSocketLite\SuperSocketLite.csproj`를
+`ProjectReference`로 걸면 된다.
      
     
 ## GameServer_01

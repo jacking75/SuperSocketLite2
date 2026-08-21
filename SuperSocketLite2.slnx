@@ -1,5 +1,9 @@
 <Solution>
+  <Folder Name="/Analyzers/">
+    <Project Path="Analyzers/SuperSocketLite.Analyzers/SuperSocketLite.Analyzers.csproj" />
+  </Folder>
   <Folder Name="/Template/">
+    <Project Path="Template/dotnet-new/SuperSocketLite2.Templates.csproj" />
     <Project Path="Template/GameServer_01/GameServer_01.csproj" />
     <Project Path="Template/GameServer_01_GenericHost/GameServer_01_GenericHost.csproj" />
     <Project Path="Template/GameServer_MemoryPack/GameServer_MemoryPack.csproj" />
@@ -8,6 +12,7 @@
     <Project Path="Template/TestClient_MemoryPack/test_client.csproj" />
   </Folder>
   <Folder Name="/Test/">
+    <Project Path="Test/SmokeClient/SmokeClient.csproj" />
     <Project Path="Test/SuperSocketLiteRegressionTests/SuperSocketLiteRegressionTests.csproj" />
     <Project Path="Test/TestMemoryPack/TestMemoryPack.csproj" />
     <Project Path="Test/TestProtocolBuffer/TestProtocolBuffer.csproj" />

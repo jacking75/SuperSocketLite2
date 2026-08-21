@@ -72,6 +72,14 @@ this repository).
 dotnet add package SuperSocketLite2
 ```
 
+Or scaffold a complete, runnable server — protocol, handler dispatch, graceful shutdown, and the
+AI-agent guidance described in [Working with an AI coding agent](#working-with-an-ai-coding-agent):
+
+```bash
+dotnet new install SuperSocketLite2.Templates
+dotnet new sslite2-server -n MyGameServer
+```
+
 That's it — no local checkout needed. [`Tutorials/EchoServer_NuGet`](Tutorials/EchoServer_NuGet) is a
 complete, runnable server built entirely against the NuGet package (identical to
 [`Tutorials/EchoServer`](Tutorials/EchoServer), just with a `PackageReference` instead of a
@@ -292,6 +300,49 @@ patterns:
 | [`SimpleUDPServer`](Tutorials/SimpleUDPServer) | UDP sessions |
 | [`GateServer_GameServer`](Tutorials/GateServer_GameServer), [`PvPGameServer`](Tutorials/PvPGameServer), [`GameServer_MoDedicated`](Tutorials/GameServer_MoDedicated) | Closer-to-production game server shapes |
 
+## Working with an AI coding agent
+
+This library has a handful of rules that **compile fine and work under light load, but corrupt data
+once real traffic arrives** — the receive pipe reuses its buffers, so a `RequestInfo` that escapes
+its handler, or a pooled buffer handed to the zero-copy `Send`, only breaks when the pool actually
+wraps around. An agent that hasn't been told about them will write that code confidently, and a
+passing smoke test will not catch it.
+
+So the guidance ships with the library rather than living in a wiki:
+
+| What you get | Where it comes from |
+|---|---|
+| **Build-time enforcement** — 7 analyzer rules (`SSL001`–`SSL007`) for exactly these mistakes | Bundled in the `SuperSocketLite2` package; on as soon as you reference it |
+| **Agent-readable docs** — API cheat sheet, the caveats as do/don't code pairs, 11 recipes, verification steps | [`Docs/agent/`](Docs/agent) |
+| **A Claude Code skill** | [`.claude/skills/supersocketlite2/`](.claude/skills/supersocketlite2) — checked in, nothing to install |
+| **`AGENTS.md` + the skill + the docs inside *your* project** | `dotnet new sslite2-server` puts them in the generated project |
+| **A headless way for the agent to prove the server runs** | [`Test/SmokeClient`](Test/SmokeClient) |
+
+The last one matters more than it looks. "It builds" is not evidence here, and the repository's other
+test clients are WinForms — an agent can't run them. `SmokeClient` is a console app that connects,
+round-trips packets over as many concurrent connections as you ask for, and exits non-zero on
+mismatch:
+
+```bash
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 -n 50 -c 20 --size 512 --expect-echo
+```
+
+The analyzer rules, briefly — see [`Docs/agent/analyzers.md`](Docs/agent/analyzers.md) for the full
+list and how to tune severities:
+
+| Rule | Catches |
+|---|---|
+| `SSL001` / `SSL002` | A `RequestInfo` or its body stored in a field, or captured in a lambda |
+| `SSL003` | An `ArrayPool` buffer passed to the zero-copy `Send`/`TrySend` |
+| `SSL004` | `ReadOnlySequence.First.Span` — reads only the first segment |
+| `SSL005` | An `async` request handler (it returns at the first `await`, and the pipe moves on) |
+| `SSL006` | `Setup()` / `Start()` return values ignored — they report failure with `false`, not an exception |
+| `SSL007` | `GetAllSessions()` / `GetSessions()` used without a null check |
+
+None of this is agent-specific, incidentally. A human reading
+[`Docs/agent/cautions.md`](Docs/agent/cautions.md) before their first packet handler will save
+themselves the same afternoon.
+
 ## Testing & Quality
 
 The library ships with a substantial safety net of its own: a **40-case regression suite**
@@ -306,8 +357,21 @@ dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
 dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 ```
 
+For your own server, [`Test/SmokeClient`](Test/SmokeClient) is a console client that connects to a
+running server and round-trips packets, exiting non-zero on any mismatch — usable from CI and from
+an AI coding agent, unlike the WinForms test clients.
+
+```bash
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 --expect-echo
+```
+
 ## Documentation
 
+- **[Agent-readable docs](Docs/agent)** *(Korean)* — the same material as the HTML documents below,
+  in plain Markdown: [API cheat sheet](Docs/agent/api-cheatsheet.md),
+  [caveats](Docs/agent/cautions.md), [recipes](Docs/agent/recipes.md),
+  [verification](Docs/agent/verify.md), [analyzer rules](Docs/agent/analyzers.md).
+  Start here if you (or your agent) want answers without opening a 650KB standalone HTML page
 - [Architecture & data flow](Docs/Architecture.html) — layers, the receive/send/UDP paths, logging,
   removed features, and the optimizations that were rejected
 - [Coding conventions](.claude/conventions.md) *(Korean)*

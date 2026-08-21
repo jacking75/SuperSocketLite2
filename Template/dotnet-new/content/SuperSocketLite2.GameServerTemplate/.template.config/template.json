@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "jacking75",
+  "classifications": [ "Server", "Game", "Socket", "Console" ],
+  "identity": "SuperSocketLite2.GameServer.CSharp",
+  "groupIdentity": "SuperSocketLite2.GameServer",
+  "name": "SuperSocketLite2 Game Server",
+  "shortName": "sslite2-server",
+  "description": "SuperSocketLite2 기반 TCP 게임 서버. 길이 프리픽스 패킷 프로토콜, 패킷 핸들러 디스패치, 그리고 AI 코딩 에이전트용 가이드(AGENTS.md · Claude 스킬 · 에이전트용 문서)가 함께 들어 있다.",
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "sourceName": "SuperSocketLite2.GameServerTemplate",
+  "preferNameDirectory": true,
+  "defaultName": "GameServer",
+  "symbols": {
+    "Port": {
+      "type": "parameter",
+      "datatype": "integer",
+      "defaultValue": "32452",
+      "replaces": "32452",
+      "description": "서버가 listen 할 TCP 포트."
+    },
+    "MaxConnection": {
+      "type": "parameter",
+      "datatype": "integer",
+      "defaultValue": "2000",
+      "replaces": "2000",
+      "description": "최대 동시 접속 수 (ServerConfig.MaxConnectionNumber)."
+    },
+    "agentGuidance": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "true",
+      "description": "AI 코딩 에이전트용 가이드(AGENTS.md, CLAUDE.md, .claude/skills, Docs/agent)를 함께 생성한다. 끄지 않기를 권한다."
+    },
+    "skipRestore": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "생성 후 dotnet restore 를 실행하지 않는다."
+    }
+  },
+  "sources": [
+    {
+      "modifiers": [
+        {
+          "condition": "(!agentGuidance)",
+          "exclude": [
+            "AGENTS.md",
+            "CLAUDE.md",
+            ".claude/**",
+            "Docs/**"
+          ]
+        }
+      ]
+    }
+  ],
+  "primaryOutputs": [
+    { "path": "SuperSocketLite2.GameServerTemplate.csproj" }
+  ],
+  "postActions": [
+    {
+      "condition": "(!skipRestore)",
+      "description": "NuGet 패키지를 복원합니다.",
+      "manualInstructions": [ { "text": "dotnet restore 를 실행하세요." } ],
+      "actionId": "210D431B-A78B-4D2F-B762-4ED3E3EA9025",
+      "continueOnError": true
+    }
+  ]
+}

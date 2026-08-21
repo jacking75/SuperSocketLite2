@@ -72,6 +72,15 @@ NuGet 패키지 **`SuperSocketLite2`**로 배포된다 — NuGet.org의 기존 `
 dotnet add package SuperSocketLite2
 ```
 
+또는 바로 돌아가는 서버 한 벌을 통째로 만들어 낼 수도 있다. 프로토콜, 핸들러 디스패치,
+우아한 종료에 더해 [AI 코딩 에이전트로 개발하기](#ai-코딩-에이전트로-개발하기)에서 설명하는
+에이전트 가이드까지 들어 있다.
+
+```bash
+dotnet new install SuperSocketLite2.Templates
+dotnet new sslite2-server -n MyGameServer
+```
+
 이게 전부다 — 저장소를 로컬에 받을 필요가 없다. [`Tutorials/EchoServer_NuGet`](Tutorials/EchoServer_NuGet)이
 NuGet 패키지만으로 완성한 실행 가능한 서버다([`Tutorials/EchoServer`](Tutorials/EchoServer)와 완전히
 같고, `ProjectReference` 대신 `PackageReference`를 쓴 것뿐이다).
@@ -287,6 +296,46 @@ NAT 재바인딩을 겪어도 같은 논리적 세션을 유지할 수 있게 �
 | [`SimpleUDPServer`](Tutorials/SimpleUDPServer) | UDP 세션 |
 | [`GateServer_GameServer`](Tutorials/GateServer_GameServer), [`PvPGameServer`](Tutorials/PvPGameServer), [`GameServer_MoDedicated`](Tutorials/GameServer_MoDedicated) | 실제 서비스에 가까운 게임 서버 형태 |
 
+## AI 코딩 에이전트로 개발하기
+
+이 라이브러리에는 **컴파일도 되고 가벼운 부하에서는 잘 돌지만, 실제 트래픽이 붙으면 데이터가
+깨지는** 규칙이 몇 개 있다. 수신 파이프가 버퍼를 재사용하기 때문에, 핸들러 밖으로 새어 나간
+`RequestInfo`나 zero-copy `Send`에 넘긴 풀 버퍼는 풀이 한 바퀴 돌아야 비로소 터진다.
+이걸 모르는 에이전트는 그런 코드를 자신 있게 쓰고, 가벼운 스모크 테스트는 그걸 잡지 못한다.
+
+그래서 가이드를 위키가 아니라 **라이브러리와 함께** 배포한다.
+
+| 무엇이 오나 | 어디서 오나 |
+|---|---|
+| **빌드 시점 강제** — 바로 그 실수들을 잡는 애널라이저 규칙 7개(`SSL001`~`SSL007`) | `SuperSocketLite2` 패키지에 포함. 참조하면 바로 켜진다 |
+| **에이전트가 읽는 문서** — API 치트시트, 주의 사항을 do/don't 코드 쌍으로, 레시피 11종, 검증 절차 | [`Docs/agent/`](Docs/agent) |
+| **Claude Code 스킬** | [`.claude/skills/supersocketlite2/`](.claude/skills/supersocketlite2) — 저장소에 포함, 설치할 것 없음 |
+| **`AGENTS.md` + 스킬 + 문서를 *내* 프로젝트 안에** | `dotnet new sslite2-server` 가 생성된 프로젝트에 함께 넣는다 |
+| **에이전트가 서버가 실제로 돈다는 걸 증명할 수단** | [`Test/SmokeClient`](Test/SmokeClient) |
+
+마지막 항목이 보기보다 중요하다. 여기서 "빌드 성공"은 증거가 되지 못하는데, 저장소의 다른
+테스트 클라이언트는 WinForms라 에이전트가 돌릴 수 없다. `SmokeClient`는 콘솔 앱이고,
+원하는 만큼 동시 연결을 열어 패킷을 왕복시킨 뒤 결과가 다르면 0이 아닌 코드로 끝난다.
+
+```bash
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 -n 50 -c 20 --size 512 --expect-echo
+```
+
+애널라이저 규칙 요약이다. 전체 목록과 심각도 조정은
+[`Docs/agent/analyzers.md`](Docs/agent/analyzers.md)에 있다.
+
+| 규칙 | 잡는 것 |
+|---|---|
+| `SSL001` / `SSL002` | `RequestInfo`나 본문을 필드에 저장하거나 람다에 캡처 |
+| `SSL003` | `ArrayPool` 버퍼를 zero-copy `Send`/`TrySend`로 전송 |
+| `SSL004` | `ReadOnlySequence.First.Span` — 첫 세그먼트만 읽는다 |
+| `SSL005` | `async` 요청 핸들러 — 첫 `await`에서 리턴하고 파이프는 그대로 전진한다 |
+| `SSL006` | `Setup()` / `Start()` 반환값 무시 — 실패를 예외가 아니라 `false`로 알린다 |
+| `SSL007` | `GetAllSessions()` / `GetSessions()` 를 null 검사 없이 사용 |
+
+덧붙이면 이건 에이전트 전용이 아니다. 사람도 첫 패킷 핸들러를 쓰기 전에
+[`Docs/agent/cautions.md`](Docs/agent/cautions.md)를 한 번 읽으면 같은 오후를 아낄 수 있다.
+
 ## 테스트 및 품질
 
 라이브러리 자체가 상당한 안전망을 갖추고 있다. 수신/송신 파이프라인, 세션 상태 머신,
@@ -301,8 +350,21 @@ dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
 dotnet run --project Test/LoadTest/SuperSocketLite.LoadTest.Tests -c Release
 ```
 
+직접 만든 서버를 확인할 때는 [`Test/SmokeClient`](Test/SmokeClient)를 쓴다. 실행 중인 서버에
+접속해 패킷을 왕복시키고 결과가 다르면 0이 아닌 코드로 끝나는 콘솔 클라이언트라,
+WinForms 테스트 클라이언트와 달리 CI와 AI 코딩 에이전트가 그대로 돌릴 수 있다.
+
+```bash
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 --expect-echo
+```
+
 ## 문서
 
+- **[에이전트용 문서](Docs/agent)** — 아래 HTML 문서와 같은 내용을 순수 마크다운으로 정리했다.
+  [API 치트시트](Docs/agent/api-cheatsheet.md), [주의 사항](Docs/agent/cautions.md),
+  [레시피](Docs/agent/recipes.md), [검증](Docs/agent/verify.md),
+  [애널라이저 규칙](Docs/agent/analyzers.md).
+  650KB짜리 단독 실행 HTML을 열지 않고 답만 찾고 싶다면 여기서 시작한다
 - [아키텍처 및 데이터 흐름](Docs/Architecture_kr.html) — 계층 구조, 수신·송신·UDP 경로, 로깅,
   제거된 기능, 기각한 최적화
 - [코딩 컨벤션](.claude/conventions.md)

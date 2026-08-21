@@ -8,6 +8,36 @@
 > 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
 > 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
 
+## 2026-08-21 15:44 KST - AI 코딩 에이전트 지원 자산 5종 추가
+
+- **에이전트용 마크다운 문서**(`Docs/agent/`) 6개를 새로 썼다. 기존 문서가 전부 HTML이고 그중 12개는
+  파일당 650KB(archify 단독 실행 HTML)라 에이전트가 열면 컨텍스트가 날아가던 문제를 없앴다.
+  `api-cheatsheet.md`(실제로 쓰는 12개 타입만 추림), `cautions.md`(주의 사항 8가지를 do/don't 코드 쌍으로),
+  `recipes.md`(복사해 쓰는 코드 11종), `verify.md`, `analyzers.md`, 인덱스 `README.md`.
+- **`supersocketlite2` 스킬**(`.claude/skills/`)을 만들었다. 골든 패스와 "반드시 지키는 3가지"를
+  자체 포함하고 나머지는 `Docs/agent/`로 라우팅한다.
+- **`dotnet new` 템플릿 패키지**(`Template/dotnet-new/`, `SuperSocketLite2.Templates`)를 만들었다.
+  `dotnet new sslite2-server -n MyServer`로 돌아가는 서버 한 벌이 나오고, **생성된 프로젝트가
+  `AGENTS.md` · `CLAUDE.md` · `.claude/skills/` · `Docs/agent/`를 함께 들고 태어난다.**
+  NuGet만으로는 소비자 프로젝트에 에이전트 컨텍스트를 보낼 수 없어서 택한 경로다.
+  가이드 파일은 pack 때 저장소 원본을 직접 집어넣으므로 복사본이 없고 어긋날 일도 없다.
+- **헤드리스 스모크 클라이언트**(`Test/SmokeClient`)를 만들었다. 기존 테스트 클라이언트 2개가
+  WinForms라 CI·에이전트가 못 돌리던 자리를 메운다. 프로토콜 옵션(`--len-bytes`, `--id-bytes`,
+  `--length-excludes-header`, `--big-endian`)과 동시 연결(`-n`)을 지원하고 종료 코드로 결과를 알린다.
+- **Roslyn 애널라이저**(`Analyzers/SuperSocketLite.Analyzers`) 규칙 7개(SSL001~SSL007)를 만들어
+  `SuperSocketLite2` 패키지의 `analyzers/dotnet/cs/`에 실었다. 참조만 하면 켜진다.
+  RequestInfo 수명(SSL001·SSL002·SSL005), zero-copy 버퍼 수명(SSL003), 시퀀스 세그먼트 가정(SSL004),
+  Setup/Start 반환값(SSL006), 세션 열거 null(SSL007).
+- 검증: 레시피 1 코드 별도 빌드 경고 0 / 오류 0. 템플릿 설치→스캐폴딩→빌드 경고 0 / 오류 0,
+  `--Port`·`--MaxConnection`·`--agentGuidance` 옵션 동작 확인. 생성된 서버를 띄우고 SmokeClient로
+  50연결 × 20패킷 × 512B 왕복 1000/1000 성공, 잘못된 프로토콜 옵션은 exit 1. 애널라이저는 의도한
+  9건을 정확히 잡고 정상 코드에는 오탐 0건, 로컬 피드로 패키지를 참조한 프로젝트에서도 동일 동작.
+  솔루션 전체 빌드 오류 0(경고 2건은 여러 프로젝트가 `00_server_bins`를 공유해서 나는 기존 파일 잠금).
+- 남은 일: 애널라이저는 아직 배포되지 않은 버전에 들어 있다. 라이브러리 패키지 버전을 올려 배포해야
+  기존 사용자에게 규칙이 도달한다. 그때 `Template/dotnet-new`의 `PackageVersion`과 템플릿 프로젝트의
+  `PackageReference` 버전도 같이 올린다.
+
+
 ## 2026-08-18 10:58 KST - Template 서버 3종을 NuGet 참조로 전환
 
 - `Template/`의 서버 프로젝트 3개(`GameServer_01`, `GameServer_01_GenericHost`, `GameServer_MemoryPack`)가

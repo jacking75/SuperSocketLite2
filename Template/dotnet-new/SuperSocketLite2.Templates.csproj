@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>SuperSocketLite2.Templates</PackageId>
+    <PackageVersion>0.21.1</PackageVersion>
+    <Version>0.21.1</Version>
+    <Title>SuperSocketLite2 Server Templates</Title>
+    <Authors>jacking75</Authors>
+    <Company>Com2us</Company>
+    <Description>dotnet new templates for SuperSocketLite2 game servers. Scaffolds a runnable TCP server with a length-prefixed packet protocol, handler dispatch, and — this is the point — the AI-agent guidance (AGENTS.md, Claude skill, agent-readable docs) baked into the generated project.</Description>
+    <PackageTags>dotnet-new;templates;SuperSocketLite;socket;tcp;GameServer;agents</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/jacking75/SuperSocketLite2</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/jacking75/SuperSocketLite2</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- 템플릿 안의 .template.config, .claude 같은 dot 폴더가 pack에서 빠지지 않게 한다. -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- 템플릿 패키지에는 lib/ 어셈블리가 없다. NU5128은 그걸 지적하는 경고라 끈다. -->
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!--
+    PackagePath를 하나하나 지정한다. ContentTargetFolders에 맡기면 content/content/... 로
+    한 겹 더 들어간다.
+
+    에이전트 가이드는 저장소 원본(Docs/agent, .claude/skills)을 pack 때 직접 집어넣는다.
+    템플릿 폴더에 복사본을 두지 않으므로 손으로 관리할 것이 없고, 어긋날 일도 없다.
+  -->
+  <ItemGroup>
+    <Content Include="content\**\*"
+             Exclude="content\**\bin\**;content\**\obj\**;content\**\Docs\**;content\**\.claude\**"
+             PackagePath="content\%(RecursiveDir)%(Filename)%(Extension)" />
+
+    <Content Include="..\..\Docs\agent\*.md"
+             PackagePath="content\SuperSocketLite2.GameServerTemplate\Docs\agent\%(Filename)%(Extension)" />
+
+    <Content Include="..\..\.claude\skills\supersocketlite2\**\*"
+             PackagePath="content\SuperSocketLite2.GameServerTemplate\.claude\skills\supersocketlite2\%(RecursiveDir)%(Filename)%(Extension)" />
+
+    <Compile Remove="**\*" />
+  </ItemGroup>
+
+  <!-- 넣기로 한 파일이 실제로 있는지 pack 전에 확인한다. 조용히 빠지는 편이 더 나쁘다. -->
+  <Target Name="VerifyAgentGuidance" BeforeTargets="Pack">
+    <Error Condition="!Exists('..\..\Docs\agent\cautions.md')"
+           Text="Docs/agent/cautions.md 가 없습니다. 에이전트 가이드 없이 템플릿을 배포하면 안 됩니다." />
+    <Error Condition="!Exists('..\..\.claude\skills\supersocketlite2\SKILL.md')"
+           Text=".claude/skills/supersocketlite2/SKILL.md 이 없습니다. 에이전트 가이드 없이 템플릿을 배포하면 안 됩니다." />
+  </Target>
+
+</Project>

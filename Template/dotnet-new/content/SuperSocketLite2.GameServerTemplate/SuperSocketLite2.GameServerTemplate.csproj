@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SuperSocketLite2.GameServerTemplate</RootNamespace>
+  </PropertyGroup>
+
+  <!-- 서버는 Server GC로 돌린다. DATAS(동적 힙 조정)는 .NET 10 Server GC에서 기본 켬이며,
+       상시 부하 서버에서 지연이 튀면 빌드를 고치지 말고 실행할 때
+       DOTNET_GCDynamicAdaptationMode=0 으로 비교한다. -->
+  <PropertyGroup>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+  </ItemGroup>
+
+</Project>

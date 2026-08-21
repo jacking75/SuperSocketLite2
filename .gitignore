@@ -67,3 +67,7 @@ Docs/*.visual-check.*
 
 # 개인 작업용 검토/계획 메모. 커밋하지 않는다.
 NUGET_PUBLISH_REVIEW.md
+
+# dotnet new 템플릿이 빌드 때 복사해 넣는 에이전트 가이드 (원본은 Docs/agent, .claude/skills)
+Template/dotnet-new/artifacts/
+artifacts/

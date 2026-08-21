@@ -38,6 +38,30 @@
     <OutputPath>..\bin</OutputPath>
   </PropertyGroup>
   
+  <!--
+    애널라이저를 패키지에 같이 싣는다. 패키지를 참조하기만 하면 SSL001~SSL007 이 바로 켜진다.
+    ReferenceOutputAssembly=false 라 라이브러리가 애널라이저를 참조하지는 않고 빌드 순서만 잡는다.
+    PrivateAssets=all 이라 패키지 의존성으로도 나가지 않는다.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\Analyzers\SuperSocketLite.Analyzers\SuperSocketLite.Analyzers.csproj"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="IncludeAnalyzerInPackage" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_AnalyzerDll>..\Analyzers\SuperSocketLite.Analyzers\bin\$(Configuration)\netstandard2.0\SuperSocketLite.Analyzers.dll</_AnalyzerDll>
+    </PropertyGroup>
+
+    <Error Condition="!Exists('$(_AnalyzerDll)')"
+           Text="애널라이저 dll 이 없습니다: $(_AnalyzerDll). Analyzers/SuperSocketLite.Analyzers 를 같은 Configuration 으로 먼저 빌드하세요." />
+
+    <ItemGroup>
+      <None Include="$(_AnalyzerDll)" Pack="true" PackagePath="analyzers\dotnet\cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <None Include="PackageReadme.md" Pack="true" PackagePath="\" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />

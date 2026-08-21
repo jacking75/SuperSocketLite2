@@ -16,7 +16,7 @@
   <ItemGroup>
     <!-- EchoServer와 다른 점은 이 한 줄뿐이다 - 저장소 프로젝트가 아니라 nuget.org의
          SuperSocketLite2 패키지를 그대로 참조한다. -->
-    <PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+    <PackageReference Include="SuperSocketLite2" Version="0.22.0" />
   </ItemGroup>
 
   <!-- Docs/GC_Copy_Minimization.md 개선 4: 서버는 Server GC로 돌린다.

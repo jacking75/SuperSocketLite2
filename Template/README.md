@@ -5,7 +5,7 @@
 `SuperSocketLite2` 패키지를 참조한다. 그래서 이 디렉토리만 복사해 가도 그대로 빌드된다.
 
 ```xml
-<PackageReference Include="SuperSocketLite2" Version="0.21.1" />
+<PackageReference Include="SuperSocketLite2" Version="0.22.0" />
 ```
 
 라이브러리를 고쳐 가며 시험할 때는 패키지 대신 `..\..\SuperSocketLite\SuperSocketLite.csproj`를

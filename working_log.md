@@ -8,6 +8,25 @@
 > 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
 > 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
 
+## 2026-08-21 16:19 KST - 0.22.0 배포 완료, 저장소 예제 4개를 새 버전으로 올림
+
+- `SuperSocketLite2` 0.22.0과 `SuperSocketLite2.Templates` 0.22.0이 nuget.org에 반영된 것을
+  확인하고(`v3-flatcontainer` 인덱스), 미뤄 두었던 마지막 단계를 처리했다.
+- 저장소 예제 4개(`Tutorials/EchoServer_NuGet`, `Template/GameServer_01`,
+  `GameServer_01_GenericHost`, `GameServer_MemoryPack`)의 `PackageReference`를 0.22.0으로 올렸다.
+  `Template/README.md`와 `Tutorials/README.md`의 버전 표기도 같이 고쳤다.
+  (`working_log.md`에 남은 0.21.1은 과거 기록이라 그대로 둔다.)
+- **이 네 프로젝트가 처음으로 애널라이저를 받게 되었다.** 넷 다 빌드 경고 0개 — 예제 코드가
+  SSL001~SSL007을 그대로 통과한다. 애널라이저가 빠진 게 아니라 실제로 도는 것인지도 확인했다.
+  `project.assets.json`에 `analyzers/dotnet/cs/SuperSocketLite.Analyzers.dll`이 등록되어 있고,
+  일부러 넣은 위반 코드는 SSL001로 잡힌다.
+- `AGENTS.md`/`CLAUDE.md`의 릴리스 "현재 상태"를 갱신했다. 지금은 예제까지 전부 같은 버전이다.
+- 검증: 솔루션 직렬 빌드 경고 0/오류 0. nuget.org의 실제 배포본으로
+  `dotnet new install SuperSocketLite2.Templates` → 스캐폴딩 → 빌드 경고 0/오류 0 →
+  서버 실행 → SmokeClient 50연결 × 20패킷 × 512B 왕복 1000/1000 성공(exit 0).
+  로컬 피드가 아니라 배포된 패키지만으로 전 과정이 도는 것을 확인했다.
+
+
 ## 2026-08-21 16:01 KST - 0.22.0 릴리스 준비 + 에이전트 문서 영어판 추가
 
 - **버전을 0.22.0으로 올렸다.** 애널라이저가 처음 들어가는 버전이라 배포해야 기존 사용자에게

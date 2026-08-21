@@ -339,6 +339,70 @@ list and how to tune severities:
 | `SSL006` | `Setup()` / `Start()` return values ignored — they report failure with `false`, not an exception |
 | `SSL007` | `GetAllSessions()` / `GetSessions()` used without a null check |
 
+### Prompts that work
+
+Four things separate a prompt that gets correct code from one that doesn't:
+
+1. **Send it to the caveats first.** Everything else the agent can infer from the code; the
+   lifetime contracts it cannot.
+2. **Spell the wire format out in bytes.** "A 4-byte length prefix" is ambiguous — say whether it
+   is little- or big-endian, and whether the length includes the header.
+3. **Ask for proof, not a build.** Require a run under concurrent connections. A single-connection
+   test passes even when the code is wrong.
+4. **Forbid suppressing `SSL0xx` warnings.** Left unsaid, an agent that hits one may reach for
+   `#pragma warning disable`.
+
+Copy and adapt:
+
+**Starting a server**
+
+> Build a TCP game server with SuperSocketLite2. Read `Docs/agent/cautions.md` and
+> `Docs/agent/recipes.md` § 1 first.
+> Wire format: `[2-byte total length, little-endian][2-byte packet ID, little-endian][body]`, where
+> the total length includes the 4-byte header. Max packet 8KB, max 3000 connections, port 32452.
+> Start with one echo packet. Then run the server and verify with
+> `Test/SmokeClient` over at least 50 concurrent connections before telling me it's done.
+
+**Adding a packet to an existing server**
+
+> Add a `ReqEnterRoom` / `ResEnterRoom` packet pair, following the existing packets in
+> `Protocol.cs` and `PacketHandlers.cs`. Room state lives in a dictionary on the server.
+> Before you write the handler, re-read `Docs/agent/cautions.md` § 4 — the request body must not
+> escape the handler. Verify with `Test/SmokeClient` and show me the output.
+
+**A protocol the built-in filters don't cover**
+
+> My protocol is `[1-byte type][3-byte body length, big-endian][body]`, and type `0x00` is a
+> heartbeat with no body. Write the `IRequestInfo` and the receive filter.
+> See `Docs/agent/recipes.md` § 2 and § 4. Reuse a single request instance per session so
+> receiving allocates nothing, and remember the header can span pipe segments.
+
+**Reviewing code you already have**
+
+> Review `GameServer/PacketHandlers.cs` against the checklist at the end of
+> `Docs/agent/cautions.md`. I care most about anything that only breaks under load — a request or
+> its body escaping a handler, a pooled buffer sent zero-copy, a sequence read as if it were one
+> segment. Report what you find before changing anything.
+
+**Chasing corruption that only shows up under load**
+
+> Under load, clients occasionally receive a response belonging to another request. It never
+> reproduces with one connection. Read `Docs/agent/cautions.md` § 1, § 2 and § 4, then find which
+> one this code violates. Reproduce it first with
+> `Test/SmokeClient -n 100 -c 50 --size 1024 --expect-echo`, then fix it and show the run passing.
+
+**Moving packets to a logic thread**
+
+> Right now the packet handlers do their work inline. Move them onto a single logic thread fed by
+> a `Channel`. Follow `Docs/agent/recipes.md` § 9: copy the body out with `ArrayPool` inside the
+> handler and return the buffer in exactly one place, including the path where the queue is full.
+> Keep per-packet allocations at zero and don't suppress any `SSL0xx` warning — fix the cause.
+
+These assume you have this repository checked out, for `Test/SmokeClient`. If you only reference
+the package, say "verify it following `Docs/agent/verify.md`" instead — that document carries a
+self-contained client you can drop into a scratch project, and `dotnet new sslite2-server` puts a
+copy of it in your project.
+
 None of this is agent-specific, incidentally. A human reading
 [`Docs/agent/cautions.md`](Docs/agent/cautions.md) before their first packet handler will save
 themselves the same afternoon.

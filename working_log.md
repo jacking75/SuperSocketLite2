@@ -8,6 +8,32 @@
 > 아래 기록 중 `.claude/architecture.md`, `.claude/cautions.md`를 가리키는 문장은 당시 위치를 적은
 > 것이다. 두 문서는 2026-08-16에 `Docs/`로 옮겨 HTML(영/한)이 되었다.
 
+## 2026-08-21 16:01 KST - 0.22.0 릴리스 준비 + 에이전트 문서 영어판 추가
+
+- **버전을 0.22.0으로 올렸다.** 애널라이저가 처음 들어가는 버전이라 배포해야 기존 사용자에게
+  SSL001~SSL007이 도달한다. 올린 곳은 `SuperSocketLite/SuperSocketLite.csproj`(+`PackageReleaseNotes`),
+  `Template/dotnet-new/SuperSocketLite2.Templates.csproj`, 템플릿이 생성할 프로젝트의
+  `PackageReference`, 그리고 문서 속 버전 표기.
+- **저장소 안의 예제 4개는 일부러 0.21.1에 두었다.** `Tutorials/EchoServer_NuGet`과
+  `Template/GameServer_01`·`GameServer_01_GenericHost`·`GameServer_MemoryPack`은 nuget.org에
+  이미 올라간 버전을 참조해야 restore가 된다. 배포 후에 올린다. 이 네 개는 폴더만 복사해도
+  빌드되어야 하므로 `Directory.Build.props` 같은 공용 프로퍼티로 묶지 않았다.
+- `AGENTS.md`/`CLAUDE.md`에 **릴리스 절차** 섹션을 추가했다. 패키지 2개를 같은 버전으로 함께
+  올리는 순서, 예제가 한 버전 뒤인 이유, 배포 후 할 일까지 적었다.
+- **`Docs/agent/` 문서를 영/한 두 판으로 만들었다.** 저장소 관례(영어=기본, 한글=`_kr`)에 맞춰
+  기존 한글 6개를 `*_kr.md`로 옮기고 영어판 6개를 새로 썼다. 두 판 서로 언어 전환 링크가 있다.
+  한글 문서(루트 `AGENTS.md`·`CLAUDE.md`·`README_kr.md`, 스킬, 템플릿 `AGENTS.md`,
+  `Test/SmokeClient/README.md`)는 `_kr`을, 영어 `README.md`와 애널라이저 `HelpLinkUri`는
+  영어판을 가리키도록 참조를 전부 정리했다. 링크 검사 결과 깨진 링크 0건.
+- 템플릿 패키지는 두 언어판 12개를 모두 싣는다(pack 때 저장소 원본에서 직접 가져간다).
+- 검증: 0.22.0 패키지 2개 생성, 애널라이저 `analyzers/dotnet/cs/` 수록 확인. 로컬 피드로
+  템플릿 설치→스캐폴딩→빌드 **경고 0/오류 0** — 템플릿 코드가 자기 애널라이저 7개 규칙을
+  그대로 통과한다. 일부러 넣은 위반 코드는 SSL001로 잡히고 도움말 링크도 영어판 `cautions.md`로
+  연결되는 것까지 확인했다. 솔루션 직렬 빌드 경고 0/오류 0(병렬 빌드의 MSB3026은 여러 프로젝트가
+  `00_server_bins`를 공유해서 나는 기존 현상).
+- 남은 일: `dotnet nuget push`로 두 패키지를 올리고, 반영된 뒤 저장소 예제 4개를 0.22.0으로 올린다.
+
+
 ## 2026-08-21 15:44 KST - AI 코딩 에이전트 지원 자산 5종 추가
 
 - **에이전트용 마크다운 문서**(`Docs/agent/`) 6개를 새로 썼다. 기존 문서가 전부 HTML이고 그중 12개는

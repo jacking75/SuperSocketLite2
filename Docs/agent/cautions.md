@@ -1,51 +1,53 @@
-# 주의 사항 — 컴파일은 되지만 부하가 걸려야 터지는 것들
+# Caveats — the things that compile fine and break under load
 
-**코드를 쓰기 전에 읽고, 리뷰할 때 다시 읽는다.**
-전부 컴파일에 통과하고 가벼운 테스트에서도 잘 돈다. 동시 접속이 붙어야 깨지므로,
-"돌아가니까 맞다"는 판단이 여기서는 통하지 않는다.
+**[🇰🇷 한국어 (Korean)](cautions_kr.md)**
 
-사람이 읽는 판은 `Docs/Cautions.html` / `Docs/Cautions_kr.html`이고, 같은 8가지가
-`Docs/Getting_Started*.html` 7장에도 실려 있다. **내용을 고치면 네 곳을 같이 고친다.**
+**Read this before you write code, and again when you review it.**
+Every item below compiles, and most of them work in a light test. They only fail once real
+concurrency arrives — so "it ran, therefore it's correct" is not a valid conclusion here.
+
+The human-facing versions are `Docs/Cautions.html` and `Docs/Cautions_kr.html`, and the same eight
+items appear in ch. 7 of `Docs/Getting_Started*.html`. **Edit them together.**
 
 ---
 
-## 1. 스레드 안전성
+## 1. Thread safety
 
-`NewSessionConnected`와 `NewRequestReceived`는 **같은 세션이어도 서로 다른 스레드에서 동시에**
-호출될 수 있다. 클라이언트가 접속하자마자 패킷을 보내면 `NewSessionConnected` 처리 도중에
-`NewRequestReceived`가 들어온다.
+`NewSessionConnected` and `NewRequestReceived` can fire **concurrently on different threads, even
+for the same session.** If a client sends a packet immediately after connecting, the request handler
+can run while the connect handler is still going.
 
 ```csharp
-// 위험 — 접속 핸들러가 세팅을 끝냈다고 가정한다
+// Dangerous — assumes the connect handler has finished its setup
 private void OnConnected(MySession session)
 {
-    session.Player = new Player();          // 아직 대입 전인데
+    session.Player = new Player();          // not assigned yet...
 }
 
 private void OnRequest(MySession session, MyRequestInfo req)
 {
-    session.Player.Handle(req);             // 여기서 NullReferenceException
+    session.Player.Handle(req);             // ...NullReferenceException here
 }
 ```
 
-해결은 둘 중 하나다.
+There are two ways out.
 
 ```csharp
-// 방법 A — 순서를 구조적으로 보장한다 (권장)
+// Option A — make the ordering structural (recommended)
 var config = new ServerConfig
 {
-    // NewSessionConnected가 accept 경로에서 동기 호출된다.
-    // 핸들러가 accept를 블로킹하므로 반드시 가볍게 유지한다.
+    // Raises NewSessionConnected synchronously on the accept path. Your handler blocks the
+    // accept loop while it runs, so keep it light.
     SyncSessionConnectedEvent = true,
 };
 
-// 방법 B — 요청 핸들러가 스스로 방어한다
+// Option B — let the request handler defend itself
 private void OnRequest(MySession session, MyRequestInfo req)
 {
     var player = session.Player;
     if (player is null)
     {
-        return;                             // 또는 세션을 닫는다
+        return;                             // or close the session
     }
 
     player.Handle(req);
@@ -54,49 +56,49 @@ private void OnRequest(MySession session, MyRequestInfo req)
 
 ---
 
-## 2. 송신 버퍼 수명 (zero-copy)
+## 2. Send buffer lifetime (zero-copy)
 
-`Send(byte[], int, int)`, `Send(ArraySegment<byte>)`, `Send(IList<ArraySegment<byte>>)`,
-`SendAsync(ReadOnlyMemory<byte>)`(배열 기반일 때)는 **호출자의 배열을 참조로 큐에 넣는다.**
-전송이 끝나기 전에 그 배열을 건드리면 잘못된 데이터가 나간다.
+`Send(byte[], int, int)`, `Send(ArraySegment<byte>)`, `Send(IList<ArraySegment<byte>>)` and
+`SendAsync(ReadOnlyMemory<byte>)` (when the memory is array-backed) queue **a reference to your
+array.** Touch it before the send completes and the wrong bytes go out.
 
 ```csharp
-// 위험 — 아직 전송 중인 버퍼를 덮어쓴다
+// Dangerous — overwrites a buffer that may still be in flight
 session.Send(buffer, 0, len);
 buffer[0] = 0;
 
-// 안전 — 라이브러리가 풀 버퍼로 복사해 간다
+// Safe — the library copies into its own pooled buffer
 session.SendCopied(buffer.AsSpan(0, len));
-buffer[0] = 0;                              // OK
+buffer[0] = 0;                              // fine
 ```
 
-- `Send(IList<...>)`의 **리스트 자체**는 enqueue 시 복사되므로 호출 직후 재사용해도 된다.
-  공유되는 건 리스트 안의 배열이다.
-- 빈 데이터 처리가 다르다. `SendCopied` / `TrySendCopied`는 데이터가 비면 아무것도 큐에 넣지
-  않고 성공으로 돌아간다. `Send(buffer, 0, 0)`은 길이 0 세그먼트를 실제로 전송한다 —
-  UDP라면 빈 데이터그램이 나간다. 빈 패킷에 의미가 있는 프로토콜을 `Send`에서 `SendCopied`로
-  옮길 때만 확인하면 된다.
+- For `Send(IList<...>)` the **list itself** is copied on enqueue, so you can reuse the list right
+  away. The arrays inside it are what stay shared.
+- Empty payloads behave differently. `SendCopied` / `TrySendCopied` queue nothing and report
+  success when the data is empty. `Send(buffer, 0, 0)` actually queues a zero-length segment and
+  transmits it — over UDP that means an empty datagram goes out. This only matters if empty packets
+  carry meaning in your protocol and you are migrating a call from `Send` to `SendCopied`.
 
-**판단 기준:** 확신이 없으면 `SendCopied`를 쓴다. 스택이나 `ArrayPool`에서 빌린 버퍼를
-`Send`로 넘기는 코드는 거의 항상 버그다.
+**Rule of thumb:** when in doubt, use `SendCopied`. Code that hands a `stackalloc` buffer or an
+`ArrayPool` rental to `Send` is almost always a bug.
 
 ---
 
-## 3. 수신 필터
+## 3. Receive filters
 
-필터는 파이프에서 `ReadOnlySequence<byte>`를 직접 받는다.
+A filter reads a `ReadOnlySequence<byte>` straight out of the pipe.
 
-**요청이 아직 완성되지 않았으면 `consumed`를 전진시키지 말고 그대로 둔다.** 데이터는 파이프에
-남고 다음 수신 때 이어서 온다. 필터가 자체 캐리 버퍼를 두면 오히려 복사가 늘어난다.
+**If the request isn't complete yet, leave `consumed` where it is.** The data stays in the pipe and
+the rest arrives with the next read. A filter that keeps its own carry buffer only adds copying.
 
 ```csharp
-// 위험 — 세그먼트가 하나라고 가정한다
+// Dangerous — assumes one segment
 protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
 {
-    return BinaryPrimitives.ReadInt16LittleEndian(header.First.Span);   // 헤더가 쪼개지면 깨진다
+    return BinaryPrimitives.ReadInt16LittleEndian(header.First.Span);   // breaks on a split header
 }
 
-// 안전 — 스택 버퍼로 모아서 읽는다
+// Safe — gather into a stack buffer first
 protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
 {
     Span<byte> buffer = stackalloc byte[HeaderSize];
@@ -105,88 +107,92 @@ protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
 }
 ```
 
-`header`도 `body`도 세그먼트 여러 개에 걸칠 수 있다. `.First.Span`으로 바로 읽지 말고
-`CopyTo(Span)`이나 `ToArray()`를 쓴다. 헤더는 대개 작으므로 `stackalloc`이 정답이다.
+Both `header` and `body` can straddle segments. Don't reach through `.First.Span`; use
+`CopyTo(Span)` or `ToArray()`. Headers are small, so `stackalloc` is usually the right answer.
 
-UDP + `UdpRequestInfo` 조합에서 sessionID 파싱용 필터는 **수신 스레드당 1개가 재사용된다**
-(`Reset()` 후 재사용). 이 필터는 데이터그램 간 상태를 가지면 안 되고,
-`CreateFilter`에 넘어온 remote endpoint를 캡처해서도 안 된다.
+With UDP plus `UdpRequestInfo`, the filter that parses the session ID is **shared per receive
+thread** and reused after `Reset()`. It must hold no state between datagrams, and it must not
+capture the remote endpoint passed to `CreateFilter`.
 
 ---
 
-## 4. RequestInfo와 본문의 수명 — 가장 많이 틀리는 것
+## 4. RequestInfo and body lifetime — the one people get wrong
 
-라이브러리는 `NewRequestReceived` 핸들러를 **동기로** 부르고, 핸들러가 전부 리턴한 뒤에야
-파이프를 전진시킨다(`AppServerBase.ExecuteCommand` → `ProcessPipeAsync`의 `AdvanceTo`).
-UDP도 같다 — `UdpReceivePacket.Dispose()`가 핸들러 리턴 후에 수신 버퍼를 풀에 돌려준다.
+The library calls `NewRequestReceived` **synchronously** and only advances the receive pipe after
+your handler has returned (`AppServerBase.ExecuteCommand` → the `AdvanceTo` in `ProcessPipeAsync`).
+UDP works the same way: `UdpReceivePacket.Dispose()` returns the receive buffer to the pool after
+the handler returns.
 
-이 보장 덕분에 앱은 **패킷당 할당을 0으로** 만들 수 있다. 필터가 요청 인스턴스 하나를 돌려 쓰고
-본문을 `ReadOnlySequence<byte>`로 그대로 넘기면 된다. `Tutorials/EchoServer`가 그 형태다.
+That guarantee is what lets an application reach **zero allocations per packet**: the filter reuses
+one request instance and hands the body straight through as a `ReadOnlySequence<byte>`.
+`Tutorials/EchoServer` is built that way.
 
-대신 계약이 생긴다.
+It comes with a contract.
 
-> **핸들러가 리턴하면 그 `RequestInfo`와 본문은 더 이상 유효하지 않다.**
-> 필드에 저장하거나, 람다에 캡처하거나, 다른 스레드 큐에 넣으면 안 된다.
+> **Once the handler returns, that `RequestInfo` and its body are no longer valid.**
+> Don't store them in a field, capture them in a lambda, or push them onto another thread's queue.
 
 ```csharp
-// 위험 — 전부 같은 실수다
+// Dangerous — these are all the same mistake
 private void OnRequest(MySession session, MyRequestInfo req)
 {
-    _lastRequest = req;                        // 필드 저장 — 다음 패킷이 같은 인스턴스를 덮어쓴다
-    _queue.Enqueue(req);                       // 다른 스레드로 전달 — 그 스레드가 볼 때는 이미 무효
-    Task.Run(() => Handle(req.Body));          // 람다 캡처 — 위와 같다
-    _ = HandleAsync(session, req);             // await 하지 않는 async — 리턴 후에 본문을 읽는다
+    _lastRequest = req;                        // stored in a field — the next packet overwrites it
+    _queue.Enqueue(req);                       // handed to another thread — stale by the time it looks
+    Task.Run(() => Handle(req.Body));          // captured in a lambda — same problem
+    _ = HandleAsync(session, req);             // un-awaited async — reads the body after the return
 }
 
-// 안전 A — 핸들러 안에서 역직렬화해서 값만 남긴다
+// Safe (A) — deserialize inside the handler and keep only the value
 private void OnRequest(MySession session, MyRequestInfo req)
 {
-    var login = MemoryPackSerializer.Deserialize<LoginReq>(req.Body);   // 값 타입/새 객체
-    _queue.Enqueue(login);                                              // 이건 넘겨도 된다
+    var login = MemoryPackSerializer.Deserialize<LoginReq>(req.Body);   // a fresh object
+    _queue.Enqueue(login);                                             // this one is fine to pass on
 }
 
-// 안전 B — 로직 스레드로 바이트를 넘겨야 하면 풀에서 빌려 복사한다
+// Safe (B) — if the logic thread needs the raw bytes, rent and copy
 private void OnRequest(MySession session, MyRequestInfo req)
 {
     var length = checked((int)req.Body.Length);
     var rented = ArrayPool<byte>.Shared.Rent(length);
     req.Body.CopyTo(rented);
 
-    // 처리 후 한 곳에서 ArrayPool<byte>.Shared.Return(rented) 한다.
+    // Return it in exactly one place after processing: ArrayPool<byte>.Shared.Return(rented).
     _queue.Enqueue(new PacketWork(session.SessionID, rented, length));
 }
 ```
 
-패킷을 로직 스레드로 넘기는 구조라면 zero-copy 방식을 쓸 수 없다. 안전 B가 그 형태이고,
-`Tutorials/PvPGameServer`가 실제 예다. 자세한 건 `Docs/GC_Copy_Minimization.md`.
+If your architecture hands packets to a logic thread, the zero-copy approach is not available to
+you. Option B is the shape you want, and `Tutorials/PvPGameServer` is a working example. See
+`Docs/GC_Copy_Minimization.md` for the details.
 
-**어겼을 때 컴파일은 되고 가벼운 부하에서는 대개 동작한다.** 파이프 버퍼가 재사용될 만큼
-부하가 올라야 데이터가 깨지므로 찾기 매우 어렵다.
+**Break this and the code compiles and usually works under light load.** The data only corrupts
+once traffic is heavy enough for the pipe buffers to be recycled, which makes it very hard to find.
 
 ---
 
-## 5. 시간 값은 UTC
+## 5. Time values are UTC
 
-`AppSession.StartTime` / `LastActiveTime`, `AppServerBase.StartedTime`은 전부 UTC다.
+`AppSession.StartTime`, `AppSession.LastActiveTime` and `AppServerBase.StartedTime` are all UTC.
 
 ```csharp
-// 위험 — 로컬 시간으로 착각하고 비교한다
-if (DateTime.Now - session.StartTime > TimeSpan.FromMinutes(5))   // 시차만큼 어긋난다
+// Dangerous — compares against local time
+if (DateTime.Now - session.StartTime > TimeSpan.FromMinutes(5))   // off by your UTC offset
 
-// 안전
+// Safe
 if (DateTime.UtcNow - session.StartTime > TimeSpan.FromMinutes(5))
 
-// 화면·로그에 로컬로 찍을 때만 변환한다
+// Convert only when displaying
 logger.Info($"connected at {session.StartTime.ToLocalTime()}");
 ```
 
-`LastActiveTime`은 단조 tick에서 역산하므로 수 ms 오차가 있다. 정밀한 비교에는 쓰지 않는다.
+`LastActiveTime` is derived from a monotonic tick stamp, so it carries a few milliseconds of error.
+Don't use it for precise comparisons.
 
 ---
 
-## 6. 타임아웃 처리 순서
+## 6. Timeout handling order
 
-`TimeoutException` 발생 후 세션을 종료할 때는 **반드시 이 순서**를 지킨다.
+When a `TimeoutException` leads you to close a session, **this order is mandatory.**
 
 ```csharp
 try
@@ -195,41 +201,43 @@ try
 }
 catch (TimeoutException)
 {
-    session.SendEndWhenSendingTimeOut();   // 먼저 이것
-    session.Close();                       // 그 다음 이것
+    session.SendEndWhenSendingTimeOut();   // this first
+    session.Close();                       // then this
 }
 ```
 
-`SendEndWhenSendingTimeOut()` 없이 `Close()`만 부르면 소켓이 정리되지 않는다.
+Calling `Close()` without `SendEndWhenSendingTimeOut()` leaves the socket uncleaned.
 
 ---
 
-## 7. 최대 연결 수 초과
+## 7. Exceeding the connection limit
 
-`MaxConnectionNumber`를 넘으면 라이브러리가 **즉시 연결을 끊는다.**
-이때 **`NewSessionConnected`는 호출되지 않는다.**
+When `MaxConnectionNumber` is exceeded the library **drops the connection immediately**, and
+**`NewSessionConnected` is not raised.**
 
-접속 수를 세션 이벤트로 카운트하는 코드는 거절된 연결을 못 본다.
-거절 건수는 메트릭 `sessions-rejected`로 확인한다.
-
----
-
-## 8. UDP 모드
-
-- UDP 세션은 내부 `_client`(`Socket`)가 **null일 수 있다.** 소켓 인스턴스를 공유하는 구조라서 그렇다.
-- `Close()` 내부에서 UDP/TCP 경로가 분기된다. UDP 관련 코드를 고칠 때 주의한다.
-- 3번에 적은 대로, sessionID 파싱 필터는 수신 스레드당 1개가 재사용된다.
+Code that counts connections through session events will never see the rejected ones.
+Use the `sessions-rejected` metric for that.
 
 ---
 
-## 리뷰 체크리스트
+## 8. UDP mode
 
-이 라이브러리를 쓰는 코드를 리뷰할 때 이 순서로 본다.
+- A UDP session's internal `_client` (`Socket`) **can be null** — the socket instance is shared.
+- `Close()` branches internally between the UDP and TCP paths. Be careful when changing UDP code.
+- As noted in §3, the session-ID filter is shared per receive thread.
 
-- [ ] `RequestInfo`나 `Body`가 핸들러 밖으로 나가는 경로가 있는가 (필드/캡처/큐/`async` 미대기)
-- [ ] `Send`에 스택 버퍼나 `ArrayPool` 대여 버퍼를 넘기지 않았는가 → `SendCopied`여야 한다
-- [ ] 필터에서 `.First.Span`으로 헤더를 읽지 않았는가 → `CopyTo(Span)`이어야 한다
-- [ ] 접속 핸들러가 세팅한 값을 요청 핸들러가 무방비로 읽지 않는가
-- [ ] `GetAllSessions()` / `GetSessions()` 결과의 `null` 검사를 했는가
-- [ ] `TimeoutException` 처리에 `SendEndWhenSendingTimeOut()`이 `Close()`보다 앞에 있는가
-- [ ] 시간 비교에 `DateTime.Now`가 아니라 `DateTime.UtcNow`를 썼는가
+---
+
+## Review checklist
+
+Work through this when reviewing code that uses the library.
+
+- [ ] Is there any path where a `RequestInfo` or `Body` leaves the handler (field, capture, queue, un-awaited `async`)?
+- [ ] Is a `stackalloc` or `ArrayPool` buffer being passed to `Send`? It should be `SendCopied`.
+- [ ] Does a filter read a header through `.First.Span`? It should be `CopyTo(Span)`.
+- [ ] Does the request handler read connect-handler state without guarding it?
+- [ ] Are `GetAllSessions()` / `GetSessions()` results null-checked?
+- [ ] In `TimeoutException` handling, does `SendEndWhenSendingTimeOut()` come before `Close()`?
+- [ ] Do time comparisons use `DateTime.UtcNow` rather than `DateTime.Now`?
+
+Most of these are also enforced at build time — see [analyzers.md](analyzers.md).

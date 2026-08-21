@@ -11,8 +11,8 @@
     <!-- CS1591: public 멤버 XML 주석 누락, CS1573: 일부 인자만 param 태그 존재.
          문서화는 설명이 필요한 곳에만 한다는 방침이므로 둘 다 끈다. -->
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
-    <PackageVersion>0.21.1</PackageVersion>
-    <Version>0.21.1</Version>
+    <PackageVersion>0.22.0</PackageVersion>
+    <Version>0.22.0</Version>
 	<PackageId>SuperSocketLite2</PackageId>
 	<Authors>jacking75</Authors>
 	<Company>Com2us</Company>
@@ -21,7 +21,9 @@
 	<PackageProjectUrl>https://github.com/jacking75/SuperSocketLite2</PackageProjectUrl>
     <RepositoryUrl>https://github.com/jacking75/SuperSocketLite2</RepositoryUrl>
     <PackageTags>SuperSocket;socket;tcp;udp;GameServer;networking;dotnet;csharp;iocp;pipelines;realtime;multiplayer</PackageTags>
-    <PackageReleaseNotes>First public release of SuperSocketLite2 — a from-scratch, .NET 10 / System.IO.Pipelines-based rewrite. This is a separate NuGet package from the older SuperSocketLite (still the pre-rewrite .NET 9 line); installing it does not affect existing SuperSocketLite users. Windows/Linux server-side use only.</PackageReleaseNotes>
+    <PackageReleaseNotes>0.22.0 — The package now ships Roslyn analyzers (SSL001-SSL007) that catch the mistakes this library punishes only under load: a RequestInfo or its body escaping the request handler (stored in a field, captured in a lambda, or read after an await), a pooled buffer handed to the zero-copy Send, ReadOnlySequence read through First.Span, an ignored Setup/Start return value, and an unchecked GetAllSessions result. They turn on as soon as you reference the package; no configuration. Companion package SuperSocketLite2.Templates adds `dotnet new sslite2-server`. No API or behaviour changes to the library itself — upgrading from 0.21.1 may surface new warnings, and every one of them is worth reading. See Docs/agent/analyzers.md.
+
+0.21.1 — First public release of SuperSocketLite2, a from-scratch .NET 10 / System.IO.Pipelines-based rewrite. This is a separate NuGet package from the older SuperSocketLite (still the pre-rewrite .NET 9 line); installing it does not affect existing SuperSocketLite users. Windows/Linux server-side use only.</PackageReleaseNotes>
     <PackageReadmeFile>PackageReadme.md</PackageReadmeFile>
 
 	<PublishRepositoryUrl>true</PublishRepositoryUrl>

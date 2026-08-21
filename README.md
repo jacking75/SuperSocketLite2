@@ -367,7 +367,7 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 --expect-echo
 
 ## Documentation
 
-- **[Agent-readable docs](Docs/agent)** *(Korean)* — the same material as the HTML documents below,
+- **[Agent-readable docs](Docs/agent)** — the same material as the HTML documents below,
   in plain Markdown: [API cheat sheet](Docs/agent/api-cheatsheet.md),
   [caveats](Docs/agent/cautions.md), [recipes](Docs/agent/recipes.md),
   [verification](Docs/agent/verify.md), [analyzer rules](Docs/agent/analyzers.md).

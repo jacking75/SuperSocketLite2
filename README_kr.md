@@ -322,7 +322,7 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 -n 50 -c 20 --s
 ```
 
 애널라이저 규칙 요약이다. 전체 목록과 심각도 조정은
-[`Docs/agent/analyzers.md`](Docs/agent/analyzers.md)에 있다.
+[`Docs/agent/analyzers_kr.md`](Docs/agent/analyzers_kr.md)에 있다.
 
 | 규칙 | 잡는 것 |
 |---|---|
@@ -334,7 +334,7 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 -n 50 -c 20 --s
 | `SSL007` | `GetAllSessions()` / `GetSessions()` 를 null 검사 없이 사용 |
 
 덧붙이면 이건 에이전트 전용이 아니다. 사람도 첫 패킷 핸들러를 쓰기 전에
-[`Docs/agent/cautions.md`](Docs/agent/cautions.md)를 한 번 읽으면 같은 오후를 아낄 수 있다.
+[`Docs/agent/cautions_kr.md`](Docs/agent/cautions_kr.md)를 한 번 읽으면 같은 오후를 아낄 수 있다.
 
 ## 테스트 및 품질
 
@@ -361,9 +361,9 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 --expect-echo
 ## 문서
 
 - **[에이전트용 문서](Docs/agent)** — 아래 HTML 문서와 같은 내용을 순수 마크다운으로 정리했다.
-  [API 치트시트](Docs/agent/api-cheatsheet.md), [주의 사항](Docs/agent/cautions.md),
-  [레시피](Docs/agent/recipes.md), [검증](Docs/agent/verify.md),
-  [애널라이저 규칙](Docs/agent/analyzers.md).
+  [API 치트시트](Docs/agent/api-cheatsheet_kr.md), [주의 사항](Docs/agent/cautions_kr.md),
+  [레시피](Docs/agent/recipes_kr.md), [검증](Docs/agent/verify_kr.md),
+  [애널라이저 규칙](Docs/agent/analyzers_kr.md).
   650KB짜리 단독 실행 HTML을 열지 않고 답만 찾고 싶다면 여기서 시작한다
 - [아키텍처 및 데이터 흐름](Docs/Architecture_kr.html) — 계층 구조, 수신·송신·UDP 경로, 로깅,
   제거된 기능, 기각한 최적화

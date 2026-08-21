@@ -43,12 +43,15 @@ dotnet build -c Release
 
 | 필요한 것 | 문서 |
 |---|---|
-| 어디부터 볼지 | `Docs/agent/README.md` |
-| 타입·네임스페이스·시그니처·`ServerConfig` 기본값 | `Docs/agent/api-cheatsheet.md` |
-| 컴파일은 되지만 부하가 걸려야 터지는 함정 8가지 | `Docs/agent/cautions.md` |
-| 복사해 쓰는 코드 11종 | `Docs/agent/recipes.md` |
-| 만든 서버가 실제로 도는지 확인 | `Docs/agent/verify.md` |
-| `SSL0xx` 빌드 경고의 의미 | `Docs/agent/analyzers.md` |
+| 어디부터 볼지 | `Docs/agent/README_kr.md` |
+| 타입·네임스페이스·시그니처·`ServerConfig` 기본값 | `Docs/agent/api-cheatsheet_kr.md` |
+| 컴파일은 되지만 부하가 걸려야 터지는 함정 8가지 | `Docs/agent/cautions_kr.md` |
+| 복사해 쓰는 코드 11종 | `Docs/agent/recipes_kr.md` |
+| 만든 서버가 실제로 도는지 확인 | `Docs/agent/verify_kr.md` |
+| `SSL0xx` 빌드 경고의 의미 | `Docs/agent/analyzers_kr.md` |
+
+위 표는 한글판이다. 영어판은 접미사 없는 같은 이름(`cautions.md` 등)으로 나란히 있고 내용이 같다.
+**한쪽을 고치면 다른 쪽도 고친다.**
 
 > **`Docs/*.html`은 열지 않는다.** `Library_Architecture.html` 같은 단독 실행 HTML은
 > 파일 하나가 650KB라 컨텍스트를 통째로 날린다. 같은 내용이 `Docs/agent/*.md`에 있다.
@@ -62,16 +65,65 @@ dotnet build -c Release
 아키텍처와 주의 사항은 아키텍처 문서이므로 `.claude/`가 아니라 `Docs/`에 둔다.
 영/한 두 판이 본문이고 그 뒤에 따로 원문 Markdown이 있지 않으므로, 내용을 고칠 때는 **두 판을 같이** 고친다.
 주의 사항 8가지는 `Docs/Getting_Started.html`(영/한) 7장에도 그대로 실려 있으니 함께 확인한다.
-같은 8가지가 `Docs/agent/cautions.md`에도 있으므로 **고칠 때는 네 곳을 같이 고친다.**
+같은 8가지가 `Docs/agent/cautions.md`(영)·`cautions_kr.md`(한)에도 있으므로 **고칠 때는 여섯 곳을 같이 고친다.**
 
 ## 에이전트 지원 자산을 고칠 때
 
 | 고치는 것 | 같이 확인할 곳 |
 |---|---|
-| `Docs/agent/cautions.md` | `Docs/Cautions.html`, `Docs/Cautions_kr.html`, `Docs/Getting_Started*.html` 7장 |
-| 애널라이저 규칙 추가·변경 | `Descriptors.cs`, 애널라이저 클래스, `AnalyzerReleases.Unshipped.md`, `Docs/agent/analyzers.md` |
+| `Docs/agent/cautions.md` 또는 `cautions_kr.md` | 나머지 한 언어판, `Docs/Cautions.html`, `Docs/Cautions_kr.html`, `Docs/Getting_Started*.html` 7장 |
+| 애널라이저 규칙 추가·변경 | `Descriptors.cs`, 애널라이저 클래스, `AnalyzerReleases.Unshipped.md`, `Docs/agent/analyzers.md` + `analyzers_kr.md` |
 | `Docs/agent/*.md`, `.claude/skills/supersocketlite2/**` | 손댈 것 없다. 템플릿 패키지가 pack 때 원본을 그대로 집어넣는다 |
 | 라이브러리 패키지 버전 | `Template/dotnet-new/SuperSocketLite2.Templates.csproj`, 템플릿 프로젝트의 `PackageReference` |
+
+## 릴리스 절차
+
+패키지 두 개를 **항상 같은 버전으로 함께** 올린다.
+
+| 패키지 | 소스 | 담는 것 |
+|---|---|---|
+| `SuperSocketLite2` | `SuperSocketLite/` | 라이브러리 + 애널라이저(`analyzers/dotnet/cs/`) |
+| `SuperSocketLite2.Templates` | `Template/dotnet-new/` | `dotnet new sslite2-server` |
+
+### 저장소 안의 예제는 왜 한 버전 뒤인가
+
+`Tutorials/EchoServer_NuGet`, `Template/GameServer_01`, `GameServer_01_GenericHost`,
+`GameServer_MemoryPack` 네 개는 **nuget.org에 이미 올라간 버전**을 참조한다. 아직 배포되지 않은
+버전을 적으면 저장소가 restore 되지 않기 때문이다. **일부러 그렇게 둔 것이니 맞추려 하지 말고,
+배포가 끝난 뒤에 올린다.**
+
+이 네 개는 폴더만 복사해 가도 빌드되어야 하므로 버전을 리터럴로 적는다.
+`Directory.Build.props` 같은 공용 프로퍼티로 묶으면 안 된다.
+
+### 순서
+
+```bash
+# 1. 버전을 올린다 (배포 전)
+#    - SuperSocketLite/SuperSocketLite.csproj        : PackageVersion, Version, PackageReleaseNotes
+#    - Template/dotnet-new/SuperSocketLite2.Templates.csproj : PackageVersion, Version
+#    - Template/dotnet-new/content/*/*.csproj        : PackageReference
+#    - Docs/agent/recipes*.md, Template/dotnet-new/README.md : 문서 속 버전
+
+# 2. 빌드하고 검증한다
+dotnet build SuperSocketLite2.slnx -c Release          # 오류 0
+dotnet run --project Test/SuperSocketLiteRegressionTests -c Release
+dotnet pack SuperSocketLite/SuperSocketLite.csproj -c Release -o ./artifacts
+dotnet pack Template/dotnet-new -c Release -o ./artifacts
+
+# 애널라이저가 실렸는지 눈으로 확인한다
+unzip -l ./artifacts/SuperSocketLite2.<버전>.nupkg | grep analyzers
+
+# 3. 올린다
+dotnet nuget push ./artifacts/SuperSocketLite2.<버전>.nupkg --source https://api.nuget.org/v3/index.json --api-key <KEY>
+dotnet nuget push ./artifacts/SuperSocketLite2.Templates.<버전>.nupkg --source https://api.nuget.org/v3/index.json --api-key <KEY>
+
+# 4. 배포가 반영된 뒤(수 분 걸린다) 저장소 예제 4개를 새 버전으로 올리고 빌드한다
+```
+
+### 현재 상태
+
+`0.22.0`은 **아직 배포되지 않았다.** 애널라이저가 처음 들어가는 버전이므로,
+배포해야 기존 사용자에게 SSL001~SSL007이 도달한다. 저장소 예제 4개는 `0.21.1`에 머물러 있다.
 
 
 ## 문서 작성 규칙

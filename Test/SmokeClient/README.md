@@ -15,4 +15,4 @@ dotnet run --project Test/SmokeClient -- --help
 기본 프로토콜은 `[2바이트 전체 길이 LE][2바이트 패킷 ID LE][본문]`이고,
 `--len-bytes` · `--id-bytes` · `--length-excludes-header` · `--big-endian`으로 바꿀 수 있다.
 
-사용법과 결과 해석은 [`Docs/agent/verify.md`](../../Docs/agent/verify.md)에 정리해 두었다.
+사용법과 결과 해석은 [`Docs/agent/verify_kr.md`](../../Docs/agent/verify_kr.md)에 정리해 두었다.

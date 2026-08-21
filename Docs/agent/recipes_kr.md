@@ -1,28 +1,28 @@
-# Recipes
+# 레시피
 
-**[🇰🇷 한국어 (Korean)](recipes_kr.md)**
+**[🇬🇧 English](recipes.md)**
 
-Written to be copied and adapted. All of it respects the rules in [cautions.md](cautions.md).
+복사해서 고쳐 쓰는 형태로 정리했다. 전부 `Docs/agent/cautions_kr.md`의 규칙을 지킨 코드다.
 
-| # | Recipe |
+| # | 레시피 |
 |---|---|
-| 1 | [Minimal TCP server](#1-minimal-tcp-server) |
-| 2 | [Receive filter — length prefix](#2-receive-filter--length-prefix-the-common-case) |
-| 3 | [Receive filter — fixed size](#3-receive-filter--fixed-size) |
-| 4 | [Receive filter — hand-written](#4-receive-filter--hand-written) |
-| 5 | [Packet ID → handler dispatch](#5-packet-id--handler-dispatch) |
-| 6 | [Broadcasting](#6-broadcasting) |
-| 7 | [Generic Host + a production logger](#7-generic-host--a-production-logger) |
-| 8 | [MemoryPack serialization](#8-memorypack-serialization) |
-| 9 | [Handing packets to a logic thread](#9-handing-packets-to-a-logic-thread) |
-| 10 | [UDP server](#10-udp-server) |
-| 11 | [Graceful shutdown](#11-graceful-shutdown) |
+| 1 | [최소 TCP 서버](#1-최소-tcp-서버) |
+| 2 | [ReceiveFilter — 길이 프리픽스](#2-receivefilter--길이-프리픽스-가장-흔함) |
+| 3 | [ReceiveFilter — 고정 길이](#3-receivefilter--고정-길이) |
+| 4 | [ReceiveFilter — 직접 구현](#4-receivefilter--직접-구현) |
+| 5 | [패킷 ID → 핸들러 디스패치](#5-패킷-id--핸들러-디스패치) |
+| 6 | [브로드캐스트](#6-브로드캐스트) |
+| 7 | [Generic Host + 실서비스 로거](#7-generic-host--실서비스-로거) |
+| 8 | [MemoryPack 직렬화](#8-memorypack-직렬화) |
+| 9 | [로직 스레드로 패킷 넘기기](#9-로직-스레드로-패킷-넘기기) |
+| 10 | [UDP 서버](#10-udp-서버) |
+| 11 | [우아한 종료](#11-우아한-종료) |
 
 ---
 
-## 1. Minimal TCP server
+## 1. 최소 TCP 서버
 
-Three files. The protocol is `[2-byte total length][2-byte packet ID][body]`.
+파일 3개면 끝난다. 프로토콜은 `[2바이트 전체 길이][2바이트 패킷 ID][본문]`.
 
 **`.csproj`**
 
@@ -33,7 +33,7 @@ Three files. The protocol is `[2-byte total length][2-byte packet ID][body]`.
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- Run servers with the server GC -->
+    <!-- 서버는 Server GC로 돌린다 -->
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
@@ -62,7 +62,7 @@ public sealed class PacketRequestInfo : IRequestInfo
     public short TotalSize { get; private set; }
     public short PacketId { get; private set; }
 
-    /// <summary>The body, header excluded. Invalid once the handler returns.</summary>
+    /// <summary>헤더를 뺀 본문. 핸들러가 리턴하면 무효가 된다.</summary>
     public ReadOnlySequence<byte> Body { get; private set; }
 
     public void Set(short totalSize, short packetId, ReadOnlySequence<byte> body)
@@ -75,8 +75,8 @@ public sealed class PacketRequestInfo : IRequestInfo
 
 public sealed class PacketReceiveFilter : FixedHeaderReceiveFilter<PacketRequestInfo>
 {
-    // One filter per session, and the next packet is only parsed after the previous handler has
-    // returned — so reusing a single instance is safe, and receiving costs zero allocations.
+    // 필터는 세션마다 하나이고, 다음 패킷 파싱은 이전 핸들러가 리턴한 뒤에 일어난다.
+    // 그래서 인스턴스 하나를 돌려 써도 안전하다 = 패킷당 할당 0.
     private readonly PacketRequestInfo _reusable = new();
 
     public PacketReceiveFilter() : base(PacketRequestInfo.HeaderSize) { }
@@ -84,7 +84,7 @@ public sealed class PacketReceiveFilter : FixedHeaderReceiveFilter<PacketRequest
     protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
     {
         Span<byte> buffer = stackalloc byte[PacketRequestInfo.HeaderSize];
-        header.CopyTo(buffer);                                   // never .First.Span — it can be split
+        header.CopyTo(buffer);                                   // .First.Span 금지 — 쪼개질 수 있다
         return BinaryPrimitives.ReadInt16LittleEndian(buffer) - PacketRequestInfo.HeaderSize;
     }
 
@@ -136,7 +136,7 @@ public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>
 
     private void OnRequestReceived(NetworkSession session, PacketRequestInfo request)
     {
-        // Echo. Body is invalid once this method returns.
+        // 에코. Body는 이 메서드가 리턴하면 무효다.
         PacketWriter.Send(session, request.PacketId, request.Body);
     }
 }
@@ -162,9 +162,9 @@ internal static class Program
             Mode = SocketMode.Tcp,
             Name = "MyGameServer",
             MaxConnectionNumber = 2000,
-            MaxRequestLength = 8192,     // the 1024 default is usually too small for game packets
-            NoDelay = true,              // for real-time traffic
-            SyncSessionConnectedEvent = true,   // guarantees "connected before first request"
+            MaxRequestLength = 8192,     // 기본 1024는 게임 패킷에 대개 모자란다
+            NoDelay = true,              // 실시간이면 켠다
+            SyncSessionConnectedEvent = true,   // "접속 → 첫 요청" 순서 보장
         };
 
         var server = new MainServer();
@@ -187,12 +187,12 @@ internal static class Program
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; stopping.TrySetResult(); };
         await stopping.Task;
 
-        await server.StopAsync(TimeSpan.FromSeconds(5));   // let queued responses flush
+        await server.StopAsync(TimeSpan.FromSeconds(5));   // 큐에 남은 응답을 흘려보낸다
     }
 }
 ```
 
-**A response writer** that doesn't allocate an array per response.
+**응답 쓰기 헬퍼** — 응답마다 배열을 새로 만들지 않는 형태다.
 
 ```csharp
 using System.Buffers;
@@ -212,7 +212,7 @@ internal static class PacketWriter
         {
             Span<byte> packet = stackalloc byte[StackBufferSize];
             Write(packet, packetId, body);
-            session.SendCopied(packet.Slice(0, totalSize));   // stack buffer → must be SendCopied
+            session.SendCopied(packet.Slice(0, totalSize));   // 스택 버퍼 → 반드시 SendCopied
             return;
         }
 
@@ -221,7 +221,7 @@ internal static class PacketWriter
         try
         {
             Write(rented, packetId, body);
-            session.SendCopied(rented.AsSpan(0, totalSize));  // rented buffer → must be SendCopied
+            session.SendCopied(rented.AsSpan(0, totalSize));  // 대여 버퍼 → 반드시 SendCopied
         }
         finally
         {
@@ -240,41 +240,40 @@ internal static class PacketWriter
 }
 ```
 
-> **Never pass a `stackalloc` or `ArrayPool` buffer to `Send`.** It's zero-copy, so the buffer can
-> be reclaimed before the data goes out. These cases are always `SendCopied`.
+> `stackalloc`이나 `ArrayPool` 버퍼를 `Send`로 넘기면 **안 된다.** zero-copy라 전송 전에
+> 버퍼가 회수/해제된다. 이 경우는 항상 `SendCopied`다.
 
 ---
 
-## 2. Receive filter — length prefix (the common case)
+## 2. ReceiveFilter — 길이 프리픽스 (가장 흔함)
 
-Recipe 1's `PacketReceiveFilter` is the answer. Here are the variations.
+레시피 1의 `PacketReceiveFilter`가 그대로 답이다. 변형만 정리한다.
 
-**When the length field holds only the body length** (no header size to subtract)
+**길이 필드가 본문 길이만 담을 때** (헤더 크기를 빼지 않는다)
 
 ```csharp
 protected override int GetBodyLengthFromHeader(ReadOnlySequence<byte> header)
 {
     Span<byte> buffer = stackalloc byte[HeaderSize];
     header.CopyTo(buffer);
-    return BinaryPrimitives.ReadInt32LittleEndian(buffer);   // already the body length
+    return BinaryPrimitives.ReadInt32LittleEndian(buffer);   // 그대로 본문 길이
 }
 ```
 
-**For a big-endian protocol**
+**빅엔디안 프로토콜일 때**
 
 ```csharp
 return BinaryPrimitives.ReadInt32BigEndian(buffer);
 ```
 
-**To impose your own length cap** — the default implementation honours `MaxRequestLength`.
-Override to tighten it.
+**길이 상한을 직접 걸 때** — 기본 구현은 `MaxRequestLength`를 본다. 더 좁히려면 오버라이드한다.
 
 ```csharp
 protected override bool ValidateBodyLength(int bodyLength)
 {
     if (bodyLength < 0 || bodyLength > 4096)
     {
-        return false;    // sets FilterState.Error and the session is closed
+        return false;    // FilterState.Error가 되고 세션이 닫힌다
     }
 
     return base.ValidateBodyLength(bodyLength);
@@ -283,9 +282,9 @@ protected override bool ValidateBodyLength(int bodyLength)
 
 ---
 
-## 3. Receive filter — fixed size
+## 3. ReceiveFilter — 고정 길이
 
-When every packet is the same size, there is exactly one method to implement.
+모든 패킷이 같은 크기일 때. 구현할 게 하나뿐이다.
 
 ```csharp
 using System.Buffers;
@@ -296,12 +295,12 @@ public sealed class TelemetryFilter : FixedSizeReceiveFilter<TelemetryRequestInf
 {
     private readonly TelemetryRequestInfo _reusable = new();
 
-    public TelemetryFilter() : base(32) { }   // every packet is 32 bytes
+    public TelemetryFilter() : base(32) { }   // 패킷 하나가 항상 32바이트
 
     protected override TelemetryRequestInfo ProcessMatchedRequest(ReadOnlySequence<byte> buffer)
     {
         Span<byte> packet = stackalloc byte[32];
-        buffer.CopyTo(packet);                 // may span segments
+        buffer.CopyTo(packet);                 // 세그먼트에 걸칠 수 있다
         _reusable.Parse(packet);
         return _reusable;
     }
@@ -310,9 +309,9 @@ public sealed class TelemetryFilter : FixedSizeReceiveFilter<TelemetryRequestInf
 
 ---
 
-## 4. Receive filter — hand-written
+## 4. ReceiveFilter — 직접 구현
 
-Only for protocols the two base classes can't express, such as delimiter-based framing (`\r\n`).
+구분자 기반(예: `\r\n`)처럼 위 둘로 안 되는 프로토콜일 때만 쓴다.
 
 ```csharp
 using System.Buffers;
@@ -328,8 +327,8 @@ public sealed class LineFilter : IReceiveFilter<LineRequestInfo>
     public LineRequestInfo? Filter(ReadOnlySequence<byte> buffer,
                                    out SequencePosition consumed, out SequencePosition examined)
     {
-        // Not a full line yet? Leave consumed where it is. The data stays in the pipe and the rest
-        // arrives with the next read — never keep a carry buffer of your own.
+        // 아직 한 줄이 안 됐으면 consumed를 전진시키지 않는다.
+        // 데이터는 파이프에 남고 다음 수신 때 이어서 온다 — 캐리 버퍼를 두면 안 된다.
         consumed = buffer.Start;
         examined = buffer.End;
 
@@ -351,17 +350,17 @@ public sealed class LineFilter : IReceiveFilter<LineRequestInfo>
 }
 ```
 
-The contract for `Filter`:
+`Filter`의 계약은 이렇다.
 
-- A complete request is available → return it and move `consumed` to the end of that request
-- Not yet → return `null`, leave `consumed` at `buffer.Start` and set `examined` to `buffer.End`
-- The protocol is broken → set `State = FilterState.Error` and the session is closed
+- 완성된 요청이 있으면 → 요청을 리턴하고 `consumed`를 그 요청 끝으로 옮긴다
+- 아직 없으면 → `null`을 리턴하고 `consumed`는 `buffer.Start` 그대로, `examined`는 `buffer.End`
+- 프로토콜이 깨졌으면 → `State = FilterState.Error`로 두면 세션이 닫힌다
 
 ---
 
-## 5. Packet ID → handler dispatch
+## 5. 패킷 ID → 핸들러 디스패치
 
-Once you have more than a few packets, replace the `switch` with a map.
+패킷이 늘어나면 `switch` 대신 맵으로 간다.
 
 ```csharp
 public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>
@@ -395,7 +394,7 @@ public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>
         }
         catch (Exception ex)
         {
-            // Stop a handler exception from taking down the receive loop.
+            // 핸들러 예외가 수신 루프를 죽이지 않게 여기서 막는다.
             Logger.Error($"handler failed. id: {request.PacketId}", ex);
             session.Close(CloseReason.ApplicationError);
         }
@@ -403,20 +402,20 @@ public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>
 }
 ```
 
-**Handlers must complete synchronously.** An `async void` handler — or an `async` call you don't
-await — returns before the work is done, and the code that follows reads `request.Body` after it
-has been invalidated. If you need asynchronous work, copy the values out first, as in recipe 9.
+**핸들러는 동기로 끝내야 한다.** `async void`나 `await` 없는 `async` 호출을 넣으면
+메서드가 먼저 리턴하고, 그 뒤에 `request.Body`를 읽게 되어 데이터가 깨진다.
+비동기 작업이 필요하면 레시피 9처럼 값을 복사해서 넘긴다.
 
 ---
 
-## 6. Broadcasting
+## 6. 브로드캐스트
 
 ```csharp
 private void Broadcast(ReadOnlySpan<byte> packet, string? exceptSessionId = null)
 {
     var sessions = GetAllSessions();
 
-    if (sessions is null)      // null before the server is up, and while it is shutting down
+    if (sessions is null)      // 서버가 안 떴거나 내려가는 중이면 null이다
     {
         return;
     }
@@ -428,23 +427,23 @@ private void Broadcast(ReadOnlySpan<byte> packet, string? exceptSessionId = null
             continue;
         }
 
-        // One blocked session must not stall the rest of the broadcast.
+        // 한 세션의 큐가 막혀도 나머지 브로드캐스트를 멈추지 않는다.
         session.TrySendCopied(packet);
     }
 }
 ```
 
-- Broadcast with **`TrySendCopied`**, not `Send`. Otherwise a single slow client stalls the whole
-  loop for `SendTimeOut`.
-- For per-room broadcasts, have the room hold its own session list rather than walking
-  `GetAllSessions()` every time. The full scan becomes a bottleneck as session counts grow.
+- 브로드캐스트에는 `Send`가 아니라 **`TrySendCopied`**를 쓴다. 느린 클라이언트 하나가
+  `SendTimeOut`만큼 전체 루프를 세우는 걸 막는다.
+- 방(room) 단위라면 `GetAllSessions()`를 매번 도는 대신 방이 자기 세션 목록을 들고 있게 한다.
+  세션 수가 늘면 전체 순회가 병목이 된다.
 
 ---
 
-## 7. Generic Host + a production logger
+## 7. Generic Host + 실서비스 로거
 
-`MicrosoftLoggingLogFactory` bridges Serilog, NLog, ZLogger and log4net.
-**You do not need to write a per-library adapter class.**
+`MicrosoftLoggingLogFactory` 하나로 Serilog / NLog / ZLogger / log4net이 전부 붙는다.
+**라이브러리별 어댑터 클래스를 새로 만들 필요가 없다.**
 
 ```csharp
 var host = new HostBuilder()
@@ -453,14 +452,14 @@ var host = new HostBuilder()
     .ConfigureLogging((ctx, logging) =>
     {
         logging.ClearProviders();
-        logging.AddZLoggerConsole();      // or AddSerilog(), AddNLog(), ...
+        logging.AddZLoggerConsole();      // 또는 AddSerilog(), AddNLog() ...
     })
     .ConfigureServices((ctx, services) =>
     {
         services.Configure<ServerOption>(ctx.Configuration.GetSection("ServerOption"));
         services.AddHostedService<MainServer>();
 
-        // Hand the host's ILoggerFactory to SuperSocketLite as an ILogFactory.
+        // 호스트의 ILoggerFactory를 SuperSocketLite의 ILogFactory로 넘겨 준다.
         services.AddSingleton<SuperSocketLite.SocketBase.Logging.ILogFactory>(
             sp => new SuperSocketLite.SocketBase.Logging.MicrosoftLoggingLogFactory(
                 sp.GetRequiredService<ILoggerFactory>()));
@@ -470,7 +469,7 @@ var host = new HostBuilder()
 await host.RunAsync();
 ```
 
-The server also implements `IHostedService`.
+서버 쪽은 `IHostedService`를 같이 구현한다.
 
 ```csharp
 public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>, IHostedService
@@ -495,7 +494,7 @@ public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>, I
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        var config = new ServerConfig { /* filled from _option */ };
+        var config = new ServerConfig { /* _option에서 채운다 */ };
 
         if (!Setup(new RootConfig(), config, logFactory: _logFactory) || !Start())
         {
@@ -512,10 +511,9 @@ public sealed class MainServer : AppServer<NetworkSession, PacketRequestInfo>, I
 
 ---
 
-## 8. MemoryPack serialization
+## 8. MemoryPack 직렬화
 
-This is "Safe (A)" from [cautions.md](cautions.md) §4 — deserialize inside the handler and keep
-only the value.
+`Docs/agent/cautions_kr.md` 4번의 "안전 A"에 해당한다. 핸들러 안에서 역직렬화해 값만 남긴다.
 
 ```csharp
 using MemoryPack;
@@ -529,7 +527,7 @@ public partial class ReqLogin
 
 private void HandleLogin(NetworkSession session, PacketRequestInfo request)
 {
-    // Body is a ReadOnlySequence<byte>, which MemoryPack takes directly — no intermediate array.
+    // Body는 ReadOnlySequence<byte>라 MemoryPack에 그대로 넘어간다 — 중간 배열이 없다.
     var req = MemoryPackSerializer.Deserialize<ReqLogin>(request.Body);
 
     if (req is null)
@@ -538,17 +536,17 @@ private void HandleLogin(NetworkSession session, PacketRequestInfo request)
         return;
     }
 
-    // req is a freshly created object. It is safe to pass outside the handler.
+    // req는 새로 만들어진 객체다. 핸들러 밖으로 넘겨도 안전하다.
     _loginQueue.Enqueue(new LoginWork(session.SessionID, req));
 }
 ```
 
-Responses need a header in front, so write into a pooled buffer.
+응답을 보낼 때는 헤더를 앞에 붙여야 하므로 풀 버퍼에 직접 쓴다.
 
 ```csharp
 private static void SendPacket<T>(NetworkSession session, short packetId, T payload)
 {
-    var writer = new ArrayBufferWriter<byte>();   // not IDisposable — no `using`
+    var writer = new ArrayBufferWriter<byte>();   // IDisposable이 아니다 — using 붙이지 않는다
     MemoryPackSerializer.Serialize(writer, payload);
 
     var bodyLength = writer.WrittenCount;
@@ -570,15 +568,14 @@ private static void SendPacket<T>(NetworkSession session, short packetId, T payl
 }
 ```
 
-A complete working example lives in `Template/GameServer_MemoryPack`.
+동작하는 전체 예제는 `Template/GameServer_MemoryPack`에 있다.
 
 ---
 
-## 9. Handing packets to a logic thread
+## 9. 로직 스레드로 패킷 넘기기
 
-Game servers usually separate the network thread from the logic thread.
-When you do, **you must copy the bytes.** Neither the `RequestInfo` nor its `Body` survives the
-handler.
+게임 서버는 대개 네트워크 스레드와 로직 스레드를 분리한다.
+이때는 **바이트를 복사해서 넘겨야 한다.** `RequestInfo`도 `Body`도 핸들러 밖에서는 무효다.
 
 ```csharp
 public readonly record struct PacketWork(string SessionId, short PacketId, byte[] Buffer, int Length);
@@ -588,16 +585,16 @@ private void OnRequestReceived(NetworkSession session, PacketRequestInfo request
     var length = checked((int)request.Body.Length);
     var rented = ArrayPool<byte>.Shared.Rent(length);
 
-    request.Body.CopyTo(rented);   // copy here — Body is invalid once this returns
+    request.Body.CopyTo(rented);   // 여기서 복사해야 한다 — 리턴하면 Body는 무효
 
     if (!_logicQueue.Writer.TryWrite(new PacketWork(session.SessionID, request.PacketId, rented, length)))
     {
-        ArrayPool<byte>.Shared.Return(rented);   // return it immediately if the queue is full
+        ArrayPool<byte>.Shared.Return(rented);   // 큐가 막히면 즉시 반납한다
         Logger.Warn($"logic queue full. dropped packet {request.PacketId}");
     }
 }
 
-// Logic thread
+// 로직 스레드
 private async Task LogicLoopAsync(CancellationToken token)
 {
     await foreach (var work in _logicQueue.Reader.ReadAllAsync(token))
@@ -608,38 +605,37 @@ private async Task LogicLoopAsync(CancellationToken token)
         }
         finally
         {
-            ArrayPool<byte>.Shared.Return(work.Buffer);   // return in exactly one place
+            ArrayPool<byte>.Shared.Return(work.Buffer);   // 반납은 한 곳에서만
         }
     }
 }
 ```
 
-Pair every `ArrayPool` rental with exactly one return. Forgetting the return on the
-queue-rejected path is the classic mistake. `Tutorials/PvPGameServer` is a real example.
+`ArrayPool`은 **빌린 곳과 반납하는 곳을 반드시 짝지어 둔다.** 큐에 못 넣은 경로에서
+반납을 빠뜨리는 게 흔한 실수다. 실제 예제는 `Tutorials/PvPGameServer`.
 
 ---
 
-## 10. UDP server
+## 10. UDP 서버
 
-Change `Mode`; everything else matches TCP.
+`Mode`만 바꾸면 나머지는 TCP와 같다.
 
 ```csharp
 var config = new ServerConfig
 {
     Ip = "Any",
     Port = 555,
-    Mode = SocketMode.Udp,          // the only difference
+    Mode = SocketMode.Udp,          // 이것만 다르다
     MaxConnectionNumber = 1000,
     Name = "UdpServer",
 };
 ```
 
-There are two ways to map sessions.
+세션 매핑은 두 가지다.
 
-1. **Default** — one session per remote endpoint. Nothing extra to do.
-2. **Embedded session ID** — if your request type derives from `UdpRequestInfo`, the session is
-   located by a session ID carried in the payload, so a client keeps its logical session across a
-   NAT rebind.
+1. **기본** — remote endpoint 하나당 세션 하나. 별도 작업이 없다.
+2. **세션 ID 내장** — `RequestInfo`가 `UdpRequestInfo`를 상속하면, 페이로드에 실어 보낸
+   sessionID로 세션을 찾는다. NAT가 바뀌어도 같은 논리 세션을 유지할 수 있다.
 
 ```csharp
 public sealed class MyUdpRequestInfo : UdpRequestInfo
@@ -648,23 +644,23 @@ public sealed class MyUdpRequestInfo : UdpRequestInfo
 }
 ```
 
-With option 2, the filter that parses the session ID is **shared per receive thread.**
-It must hold no state between datagrams and must not capture the remote endpoint from
-`CreateFilter`. The full example is `Tutorials/SimpleUDPServer`.
+2번을 쓸 때 sessionID 파싱용 필터는 **수신 스레드당 하나가 재사용된다.**
+데이터그램 간 상태를 갖지 말고, `CreateFilter`의 remote endpoint를 캡처하지 않는다.
+전체 예제는 `Tutorials/SimpleUDPServer`.
 
 ---
 
-## 11. Graceful shutdown
+## 11. 우아한 종료
 
 ```csharp
-// Works, but drops whatever is still queued
+// 나쁘지 않지만 큐에 남은 응답이 버려진다
 server.Stop();
 
-// Preferred — stop accepting, flush what's already queued, then close
+// 권장 — 새 접속을 막고, 이미 큐에 있는 응답을 흘려보낸 뒤 닫는다
 await server.StopAsync(TimeSpan.FromSeconds(5));
 ```
 
-For a game server, send a shutdown notice, wait briefly, then call `StopAsync`.
+게임 서버라면 종료 공지 패킷을 보내고 잠시 기다린 뒤 `StopAsync`를 부른다.
 
 ```csharp
 Broadcast(shutdownNotice);

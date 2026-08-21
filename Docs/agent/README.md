@@ -1,48 +1,54 @@
-# SuperSocketLite2 — 에이전트용 문서
+# SuperSocketLite2 — docs for coding agents
 
-AI 코딩 에이전트가 **SuperSocketLite2로 서버를 만들 때** 읽는 문서다.
-사람이 읽는 문서는 `Docs/*.html` 쪽이고, 이 디렉토리는 같은 내용을 에이전트가
-토큰 낭비 없이 읽을 수 있는 마크다운으로 옮겨 둔 것이다.
+**[🇰🇷 한국어 (Korean)](README_kr.md)**
 
-> `Docs/Library_Architecture.html` 같은 단독 실행 HTML은 파일 하나가 650KB다.
-> 에이전트가 그걸 열면 컨텍스트가 통째로 날아가므로 **절대 열지 말고 여기를 읽는다.**
+These are the docs an AI coding agent reads when **building a server with SuperSocketLite2**.
+The human-facing documents live in `Docs/*.html`; this directory carries the same material as
+Markdown so an agent can read it without burning its context window.
 
-## 어디부터 읽나
+> **Do not open `Docs/*.html`.** The standalone HTML documents such as
+> `Library_Architecture.html` are 650KB each — a single one will fill an entire context window.
+> Everything you need is here.
 
-| 상황 | 문서 |
+## Where to start
+
+| You want to | Read |
 |---|---|
-| 서버를 처음부터 만든다 | [recipes.md](recipes.md) § 1 최소 서버 |
-| 타입 이름 / 네임스페이스 / 시그니처가 필요하다 | [api-cheatsheet.md](api-cheatsheet.md) |
-| 패킷 프로토콜을 정의한다 | [recipes.md](recipes.md) § 2 ReceiveFilter |
-| 코드를 쓰기 전에 지뢰를 확인한다 | **[cautions.md](cautions.md) — 필수** |
-| 만든 서버가 실제로 도는지 확인한다 | [verify.md](verify.md) |
-| 빌드에 SSL0xx 경고가 떴다 | [analyzers.md](analyzers.md) |
+| Build a server from scratch | [recipes.md](recipes.md) § 1, Minimal TCP server |
+| Look up a type name, namespace, or signature | [api-cheatsheet.md](api-cheatsheet.md) |
+| Define a packet protocol | [recipes.md](recipes.md) § 2, Receive filters |
+| Know what will bite you before you write code | **[cautions.md](cautions.md) — required** |
+| Prove the server you built actually runs | [verify.md](verify.md) |
+| Understand an `SSL0xx` build warning | [analyzers.md](analyzers.md) |
 
-## 최소한 이것만은
+## The short version
 
-에이전트가 이 라이브러리에서 가장 많이 틀리는 세 가지다. 코드를 쓰기 전에 확인한다.
+Three mistakes account for most of the trouble agents get into with this library.
+Check them before you write code.
 
-1. **`NewRequestReceived` 핸들러가 리턴하면 `RequestInfo`와 `Body`는 무효다.**
-   필드에 저장·람다 캡처·다른 스레드 큐에 넣기 전부 금지. 남기려면 핸들러 안에서 복사한다.
-2. **`Send(byte[], ...)`는 zero-copy다.** 넘긴 배열을 전송 완료 전에 수정하면 깨진 데이터가 나간다.
-   버퍼를 바로 재사용해야 하면 `SendCopied`를 쓴다.
-3. **`header`/`body`는 `ReadOnlySequence<byte>`라 세그먼트 여러 개에 걸칠 수 있다.**
-   `header.First.Span`으로 바로 읽지 말고 `CopyTo(Span)`를 쓴다.
+1. **Once your handler returns, the `RequestInfo` and its `Body` are dead.**
+   Do not store them in a field, capture them in a lambda, or hand them to another thread.
+   If you need the data to outlive the handler, deserialize or copy it inside the handler.
+2. **`Send(byte[], ...)` is zero-copy.** Modify that array before the send completes and corrupt
+   bytes go out on the wire. If you need your buffer back immediately, use `SendCopied`.
+3. **`header` and `body` are `ReadOnlySequence<byte>` and may span several segments.**
+   Never read through `header.First.Span`; use `CopyTo(Span)`.
 
-셋 다 **컴파일은 되고 가벼운 부하에서는 잘 돈다.** 부하가 올라야 깨지므로 리뷰에서 잡아야 한다.
-전체 목록은 [cautions.md](cautions.md)에 있다.
+All three **compile cleanly and work fine under light load.** They only break once the receive
+pipe's buffers wrap around, which is why they have to be caught in review rather than in testing.
+The full list is in [cautions.md](cautions.md).
 
-세 가지 모두 `SuperSocketLite2` 패키지에 들어 있는 애널라이저가 빌드 경고로 잡는다
-(`SSL001`~`SSL007`, [analyzers.md](analyzers.md)). **경고를 끄지 말고 고친다.**
+All three are also caught at build time by the analyzers bundled in the `SuperSocketLite2` package
+(`SSL001`–`SSL007`, see [analyzers.md](analyzers.md)). **Fix the warnings; don't suppress them.**
 
-## 이 문서와 HTML 문서의 관계
+## How these files relate to the HTML docs
 
-| 이 문서 | 대응하는 사람용 문서 |
+| This file | Human-facing counterpart |
 |---|---|
-| [cautions.md](cautions.md) | `Docs/Cautions.html` / `Docs/Cautions_kr.html`, `Docs/Getting_Started*.html` 7장 |
+| [cautions.md](cautions.md) | `Docs/Cautions.html` / `Docs/Cautions_kr.html`, and ch. 7 of `Docs/Getting_Started*.html` |
 | [api-cheatsheet.md](api-cheatsheet.md) | `Docs/Getting_Started*.html`, `README.md` |
 | [recipes.md](recipes.md) | `Tutorials/`, `Template/` |
 
-**코드가 바뀌어 주의 사항이 달라지면 네 곳을 같이 고친다** — `cautions.md`, `Cautions.html`,
-`Cautions_kr.html`, `Getting_Started*.html` 7장. 스킬(`.claude/skills/supersocketlite2/`)은
-이 문서를 참조만 하므로 따로 고칠 필요 없다.
+**When the code changes and a caveat changes with it, six files move together** — `cautions.md`,
+`cautions_kr.md`, `Cautions.html`, `Cautions_kr.html`, and ch. 7 of both `Getting_Started*.html`.
+The skill at `.claude/skills/supersocketlite2/` only links here, so it needs no separate edit.

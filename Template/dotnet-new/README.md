@@ -47,7 +47,7 @@ dotnet run -c Release
 ```bash
 dotnet pack Template/dotnet-new -c Release -o ./artifacts
 
-dotnet new install ./artifacts/SuperSocketLite2.Templates.0.21.1.nupkg
+dotnet new install ./artifacts/SuperSocketLite2.Templates.0.22.0.nupkg
 dotnet new sslite2-server -n TestServer -o /tmp/TestServer
 dotnet build /tmp/TestServer -c Release
 
@@ -57,10 +57,11 @@ dotnet new uninstall SuperSocketLite2.Templates
 ### 배포
 
 ```bash
-dotnet nuget push ./artifacts/SuperSocketLite2.Templates.0.21.1.nupkg \
+dotnet nuget push ./artifacts/SuperSocketLite2.Templates.0.22.0.nupkg \
   --source https://api.nuget.org/v3/index.json --api-key <KEY>
 ```
 
-버전은 라이브러리 패키지(`SuperSocketLite2`)와 맞춰 둔다. 라이브러리를 올리면
-`SuperSocketLite2.Templates.csproj` 의 `PackageVersion` 과, 생성될 프로젝트의
-`PackageReference` 버전(`content/SuperSocketLite2.GameServerTemplate/*.csproj`)을 같이 올린다.
+버전은 라이브러리 패키지(`SuperSocketLite2`)와 맞춰 **항상 함께** 올린다.
+생성된 프로젝트가 라이브러리를 참조하므로, 템플릿만 먼저 올리면 없는 버전을 가리키게 된다.
+
+전체 순서는 저장소 루트 `AGENTS.md` 의 **릴리스 절차** 를 따른다.

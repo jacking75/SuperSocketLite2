@@ -44,7 +44,7 @@ dotnet run -c Release -- --port 32452
 
 ## 다음에 볼 것
 
-- 실서비스 로거(Serilog / NLog / ZLogger) 연결 → `Docs/agent/recipes.md` § 7
-- MemoryPack 직렬화 → `Docs/agent/recipes.md` § 8
-- 네트워크 스레드와 로직 스레드 분리 → `Docs/agent/recipes.md` § 9
-- `ServerConfig` 튜닝 → `Docs/agent/api-cheatsheet.md`
+- 실서비스 로거(Serilog / NLog / ZLogger) 연결 → `Docs/agent/recipes_kr.md` § 7
+- MemoryPack 직렬화 → `Docs/agent/recipes_kr.md` § 8
+- 네트워크 스레드와 로직 스레드 분리 → `Docs/agent/recipes_kr.md` § 9
+- `ServerConfig` 튜닝 → `Docs/agent/api-cheatsheet_kr.md`

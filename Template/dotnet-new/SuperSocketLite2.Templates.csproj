@@ -3,8 +3,8 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>SuperSocketLite2.Templates</PackageId>
-    <PackageVersion>0.21.1</PackageVersion>
-    <Version>0.21.1</Version>
+    <PackageVersion>0.22.0</PackageVersion>
+    <Version>0.22.0</Version>
     <Title>SuperSocketLite2 Server Templates</Title>
     <Authors>jacking75</Authors>
     <Company>Com2us</Company>

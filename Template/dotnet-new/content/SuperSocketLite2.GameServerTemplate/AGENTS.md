@@ -54,7 +54,7 @@ BinaryPrimitives.ReadInt16LittleEndian(buffer);
 
 `SuperSocketLite2` 패키지에는 Roslyn 애널라이저가 함께 들어 있다. 위 세 가지는
 `SSL001`~`SSL005` 경고로 빌드에서 바로 드러난다. **경고를 억제하지 말고 고친다.**
-규칙 전체는 `Docs/agent/analyzers.md`.
+규칙 전체는 `Docs/agent/analyzers_kr.md`.
 
 ## 파일 구조
 
@@ -92,11 +92,11 @@ dotnet run -c Release -- --port 32452
 
 | 필요한 것 | 문서 |
 |---|---|
-| 타입 · 네임스페이스 · 시그니처 · `ServerConfig` 기본값 | `Docs/agent/api-cheatsheet.md` |
-| 주의 사항 8가지 + 리뷰 체크리스트 | `Docs/agent/cautions.md` |
-| 복사해 쓰는 코드 11종 | `Docs/agent/recipes.md` |
-| 서버가 실제로 도는지 확인하는 방법 | `Docs/agent/verify.md` |
-| `SSL0xx` 빌드 경고의 의미 | `Docs/agent/analyzers.md` |
+| 타입 · 네임스페이스 · 시그니처 · `ServerConfig` 기본값 | `Docs/agent/api-cheatsheet_kr.md` |
+| 주의 사항 8가지 + 리뷰 체크리스트 | `Docs/agent/cautions_kr.md` |
+| 복사해 쓰는 코드 11종 | `Docs/agent/recipes_kr.md` |
+| 서버가 실제로 도는지 확인하는 방법 | `Docs/agent/verify_kr.md` |
+| `SSL0xx` 빌드 경고의 의미 | `Docs/agent/analyzers_kr.md` |
 
 원본 저장소 — <https://github.com/jacking75/SuperSocketLite2>
 

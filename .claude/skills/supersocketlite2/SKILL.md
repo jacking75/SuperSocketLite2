@@ -61,7 +61,7 @@ BinaryPrimitives.ReadInt16LittleEndian(buffer);
 
 > 셋 다 `SuperSocketLite2` 패키지의 애널라이저가 빌드 경고로 잡는다
 > (`SSL001`·`SSL002`·`SSL005` / `SSL003` / `SSL004`). **경고를 억제하지 말고 고친다.**
-> 규칙 전체는 `Docs/agent/analyzers.md`.
+> 규칙 전체는 `Docs/agent/analyzers_kr.md`.
 
 ## 1. 어디를 읽나
 
@@ -69,11 +69,14 @@ BinaryPrimitives.ReadInt16LittleEndian(buffer);
 
 | 필요한 것 | 문서 |
 |---|---|
-| 타입 이름 · 네임스페이스 · 시그니처 · `ServerConfig` 기본값 | `Docs/agent/api-cheatsheet.md` |
-| 주의 사항 전체 8가지 + 리뷰 체크리스트 | `Docs/agent/cautions.md` |
-| 복사해 쓰는 코드 11종 | `Docs/agent/recipes.md` |
-| 만든 서버가 실제로 도는지 확인 | `Docs/agent/verify.md` |
-| 빌드에 `SSL0xx` 경고가 떴다 | `Docs/agent/analyzers.md` |
+| 타입 이름 · 네임스페이스 · 시그니처 · `ServerConfig` 기본값 | `Docs/agent/api-cheatsheet_kr.md` |
+| 주의 사항 전체 8가지 + 리뷰 체크리스트 | `Docs/agent/cautions_kr.md` |
+| 복사해 쓰는 코드 11종 | `Docs/agent/recipes_kr.md` |
+| 만든 서버가 실제로 도는지 확인 | `Docs/agent/verify_kr.md` |
+| 빌드에 `SSL0xx` 경고가 떴다 | `Docs/agent/analyzers_kr.md` |
+
+위 표는 한글판이다. 영어판은 접미사 없는 같은 이름(`cautions.md`, `recipes.md` …)으로
+같은 디렉토리에 있고 내용이 같다.
 
 저장소 밖(패키지만 참조하는 프로젝트)이라 위 경로가 없으면 여기서 본다 —
 <https://github.com/jacking75/SuperSocketLite2/tree/main/Docs/agent>
@@ -96,7 +99,7 @@ BinaryPrimitives.ReadInt16LittleEndian(buffer);
 6. **`ServerConfig` → `Setup()` → `Start()`** — `Setup`이 `false`면 `Start`하지 않는다
 7. **`StopAsync(drainTimeout)`로 종료** — `Stop()`은 큐에 남은 응답을 버린다
 
-전체 코드는 `Docs/agent/recipes.md` § 1에 있다. 그대로 복사해서 이름만 바꾸면 된다.
+전체 코드는 `Docs/agent/recipes_kr.md` § 1에 있다. 그대로 복사해서 이름만 바꾸면 된다.
 
 ## 3. 자주 틀리는 것들
 
@@ -133,7 +136,7 @@ BinaryPrimitives.ReadInt16LittleEndian(buffer);
 - [ ] `Setup()` 반환값을 확인하고 `false`면 `Start()`하지 않는다
 - [ ] `MaxRequestLength`가 실제 최대 패킷보다 크다
 - [ ] 빌드 경고 0개
-- [ ] 서버를 띄우고 패킷 왕복을 실제로 확인했다 (`Docs/agent/verify.md`)
+- [ ] 서버를 띄우고 패킷 왕복을 실제로 확인했다 (`Docs/agent/verify_kr.md`)
 
 마지막 항목을 건너뛰고 "구현 완료"라고 보고하지 않는다. 컴파일이 되는 것과
 서버가 도는 것은 이 라이브러리에서 특히 다르다.

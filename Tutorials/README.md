@@ -127,7 +127,7 @@ namespace EchoServer_GenericHost
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="SuperSocketLite2" Version="0.22.0" />
+  <PackageReference Include="SuperSocketLite2" Version="0.22.1" />
 </ItemGroup>
 ```
 

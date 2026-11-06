@@ -11,13 +11,19 @@ internal sealed class PacketCodec(Options options)
     public byte[] Encode(short packetId, ReadOnlySpan<byte> body)
     {
         var headerSize = _options.HeaderSize;
-        var packet = new byte[headerSize + body.Length];
-
         var lengthValue = _options.LengthIncludesHeader
-            ? headerSize + body.Length
+            ? (long)headerSize + body.Length
             : body.Length;
 
-        WriteInteger(packet.AsSpan(0, _options.LengthBytes), lengthValue);
+        if ((_options.LengthBytes == 2 && lengthValue > short.MaxValue)
+            || (long)headerSize + body.Length > int.MaxValue)
+        {
+            throw new ArgumentOutOfRangeException(nameof(body), "The payload exceeds the signed length field or packet size limit.");
+        }
+
+        var packet = new byte[headerSize + body.Length];
+
+        WriteInteger(packet.AsSpan(0, _options.LengthBytes), (int)lengthValue);
 
         if (_options.IdBytes == 2)
         {

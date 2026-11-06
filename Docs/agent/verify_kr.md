@@ -34,7 +34,7 @@ dotnet run --project Test/SmokeClient -c Release -- \
     --port 32452 -n 50 -c 20 --size 512 --expect-echo
 
 # 큰 패킷 — MaxRequestLength를 넘겼을 때 서버가 어떻게 구는지 본다
-dotnet run --project Test/SmokeClient -c Release -- --port 32452 --size 65000 --timeout 3000
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 --size 16000 --timeout 3000
 
 # 단방향 프로토콜 (응답이 없는 서버)
 dotnet run --project Test/SmokeClient -c Release -- --port 32452 --no-wait-response -c 100
@@ -44,12 +44,18 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 --no-wait-respo
 
 | 옵션 | 설명 |
 |---|---|
-| `--len-bytes <2\|4>` | 길이 필드 크기. 기본 2 |
+| `--len-bytes <2\|4>` | 부호 있는 길이 필드 크기. 기본 2 (최댓값 32767) |
 | `--id-bytes <0\|2>` | 패킷 ID 필드 크기. `0`이면 ID 없는 프로토콜 |
 | `--length-excludes-header` | 길이 필드가 본문 길이만 담는 프로토콜 |
 | `--big-endian` | 길이·ID를 빅엔디안으로 |
 
 전체 목록은 `dotnet run --project Test/SmokeClient -- --help`.
+
+기본 4바이트 헤더와 2바이트 전체 길이 필드에서는 본문이 최대 32763바이트다.
+범위를 넘는 요청은 접속 전에 거부한다. 더 큰 패킷에 `--len-bytes 4`를 쓰려면 서버도
+4바이트 길이 필드를 사용해야 한다. 위 큰 패킷 예제는 `MaxRequestLength`가 16004보다 작다고
+가정하며, 연결 종료나 타임아웃에 따른 실패 결과가 예상된다.
+`--no-wait-response`는 응답을 읽지 않으므로 `--expect-echo` 또는 `--expect-id`와 함께 쓸 수 없다.
 
 ### 결과 읽기
 
@@ -124,5 +130,5 @@ return echoed ? 0 : 1;
 - [ ] 서버 로그에 예외나 `unknown packet id`가 없다
 - [ ] 빌드 경고 0개
 
-동시 연결 항목을 건너뛰지 않는다. 이 라이브러리의 대표적인 버그는 **연결 1개로는
-절대 재현되지 않는다.**
+동시 연결 항목을 건너뛰지 않는다. 버퍼 재사용과 수명 주기 경합은 단일 연결에서 재현하기
+훨씬 어려울 수 있다. 단일 클라이언트 검증에 성공해도 이런 문제를 배제할 수 없다.

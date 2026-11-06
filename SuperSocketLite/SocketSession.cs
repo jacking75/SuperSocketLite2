@@ -797,6 +797,23 @@ abstract partial class SocketSession : ISocketSession
 
     public void SendEndWhenSendingTimeOut()
     {
-        OnSendEnd(CloseReason.TimeOut, false);
+        lock (SyncRoot)
+        {
+            if (IsClosed)
+            {
+                return;
+            }
+
+            Close(CloseReason.TimeOut);
+
+            // Abort a stalled TCP operation, but keep InSending/InReceiving until their actual
+            // completions release ownership. Clearing InSending here can return a still-used
+            // SAEA to the pool. UDP has no private client socket; its shared listener stays open.
+            var client = _client;
+            if (client != null)
+            {
+                InternalClose(client, GetCloseReason(), false);
+            }
+        }
     }
 }

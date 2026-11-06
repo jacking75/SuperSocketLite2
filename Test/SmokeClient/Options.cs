@@ -45,6 +45,7 @@ internal sealed class Options
     {
         var options = new Options();
         var bodySetters = 0;
+        int? bodySize = null;
         error = null;
 
         for (var i = 0; i < args.Length; ++i)
@@ -165,7 +166,7 @@ internal sealed class Options
                         return null;
                     }
 
-                    options.Body = CreateFilledBody(size);
+                    bodySize = size;
                     ++bodySetters;
                     break;
 
@@ -221,6 +222,26 @@ internal sealed class Options
         {
             error = "--id-bytes 0 인 프로토콜에는 --expect-id 를 쓸 수 없습니다.";
             return null;
+        }
+
+        if (options.NoWaitResponse && (options.ExpectEcho || options.ExpectId is not null))
+        {
+            error = "--no-wait-response 에는 --expect-echo / --expect-id 를 함께 쓸 수 없습니다.";
+            return null;
+        }
+
+        var payloadLength = bodySize ?? options.Body.Length;
+        var lengthValue = (long)payloadLength + (options.LengthIncludesHeader ? options.HeaderSize : 0);
+        if ((options.LengthBytes == 2 && lengthValue > short.MaxValue)
+            || (long)payloadLength + options.HeaderSize > int.MaxValue)
+        {
+            error = "본문 크기가 길이 필드 범위를 넘습니다. 2바이트 길이는 부호 있는 16비트 정수(최대 32767)입니다.";
+            return null;
+        }
+
+        if (bodySize is { } requestedSize)
+        {
+            options.Body = CreateFilledBody(requestedSize);
         }
 
         return options;
@@ -279,7 +300,7 @@ internal sealed class Options
           --timeout <ms>             응답 대기 상한. 기본 5000
 
         프로토콜 (기본값은 Template/dotnet-new 서버와 같다)
-          --len-bytes <2|4>          길이 필드 크기. 기본 2
+          --len-bytes <2|4>          부호 있는 길이 필드 크기. 기본 2 (최대 32767)
           --id-bytes <0|2>           패킷 ID 필드 크기. 0이면 ID 없음. 기본 2
           --length-excludes-header   길이 필드가 본문 길이만 담는 프로토콜
           --big-endian               길이·ID를 빅엔디안으로 읽고 쓴다
@@ -295,7 +316,7 @@ internal sealed class Options
         검증
           --expect-echo              응답 본문이 요청 본문과 같아야 한다
           --expect-id <n>            응답 패킷 ID가 이 값이어야 한다
-          --no-wait-response         응답을 기다리지 않는다 (단방향 프로토콜)
+          --no-wait-response         응답을 기다리지 않는다 (--expect-*와 함께 사용 불가)
           -v, --verbose              패킷마다 로그를 찍는다
 
         종료 코드는 성공 0, 실패 1 이다.

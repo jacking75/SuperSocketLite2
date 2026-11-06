@@ -12,6 +12,10 @@ using SuperSocketLite.SocketEngine.Protocol;
 
 var tests = new (string Name, Action Test)[]
 {
+    ("Smoke client length bounds match the wire format", SmokeClientTests.LengthBoundsMatchTheWireFormat),
+    ("Smoke client one-way mode rejects response expectations", SmokeClientTests.OneWayModeCannotClaimResponseValidation),
+    ("Send timeout keeps in-flight resources owned", SendTimeoutTests.TimeoutKeepsInFlightResourcesOwned),
+    ("Send timeout aborts a stalled TCP send", SendTimeoutTests.TimeoutAbortsStalledTcpSend),
     ("Unchanged session snapshots do not allocate", AllocationTests.UnchangedSessionSnapshotDoesNotAllocate),
     ("Snapshot refresh preserves old readers and membership", AllocationTests.SnapshotRefreshPreservesOldReadersAndMembership),
     ("Snapshot refresh survives concurrent churn", AllocationTests.SnapshotRefreshSurvivesConcurrentChurn),

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\SuperSocketLite\SuperSocketLite.csproj" />
+    <ProjectReference Include="..\SmokeClient\SmokeClient.csproj" />
   </ItemGroup>
 
 </Project>

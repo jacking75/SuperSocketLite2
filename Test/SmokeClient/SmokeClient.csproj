@@ -11,4 +11,8 @@
          서버 구현과 독립적으로 검증할 수 있다. -->
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="SuperSocketLiteRegressionTests" />
+  </ItemGroup>
+
 </Project>

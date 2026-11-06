@@ -127,6 +127,10 @@ protected virtual void HandleException(Exception e);
 protected virtual void HandleUnknownRequest(TRequestInfo requestInfo);
 ```
 
+`SendEndWhenSendingTimeOut()`은 종료를 시작하고 TCP 전용 소켓을 닫아 멈춘 송신을 중단한다.
+진행 중인 I/O는 완료될 때까지 버퍼와 이벤트 인자의 소유권을 유지하며, 그 뒤에 `Closed`가 발생한다.
+UDP 공용 리스너는 닫지 않는다. 이후 `Close()`를 호출해도 안전하다.
+
 ## `IRequestInfo` / 필터
 
 ```csharp

@@ -35,7 +35,7 @@ dotnet run --project Test/SmokeClient -c Release -- \
     --port 32452 -n 50 -c 20 --size 512 --expect-echo
 
 # Oversized packet — see how the server behaves past MaxRequestLength
-dotnet run --project Test/SmokeClient -c Release -- --port 32452 --size 65000 --timeout 3000
+dotnet run --project Test/SmokeClient -c Release -- --port 32452 --size 16000 --timeout 3000
 
 # One-way protocol (server sends no response)
 dotnet run --project Test/SmokeClient -c Release -- --port 32452 --no-wait-response -c 100
@@ -45,12 +45,18 @@ dotnet run --project Test/SmokeClient -c Release -- --port 32452 --no-wait-respo
 
 | Option | Meaning |
 |---|---|
-| `--len-bytes <2\|4>` | Size of the length field. Default 2 |
+| `--len-bytes <2\|4>` | Signed length field size. Default 2 (maximum value 32767) |
 | `--id-bytes <0\|2>` | Size of the packet-ID field. `0` for protocols without one |
 | `--length-excludes-header` | The length field carries only the body length |
 | `--big-endian` | Read and write length and ID as big-endian |
 
 Full list: `dotnet run --project Test/SmokeClient -- --help`.
+
+With the default four-byte header and two-byte total-length field, the body can contain at most
+32763 bytes. Oversized requests are rejected before connecting. Use `--len-bytes 4` for larger
+packets only if the server also uses a four-byte length field. The oversized-packet example above
+assumes `MaxRequestLength` is below 16004; a disconnect or timeout is an expected failure result.
+`--no-wait-response` cannot be combined with `--expect-echo` or `--expect-id`, because it reads no response.
 
 ### Reading the output
 
@@ -126,5 +132,5 @@ return echoed ? 0 : 1;
 - [ ] No exceptions or `unknown packet id` entries in the server log
 - [ ] Zero build warnings
 
-Do not skip the concurrency item. This library's characteristic bugs **never reproduce on a single
-connection.**
+Do not skip the concurrency item. Buffer reuse and lifecycle races can be much harder to reproduce
+on a single connection; a successful single-client run does not rule them out.

@@ -130,6 +130,10 @@ protected virtual void HandleException(Exception e);
 protected virtual void HandleUnknownRequest(TRequestInfo requestInfo);
 ```
 
+`SendEndWhenSendingTimeOut()` begins closing and aborts the private TCP socket to unblock a stalled
+send. In-flight I/O retains its buffers and event args until completion; `Closed` is deferred until
+then. The shared UDP listener stays open. Calling `Close()` afterward remains safe.
+
 ## `IRequestInfo` and filters
 
 ```csharp

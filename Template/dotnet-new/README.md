@@ -47,7 +47,7 @@ dotnet run -c Release
 ```bash
 dotnet pack Template/dotnet-new -c Release -o ./artifacts
 
-dotnet new install ./artifacts/SuperSocketLite2.Templates.0.22.0.nupkg
+dotnet new install ./artifacts/SuperSocketLite2.Templates.0.22.1.nupkg
 dotnet new sslite2-server -n TestServer -o /tmp/TestServer
 dotnet build /tmp/TestServer -c Release
 
@@ -57,7 +57,7 @@ dotnet new uninstall SuperSocketLite2.Templates
 ### 배포
 
 ```bash
-dotnet nuget push ./artifacts/SuperSocketLite2.Templates.0.22.0.nupkg \
+dotnet nuget push ./artifacts/SuperSocketLite2.Templates.0.22.1.nupkg \
   --source https://api.nuget.org/v3/index.json --api-key <KEY>
 ```
 

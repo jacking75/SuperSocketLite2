@@ -38,7 +38,7 @@ Three files. The protocol is `[2-byte total length][2-byte packet ID][body]`.
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="SuperSocketLite2" Version="0.22.0" />
+    <PackageReference Include="SuperSocketLite2" Version="0.22.1" />
   </ItemGroup>
 </Project>
 ```

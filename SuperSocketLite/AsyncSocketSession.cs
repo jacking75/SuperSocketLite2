@@ -111,6 +111,9 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
         if (count != e.BytesTransferred)
         {
+            // The session owns this list, but the SAEA still references it. Detach it before
+            // compacting in place so a partial-send retry needs no new list or backing array.
+            ClearPrevSendState(e);
             queue = TrimSegments(queue, e.BytesTransferred);
 
             var logger = AppSession?.Logger;
@@ -120,7 +123,6 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                 logger.Info($"{e.BytesTransferred} of {count} were transferred, send the rest {SumSegments(queue)} bytes right now.");
             }
 
-            ClearPrevSendState(e);
             SendAsync(queue);
             return;
         }
@@ -170,12 +172,27 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     /// </remarks>
     private void StartReceive()
     {
+        // Own the entire receive cycle, including buffer preparation and a pending pipe flush.
+        // Releasing InReceiving between socket operations lets Close return the SAEA to another
+        // session while this one is still using it or its pipe writer.
+        if (!OnReceiveStarted())
+        {
+            OnReceiveTerminated(CloseReason.Unknown);
+            return;
+        }
+
         var e = SocketAsyncProxy.SocketEventArgs;
 
         try
         {
             while (true)
             {
+                if (IsInClosingOrClosed)
+                {
+                    OnReceiveTerminated(CloseReason.Unknown);
+                    return;
+                }
+
                 if (_useZeroByteReceive && !_hasDataToReceive)
                 {
                     //A zero-byte receive borrows nothing from the pipe, so a session that is just
@@ -191,9 +208,6 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
                     //Consumed now; once this receive is done the next cycle waits again.
                     _hasDataToReceive = false;
                 }
-
-                if (!OnReceiveStarted())
-                    return;
 
                 var client = Client;
 
@@ -314,12 +328,14 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
     private static IList<ArraySegment<byte>> TrimSegments(IList<ArraySegment<byte>> segments, int offset)
     {
-        var result = new List<ArraySegment<byte>>(segments.Count);
+        // Every TCP batch comes from SocketSession._sendBatch, never from the caller's IList.
+        var batch = (List<ArraySegment<byte>>)segments;
         var remainingOffset = offset;
+        var writeIndex = 0;
 
-        for (var i = 0; i < segments.Count; i++)
+        for (var i = 0; i < batch.Count; i++)
         {
-            var segment = segments[i];
+            var segment = batch[i];
 
             if (remainingOffset >= segment.Count)
             {
@@ -329,15 +345,19 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
 
             if (remainingOffset > 0)
             {
-                result.Add(new ArraySegment<byte>(segment.Array!, segment.Offset + remainingOffset, segment.Count - remainingOffset));
+                batch[writeIndex++] = new ArraySegment<byte>(segment.Array!, segment.Offset + remainingOffset, segment.Count - remainingOffset);
                 remainingOffset = 0;
                 continue;
             }
 
-            result.Add(segment);
+            batch[writeIndex++] = segment;
         }
 
-        return result;
+        // Clear references to fully sent arrays without shifting the remaining segments again.
+        // Pooled payload ownership remains in SocketSession._pooledInFlight until the batch ends.
+        batch.RemoveRange(writeIndex, batch.Count - writeIndex);
+
+        return batch;
     }
 
     /// <summary>
@@ -347,8 +367,18 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
     /// </summary>
     public void ProcessReceive(SocketAsyncEventArgs e)
     {
-        if (ProcessReceiveCore(e))
-            StartReceive();
+        try
+        {
+            if (ProcessReceiveCore(e))
+            {
+                StartReceive();
+            }
+        }
+        catch (Exception exc)
+        {
+            LogError(exc);
+            OnReceiveTerminated(CloseReason.SocketError);
+        }
     }
 
     /// <summary>Handles one completed receive without posting the next one.</summary>
@@ -366,21 +396,17 @@ class AsyncSocketSession : SocketSession, IAsyncSocketSession
         //shared with the thread that posted it.
         if (e.Count == 0 && e.SocketError == SocketError.Success)
         {
-            OnReceiveEnded();
             _hasDataToReceive = true;
             return true;
         }
 
         if (!ProcessCompleted(e))
         {
-            _pipeWriter!.Complete();
             OnReceiveTerminated(e.SocketError == SocketError.Success
                 ? CloseReason.ClientClosing
                 : CloseReason.SocketError);
             return false;
         }
-
-        OnReceiveEnded();
 
         // Track bytes received for metrics
         AppSession?.AppServer.RecordBytesReceived(e.BytesTransferred);

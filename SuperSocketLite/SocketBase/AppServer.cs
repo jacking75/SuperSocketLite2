@@ -41,11 +41,16 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
 
     private ConcurrentDictionary<string, TAppSession> _sessionDict = new(StringComparer.OrdinalIgnoreCase);
 
+    private long _sessionVersion;
+
     /// <summary>Registers the session into the session container.</summary>
     protected override bool RegisterSession(string sessionID, TAppSession appSession)
     {
         if (_sessionDict.TryAdd(sessionID, appSession))
+        {
+            Interlocked.Increment(ref _sessionVersion);
             return true;
+        }
 
         if (Logger.IsErrorEnabled)
         {
@@ -84,6 +89,10 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
                         new LogSessionContext(session.SessionID, session.RemoteEndPoint),
                         "Failed to remove this session, because it has not been in the session container!");
                 }
+            }
+            else
+            {
+                Interlocked.Increment(ref _sessionVersion);
             }
         }
 
@@ -204,7 +213,7 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     }
 
     private KeyValuePair<string, TAppSession>[]? SessionSource
-        => Config.DisableSessionSnapshot ? _sessionDict.ToArray() : _sessionsSnapshot;
+        => Config.DisableSessionSnapshot ? _sessionDict.ToArray() : Volatile.Read(ref _sessionsSnapshot);
 
     
 
@@ -213,16 +222,44 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
     private Timer? _sessionSnapshotTimer = null;
 
     private KeyValuePair<string, TAppSession>[]? _sessionsSnapshot = [];
+    private readonly object _sessionSnapshotSync = new();
+    private long _snapshotVersion = -1;
 
     private void StartSessionSnapshotTimer()
     {
+        lock (_sessionSnapshotSync)
+        {
+            _snapshotVersion = -1;
+            Volatile.Write(ref _sessionsSnapshot, []);
+        }
+
         int interval = Math.Max(Config.SessionSnapshotInterval, 1) * 1000;//in milliseconds
         _sessionSnapshotTimer = StartPeriodicTimer(TakeSessionSnapshot, interval);
     }
 
     private void TakeSessionSnapshot()
     {
-        Interlocked.Exchange(ref _sessionsSnapshot, _sessionDict.ToArray());
+        // Serialize publication with Stop/restart too: disposing a Timer does not wait for a
+        // callback already queued. Readers retain immutable arrays; never pool or mutate them.
+        lock (_sessionSnapshotSync)
+        {
+            if (_sessionsSnapshot == null)
+            {
+                return;
+            }
+
+            var version = Volatile.Read(ref _sessionVersion);
+            if (version == _snapshotVersion)
+            {
+                return;
+            }
+
+            var snapshot = _sessionDict.ToArray();
+            Volatile.Write(ref _sessionsSnapshot, snapshot);
+            // Capture the version BEFORE copying. A mutation during the copy must cause another
+            // refresh on the next tick, even when it leaves the session count unchanged.
+            _snapshotVersion = version;
+        }
     }
 
     
@@ -260,7 +297,10 @@ public abstract class AppServer<TAppSession, TRequestInfo> : AppServerBase<TAppS
         StopTimer(ref _sessionSnapshotTimer);
         StopTimer(ref _clearIdleSessionTimer);
 
-        _sessionsSnapshot = null;
+        lock (_sessionSnapshotSync)
+        {
+            Volatile.Write(ref _sessionsSnapshot, null);
+        }
 
         var sessions = _sessionDict.ToArray();
 

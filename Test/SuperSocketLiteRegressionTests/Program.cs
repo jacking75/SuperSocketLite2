@@ -12,6 +12,18 @@ using SuperSocketLite.SocketEngine.Protocol;
 
 var tests = new (string Name, Action Test)[]
 {
+    ("Unchanged session snapshots do not allocate", AllocationTests.UnchangedSessionSnapshotDoesNotAllocate),
+    ("Snapshot refresh preserves old readers and membership", AllocationTests.SnapshotRefreshPreservesOldReadersAndMembership),
+    ("Snapshot refresh survives concurrent churn", AllocationTests.SnapshotRefreshSurvivesConcurrentChurn),
+    ("Snapshot stop and restart cannot republish stopped sessions", AllocationTests.SnapshotStopAndRestartCannotRepublishStoppedSessions),
+    ("Partial send trimming does not allocate", AllocationTests.PartialSendTrimmingDoesNotAllocate),
+    ("Partial send trimming preserves every remaining byte", AllocationTests.PartialSendTrimmingPreservesEveryRemainingByte),
+    ("Real partial send completions retry every unsent segment", PartialSendTests.RealSendCompletionRetriesUnsentSegments),
+    ("Idle sessions do not retain completed send payloads", SendBufferLifetimeTests.IdleSessionDoesNotRetainCompletedSendPayload),
+    ("Idle UDP sessions do not retain completed send payloads", SendBufferLifetimeTests.IdleUdpSessionDoesNotRetainCompletedSendPayload),
+    ("Close during receive buffer preparation keeps resources owned", ReceiveLifecycleTests.CloseDuringBufferPreparationKeepsReceiveResourcesOwned),
+    ("Close during a pending receive flush defers resource return", ReceiveLifecycleTests.CloseDuringPendingFlushDefersResourceReturn),
+    ("Receive-processing failures close the session", ReceiveLifecycleTests.ReceiveProcessingFailureClosesSession),
     ("FixedHeaderReceiveFilter leaves an incomplete request in the pipe and rejects a negative body length", FixedHeaderReceiveFilterLeavesIncompleteRequestAndRejectsNegativeLength),
     ("UDP receive packet exposes pooled payload without cloning and snapshots endpoint", UdpReceivePacketExposesPooledPayloadAndEndpoint),
     ("Channel send queue drains batches in FIFO order with bounded capacity", ChannelSendQueueDrainsBatchesInFifoOrder),
@@ -55,9 +67,19 @@ var tests = new (string Name, Action Test)[]
 };
 
 var failures = 0;
+var selectedTests = 0;
+if (args.Length != 0 && (args.Length != 2 || args[0] != "--filter"))
+{
+    throw new ArgumentException("Usage: [--filter <test-name substring>]");
+}
 
 foreach (var (name, test) in tests)
 {
+    if (args.Length == 2 && !name.Contains(args[1], StringComparison.OrdinalIgnoreCase))
+    {
+        continue;
+    }
+    selectedTests++;
     try
     {
         test();
@@ -69,6 +91,11 @@ foreach (var (name, test) in tests)
         Console.WriteLine($"FAIL {name}");
         Console.WriteLine(ex.ToString());
     }
+}
+
+if (selectedTests == 0)
+{
+    throw new ArgumentException("No tests matched the filter.");
 }
 
 if (failures > 0)

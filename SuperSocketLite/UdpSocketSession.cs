@@ -100,6 +100,7 @@ class UdpSocketSession : SocketSession
                     log.Error(new SocketException((int)e.SocketError).ToString());
 
                 _sendState.Items = null;
+                e.SetBuffer(null, 0, 0);
                 OnSendError(queue, CloseReason.SocketError);
                 return;
             }
@@ -111,6 +112,9 @@ class UdpSocketSession : SocketSession
             if (newPos >= queue.Count)
             {
                 _sendState.Items = null;
+                // The datagram send has completed. Do not retain its payload while this session
+                // is idle, and detach before the base completion returns any pooled buffers.
+                e.SetBuffer(null, 0, 0);
                 OnSendingCompleted(queue);
                 return;
             }

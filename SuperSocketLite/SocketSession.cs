@@ -439,6 +439,9 @@ abstract partial class SocketSession : ISocketSession
         //The batch is done with the socket here, so any pooled payload can go back to the pool
         //before the next drain reuses the tracking list.
         ReturnPooledSendBuffers();
+        // Keep the list capacity for reuse, but do not keep the last payload alive throughout an
+        // idle connection. InSending still belongs to this completion, so no next batch can race.
+        _sendBatch.Clear();
 
         if (IsInClosingOrClosed)
         {
@@ -546,6 +549,7 @@ abstract partial class SocketSession : ISocketSession
     protected void OnSendError(IList<ArraySegment<byte>> sentItems, CloseReason closeReason)
     {
         ReturnPooledSendBuffers();
+        _sendBatch.Clear();
         AppSession?.AppServer?.RecordSendError();
         OnSendEnd(closeReason, true);
     }
@@ -553,6 +557,9 @@ abstract partial class SocketSession : ISocketSession
     // the receive action won't be started for this connection any more
     protected void OnReceiveTerminated(CloseReason closeReason)
     {
+        // Finish all writer access before releasing receive ownership. Once the flag is cleared,
+        // another thread may run OnClosed and return the receive SAEA to its pool immediately.
+        CompleteReceivePipeWriter();
         OnReceiveEnded();
         ValidateClosed(closeReason, true);
     }

@@ -1,9 +1,11 @@
 # Tutorial
 여기에는 있는 서버를 순서대로 만들어 보면서 SuperSocketLite 사용 방법을 배운다.  
-대부분의 서버 프로젝트는 빌드하면 `Tutorials/00_server_bins` 디렉토리에 출력한다. 다만 예외가 있다.  
+대부분의 서버 프로젝트는 빌드하면 `Tutorials/00_server_bins/<프로젝트>/<Configuration>/net10.0/` 디렉토리에 출력한다. DLL과 설정 파일이 서로 덮어써지지 않도록 프로젝트와 Debug/Release별로 분리한다. 다만 예외가 있다.
 - `BinaryPacketServer`, `SimpleUDPServer`, `sendFailTestServer`는 `<OutputPath>`를 지정하지 않아서 기본 경로(`<프로젝트>/bin/<Configuration>/net10.0/`)로 나간다.  
-- `GateServer_GameServer/GateServer`는 자기 상위인 `Tutorials/GateServer_GameServer/00_server_bins`로 나간다.  
-- 클라이언트는 따로다. `ChatClient`는 `Tutorials/00_client_bin`, `EchoClient`와 `PvPGameServer_Client`는 `Tutorials/bin`으로 나간다.  
+- `GateServer_GameServer/GateServer`는 자기 상위인 `Tutorials/GateServer_GameServer/00_server_bins/GateServer/<Configuration>/net10.0/`로 나간다.
+- 클라이언트는 따로다. `ChatClient`는 `Tutorials/00_client_bin`, `EchoClient`와 `PvPGameServer_Client`는 각 프로젝트의 기본 경로(`bin/<Configuration>/<TargetFramework>/`)로 나간다.
+
+`Tutorials/00_server_bins`와 `Template/00_server_bins`의 실행 배치 파일은 기본적으로 Release 출력을 사용한다. Debug 빌드를 실행하려면 첫 인자로 `Debug`를 전달한다(예: `run_EchoServer.bat Debug`). 배치 파일은 실행 파일이 있는 디렉토리로 이동한 뒤 서버를 시작하므로 해당 프로젝트의 설정 파일을 읽는다.
     
   
 ## 중요

@@ -66,7 +66,7 @@
 
   <ItemGroup>
     <None Include="PackageReadme.md" Pack="true" PackagePath="\" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.303" PrivateAssets="All" />
     <!-- Abstractions only: lets the built-in MicrosoftLoggingLogFactory bridge any logging library
          that ships an ILoggerFactory provider (Serilog, NLog, ZLogger, log4net, ...).
          No logging implementation is pulled in. -->
